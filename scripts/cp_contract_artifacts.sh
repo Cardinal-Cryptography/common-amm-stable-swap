@@ -18,6 +18,7 @@ mkdir -p ${script_dir}/../artifacts
 
 cp_files "factory_contract"
 cp_files "pair_contract"
+cp_files "stable_swap_contract"
 cp_files "router_contract"
 cp_files "psp22"
 cp_files "wrapped_azero"
