@@ -263,7 +263,9 @@ pub mod stable_pool {
                         id,
                         self.token_by_address(token)
                             .balance_of(self.env().account_id()),
-                    )?,
+                    )?
+                    .checked_sub(self.pool.reserves[id])
+                    .ok_or(MathError::SubUnderflow(1))?,
                 );
             }
             // calc lp tokens (shares_to_mint, fee)
