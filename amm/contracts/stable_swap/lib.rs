@@ -322,7 +322,7 @@ pub mod stable_pool {
                     return Err(StablePoolError::InsufficientLiquidityBurned);
                 }
                 if let Some(diff) = lp_to_burn.checked_sub(lp_amount) {
-                    // transfer difference back to _form
+                    // transfer difference back to `to`
                     let events = self.psp22.transfer(self.env().account_id(), to, diff)?;
                     self.emit_events(events);
                     // adjust lp_amount (sub returned lp tokens)
