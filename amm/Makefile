@@ -75,5 +75,5 @@ check-drink-tests: ## Runs cargo checks on drink tests.
 all-drink: setup-tests drink-tests ## Runs all tests.
 
 .PHONY: benchmark
-benchmark: ## Runs the drink benchmarks.
+benchmark: setup-tests ## Runs the drink benchmarks.
 	@cd drink-tests && cargo test benchmark --features=benchmark -- --nocapture && cd ..
