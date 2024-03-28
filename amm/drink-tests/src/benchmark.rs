@@ -11,6 +11,7 @@ use drink::{self, session::Session};
 use ink_wrapper_types::Connection;
 
 #[drink::test]
+#[cfg_attr(not(feature = "benchmark"), ignore)]
 fn benchmark_mint_burn_liquidity_2_pool(&mut session: Session) {
     upload_all(&mut session);
 
@@ -107,6 +108,7 @@ fn benchmark_mint_burn_liquidity_2_pool(&mut session: Session) {
 }
 
 #[drink::test]
+#[cfg_attr(not(feature = "benchmark"), ignore)]
 fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
     upload_all(&mut session);
 
