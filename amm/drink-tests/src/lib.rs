@@ -14,3 +14,5 @@ mod stable_swap_contract;
 mod utils;
 #[cfg(test)]
 mod wrapped_azero;
+#[cfg(test)]
+mod benchmark;

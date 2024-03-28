@@ -7,6 +7,7 @@ use ink_wrapper_types::{Connection, ContractResult, InkLangError, ToAccountId};
 
 pub const ICE: &str = "ICE";
 pub const WOOD: &str = "WOOD";
+pub const FIRE: &str = "FIRE";
 
 pub const BOB: drink::AccountId32 = AccountId32::new([1u8; 32]);
 pub const CHARLIE: drink::AccountId32 = AccountId32::new([3u8; 32]);
@@ -35,6 +36,9 @@ pub fn upload_all(session: &mut Session<MinimalRuntime>) {
     session
         .upload_code(wrapped_azero::upload())
         .expect("Upload wrapped_azero code");
+    session
+        .upload_code(stable_swap_contract::upload())
+        .expect("Upload stable_swap_contract code");
 }
 
 pub mod wazero {
@@ -166,6 +170,53 @@ pub mod router {
     }
 }
 
+pub mod stable_swap {
+    use super::*;
+    use stable_swap_contract::{StablePool as _, StablePoolError};
+
+    pub fn setup(
+        session: &mut Session<MinimalRuntime>,
+        tokens: Vec<AccountId>,
+        tokens_decimals: Vec<u8>,
+        init_amp_coef: u128,
+        factory: AccountId,
+        caller: drink::AccountId32,
+    ) -> stable_swap_contract::Instance {
+        let _ = session.set_actor(caller.clone());
+        let instance = stable_swap_contract::Instance::new(tokens, tokens_decimals, init_amp_coef, factory, caller.to_account_id());
+
+        session
+            .instantiate(instance)
+            .unwrap()
+            .result
+            .to_account_id()
+            .into()
+    }
+
+    pub fn mint_liquidity(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        to: AccountId,
+        caller: drink::AccountId32,
+    ) -> ContractResult<Result<Result<u128, StablePoolError>, InkLangError>> {
+        let _ = session.set_actor(caller);
+        session
+        .execute(stable_swap_contract::Instance::from(stable_pool).mint_liquidity(to)).unwrap()
+    }
+
+    pub fn burn_liquidity(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        to: AccountId,
+        amounts: Option<Vec<u128>>,
+        caller: drink::AccountId32,
+    ) -> ContractResult<Result<Result<(u128, Vec<u128>), StablePoolError>, InkLangError>> {
+        let _ = session.set_actor(caller);
+        session
+        .execute(stable_swap_contract::Instance::from(stable_pool).burn_liquidity(to,amounts)).unwrap()
+    }
+}
+
 pub mod psp22_utils {
     use super::*;
     use psp22::{Instance as PSP22, PSP22 as _};
@@ -213,6 +264,23 @@ pub mod psp22_utils {
         )
     }
 
+    /// Transfer.
+    pub fn transfer(
+        session: &mut Session<MinimalRuntime>,
+        token: AccountId,
+        to: AccountId,
+        amount: u128,
+        caller: drink::AccountId32,
+    ) -> Result<(), psp22::PSP22Error> {
+        let _ = session.set_actor(caller);
+
+        handle_ink_error(
+            session
+                .execute(PSP22::transfer(&token.into(), to, amount, vec![]))
+                .unwrap(),
+        )
+    }
+
     /// Returns balance of given token for given account.
     /// Fails if anything other than success.
     pub fn balance_of(
@@ -246,3 +314,12 @@ pub fn handle_ink_error<R>(res: ContractResult<Result<R, InkLangError>>) -> R {
         Ok(r) => r,
     }
 }
+
+pub fn handle_benchmark<R: std::fmt::Debug>(res: ContractResult<Result<R, InkLangError>>, description: &str) -> R {
+    println!("\x1b[0;36mBenchmark desctiption: \x1b[1;36m{:?}", description);
+    println!("\x1b[0;33mRefTime       : \x1b[0;33m{:?}", res.gas_required.ref_time());
+    println!("\x1b[0;33mProofSize     : \x1b[0;33m{:?}", res.gas_required.proof_size());
+    println!("\x1b[0;0m");
+    handle_ink_error(res)
+}
+

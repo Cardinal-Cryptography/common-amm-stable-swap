@@ -119,3 +119,7 @@ all-drink: ## Runs the drink test.
 	@cd amm && make all-drink && cd ..
 	@cd farm && make all-drink && cd ..
 	@make check-all
+
+.PHONY: benchmark-amm
+benchmark-amm: ## Runs the drink benchmarks.
+	@cd amm && make benchmark && cd ..
