@@ -183,7 +183,13 @@ pub mod stable_swap {
         caller: drink::AccountId32,
     ) -> stable_swap_contract::Instance {
         let _ = session.set_actor(caller.clone());
-        let instance = stable_swap_contract::Instance::new(tokens, tokens_decimals, init_amp_coef, factory, caller.to_account_id());
+        let instance = stable_swap_contract::Instance::new(
+            tokens,
+            tokens_decimals,
+            init_amp_coef,
+            factory,
+            caller.to_account_id(),
+        );
 
         session
             .instantiate(instance)
@@ -201,7 +207,8 @@ pub mod stable_swap {
     ) -> ContractResult<Result<Result<u128, StablePoolError>, InkLangError>> {
         let _ = session.set_actor(caller);
         session
-        .execute(stable_swap_contract::Instance::from(stable_pool).mint_liquidity(to)).unwrap()
+            .execute(stable_swap_contract::Instance::from(stable_pool).mint_liquidity(to))
+            .unwrap()
     }
 
     pub fn burn_liquidity(
@@ -213,7 +220,26 @@ pub mod stable_swap {
     ) -> ContractResult<Result<Result<(u128, Vec<u128>), StablePoolError>, InkLangError>> {
         let _ = session.set_actor(caller);
         session
-        .execute(stable_swap_contract::Instance::from(stable_pool).burn_liquidity(to,amounts)).unwrap()
+            .execute(stable_swap_contract::Instance::from(stable_pool).burn_liquidity(to, amounts))
+            .unwrap()
+    }
+
+    pub fn swap(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        token_in_id: u8,
+        token_out_id: u8,
+        to: AccountId,
+        caller: drink::AccountId32,
+    ) -> ContractResult<Result<Result<(), StablePoolError>, ink_wrapper_types::InkLangError>> {
+        let _ = session.set_actor(caller);
+        session
+            .execute(stable_swap_contract::Instance::from(stable_pool).swap(
+                token_in_id,
+                token_out_id,
+                to,
+            ))
+            .unwrap()
     }
 }
 
@@ -315,11 +341,18 @@ pub fn handle_ink_error<R>(res: ContractResult<Result<R, InkLangError>>) -> R {
     }
 }
 
-pub fn handle_benchmark<R: std::fmt::Debug>(res: ContractResult<Result<R, InkLangError>>, description: &str) -> R {
-    println!("\x1b[0;36mBenchmark desctiption: \x1b[1;36m{:?}", description);
-    println!("\x1b[0;33mRefTime       : \x1b[0;33m{:?}", res.gas_required.ref_time());
-    println!("\x1b[0;33mProofSize     : \x1b[0;33m{:?}", res.gas_required.proof_size());
+pub fn handle_benchmark<R: std::fmt::Debug>(
+    res: ContractResult<Result<R, InkLangError>>,
+    description: &str,
+) -> R {
+    let rt = res.gas_required.ref_time();
+    let ps = res.gas_required.proof_size();
+    println!(
+        "\x1b[0;36mBenchmark desctiption: \x1b[1;36m{:?}",
+        description
+    );
+    println!("\x1b[0;33mRefTime     : \x1b[0;33m{:?}", rt);
+    println!("\x1b[0;33mProofSize   : \x1b[0;33m{:?}", ps);
     println!("\x1b[0;0m");
     handle_ink_error(res)
 }
-

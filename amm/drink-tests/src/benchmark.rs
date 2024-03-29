@@ -219,3 +219,138 @@ fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
     )
     .is_ok());
 }
+
+#[drink::test]
+#[cfg_attr(not(feature = "benchmark"), ignore)]
+fn benchmark_swap_2_pool(&mut session: Session) {
+    upload_all(&mut session);
+
+    let fee_to_setter = bob();
+
+    let factory = factory::setup(&mut session, fee_to_setter);
+    let ice = psp22_utils::setup(&mut session, ICE.to_string(), BOB);
+    let wood = psp22_utils::setup(&mut session, WOOD.to_string(), BOB);
+    let stable_swap = stable_swap::setup(
+        &mut session,
+        vec![ice.into(), wood.into()],
+        vec![12, 12, 12],
+        100,
+        factory.into(),
+        BOB,
+    );
+
+    let token_amount = 10_000;
+    psp22_utils::transfer(
+        &mut session,
+        ice.into(),
+        stable_swap.into(),
+        token_amount,
+        BOB,
+    )
+    .unwrap();
+    psp22_utils::transfer(
+        &mut session,
+        wood.into(),
+        stable_swap.into(),
+        token_amount,
+        BOB,
+    )
+    .unwrap();
+    stable_swap::mint_liquidity(&mut session, stable_swap.into(), bob(), BOB);
+    psp22_utils::transfer(
+        &mut session,
+        ice.into(),
+        stable_swap.into(),
+        token_amount / 2,
+        BOB,
+    )
+    .unwrap();
+    handle_benchmark(
+        stable_swap::swap(&mut session, stable_swap.into(), 0, 1, bob(), BOB),
+        "2POOL: Swap 1",
+    );
+    psp22_utils::transfer(
+        &mut session,
+        wood.into(),
+        stable_swap.into(),
+        token_amount / 2,
+        BOB,
+    )
+    .unwrap();
+    handle_benchmark(
+        stable_swap::swap(&mut session, stable_swap.into(), 1, 0, bob(), BOB),
+        "2POOL: Swap 2",
+    );
+}
+
+#[drink::test]
+#[cfg_attr(not(feature = "benchmark"), ignore)]
+fn benchmark_swap_3_pool(&mut session: Session) {
+    upload_all(&mut session);
+
+    let fee_to_setter = bob();
+
+    let factory = factory::setup(&mut session, fee_to_setter);
+    let ice = psp22_utils::setup(&mut session, ICE.to_string(), BOB);
+    let wood = psp22_utils::setup(&mut session, WOOD.to_string(), BOB);
+    let fire = psp22_utils::setup(&mut session, FIRE.to_string(), BOB);
+    let stable_swap = stable_swap::setup(
+        &mut session,
+        vec![ice.into(), wood.into(), fire.into()],
+        vec![12, 12, 12],
+        100,
+        factory.into(),
+        BOB,
+    );
+
+    let token_amount = 10_000;
+    psp22_utils::transfer(
+        &mut session,
+        ice.into(),
+        stable_swap.into(),
+        token_amount,
+        BOB,
+    )
+    .unwrap();
+    psp22_utils::transfer(
+        &mut session,
+        wood.into(),
+        stable_swap.into(),
+        token_amount,
+        BOB,
+    )
+    .unwrap();
+    psp22_utils::transfer(
+        &mut session,
+        fire.into(),
+        stable_swap.into(),
+        token_amount,
+        BOB,
+    )
+    .unwrap();
+    stable_swap::mint_liquidity(&mut session, stable_swap.into(), bob(), BOB);
+    psp22_utils::transfer(
+        &mut session,
+        ice.into(),
+        stable_swap.into(),
+        token_amount / 2,
+        BOB,
+    )
+    .unwrap();
+    handle_benchmark(
+        stable_swap::swap(&mut session, stable_swap.into(), 0, 1, bob(), BOB),
+        "3POOL: Swap 1",
+    );
+    psp22_utils::transfer(
+        &mut session,
+        fire.into(),
+        stable_swap.into(),
+        token_amount / 2,
+        BOB,
+    )
+    .unwrap();
+    handle_benchmark(
+        stable_swap::swap(&mut session, stable_swap.into(), 2, 0, bob(), BOB),
+        "3POOL: Swap 2",
+    );
+}
