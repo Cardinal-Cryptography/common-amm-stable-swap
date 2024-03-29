@@ -374,10 +374,10 @@ pub mod stable_pool {
             _to: AccountId,
         ) -> Result<(), StablePoolError> {
             //check token ids
-            if token_in_id > self.pool.tokens.len() as u8 {
+            if token_in_id >= self.pool.tokens.len() as u8 {
                 return Err(StablePoolError::InvalidTokenId(token_in_id));
             }
-            if token_out_id > self.pool.tokens.len() as u8 {
+            if token_out_id >= self.pool.tokens.len() as u8 {
                 return Err(StablePoolError::InvalidTokenId(token_out_id));
             }
             if token_in_id == token_out_id {
