@@ -10,7 +10,7 @@ pub const MIN_AMP: u128 = 1;
 /// Max amplification coefficient.
 pub const MAX_AMP: u128 = 1_000_000;
 /// Max amplification change.
-pub const MAX_AMP_CHANGE: u128 = 10;
+// pub const MAX_AMP_CHANGE: u128 = 10;
 
 #[derive(Default, Debug, scale::Encode, scale::Decode, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(

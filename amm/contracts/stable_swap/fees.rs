@@ -25,8 +25,18 @@ impl Fees {
         }
     }
 
-    pub fn trade_fee(&self, amount: u128) -> Result<u128, MathError> {
+    pub fn trade_fee_from_gross(&self, amount: u128) -> Result<u128, MathError> {
         u128_ratio(amount, self.trade_fee_bps, FEE_BPS_DENOM)
+    }
+
+    pub fn trade_fee_from_net(&self, amount: u128) -> Result<u128, MathError> {
+        u128_ratio(
+            amount,
+            self.trade_fee_bps,
+            FEE_BPS_DENOM
+                .checked_sub(self.trade_fee_bps)
+                .ok_or(MathError::SubUnderflow(1))?,
+        )
     }
 
     pub fn admin_trade_fee(&self, amount: u128) -> Result<u128, MathError> {
