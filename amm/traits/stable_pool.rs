@@ -101,7 +101,7 @@ pub trait StablePool {
     ) -> Result<(), StablePoolError>;
 
     #[ink(message)]
-    fn set_admin(&mut self, new_admin: AccountId) -> Result<(), StablePoolError>;
+    fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError>;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]

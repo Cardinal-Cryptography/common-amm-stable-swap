@@ -195,7 +195,7 @@ pub struct SwapResult {
     pub new_destination_amount: u128,
     /// If token_in_amount is known:
     ///     Amount of destination token swapped (with fees applied).
-    /// It token_out_amount is known:
+    /// If token_out_amount is known:
     ///     Amount of source token swapped (with fees applied).
     pub amount_swapped: u128,
     /// Admin fee for the swap (part of the `fee`).

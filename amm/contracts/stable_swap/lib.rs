@@ -621,9 +621,9 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_admin(&mut self, new_admin: AccountId) -> Result<(), StablePoolError> {
+        fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
-            self.owner = new_admin;
+            self.owner = new_owner;
             Ok(())
         }
     }
