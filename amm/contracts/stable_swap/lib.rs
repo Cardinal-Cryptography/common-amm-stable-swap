@@ -64,7 +64,7 @@ pub mod stable_pool {
         factory: contract_ref!(Factory),
         /// Tokens.
         tokens: Vec<AccountId>,
-        /// Tokens.
+        /// Tokens decimals.
         tokens_decimals: Vec<u8>,
         /// Reserves in comparable amounts.
         reserves: Vec<u128>,
@@ -241,17 +241,8 @@ pub mod stable_pool {
             );
             Ok(())
         }
-
-        fn burn_shares(
-            &mut self,
-            from: AccountId,
-            value: u128,
-        ) -> Result<Vec<PSP22Event>, PSP22Error> {
-            self.psp22
-                .decrease_allowance(from, self.env().account_id(), value)?;
-            self.psp22.burn(from, value)
-        }
     }
+
     impl StablePool for StablePoolContract {
         #[ink(message)]
         fn tokens(&self) -> Vec<AccountId> {
@@ -382,7 +373,7 @@ pub mod stable_pool {
                 return Err(StablePoolError::InsufficientLiquidityBurned);
             }
             // burn shares
-            let events = self.burn_shares(self.env().caller(), shares_to_burn)?;
+            let events = self.psp22.burn(self.env().caller(), shares_to_burn)?;
             self.emit_events(events);
             // mint admin fee
             if let Some(fee_to) = self.fee_to() {
@@ -423,7 +414,7 @@ pub mod stable_pool {
             )?;
             let token_withdraw_amounts = self.to_token_amounts(&withdraw_amounts)?;
             // burn shares
-            let events = self.burn_shares(self.env().caller(), share_amount)?;
+            let events = self.psp22.burn(self.env().caller(), share_amount)?;
             self.emit_events(events);
             // transfer amounts
             for (i, &token) in self.pool.tokens.iter().enumerate() {

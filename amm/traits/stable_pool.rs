@@ -45,8 +45,6 @@ pub trait StablePool {
 
     /// Burns LP tokens and withdraws underlying tokens to `to` account
     /// in imbalanced `amounts`.
-    /// caller account must allow enough spending allowance of LP tokens
-    /// for this contract.
     /// Returns <(burned_share_amount, fee_part),_>
     #[ink(message)]
     fn remove_liquidity(
@@ -57,8 +55,6 @@ pub trait StablePool {
     ) -> Result<(u128, u128), StablePoolError>;
 
     /// Burns LP tokens and withdraws underlying tokens to `to` account.
-    /// caller account must allow enough spending allowance of LP tokens
-    /// for this contract.
     /// Returns an error if withdrawn amounts are less than `min_amounts`
     /// Returns <withdraw_amounts,_>
     #[ink(message)]
