@@ -199,44 +199,65 @@ pub mod stable_swap {
             .into()
     }
 
-    pub fn mint_liquidity(
+    pub fn add_liquidity(
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,
-        to: AccountId,
         caller: drink::AccountId32,
-    ) -> ContractResult<Result<Result<u128, StablePoolError>, InkLangError>> {
+        min_share_amount: u128,
+        amounts: Vec<u128>,
+        to: AccountId,
+    ) -> ContractResult<Result<Result<(u128, u128), StablePoolError>, InkLangError>> {
         let _ = session.set_actor(caller);
         session
-            .execute(stable_swap_contract::Instance::from(stable_pool).mint_liquidity(to))
+            .execute(
+                stable_swap_contract::Instance::from(stable_pool).add_liquidity(
+                    min_share_amount,
+                    amounts,
+                    to,
+                ),
+            )
             .unwrap()
     }
 
-    pub fn burn_liquidity(
+    pub fn remove_liquidity(
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,
-        to: AccountId,
-        amounts: Option<Vec<u128>>,
         caller: drink::AccountId32,
-    ) -> ContractResult<Result<Result<(u128, Vec<u128>), StablePoolError>, InkLangError>> {
+        max_share_amount: u128,
+        amounts: Vec<u128>,
+        to: AccountId,
+    ) -> ContractResult<Result<Result<(u128, u128), StablePoolError>, InkLangError>> {
         let _ = session.set_actor(caller);
         session
-            .execute(stable_swap_contract::Instance::from(stable_pool).burn_liquidity(to, amounts))
+            .execute(
+                stable_swap_contract::Instance::from(stable_pool).remove_liquidity(
+                    max_share_amount,
+                    amounts,
+                    to,
+                ),
+            )
             .unwrap()
     }
 
     pub fn swap(
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,
+        caller: drink::AccountId32,
         token_in_id: u8,
         token_out_id: u8,
+        token_in_amount: u128,
+        min_token_out_amount: u128,
         to: AccountId,
-        caller: drink::AccountId32,
-    ) -> ContractResult<Result<Result<(), StablePoolError>, ink_wrapper_types::InkLangError>> {
+    ) -> ContractResult<
+        Result<Result<(u128, u128), StablePoolError>, ink_wrapper_types::InkLangError>,
+    > {
         let _ = session.set_actor(caller);
         session
             .execute(stable_swap_contract::Instance::from(stable_pool).swap(
                 token_in_id,
                 token_out_id,
+                token_in_amount,
+                min_token_out_amount,
                 to,
             ))
             .unwrap()

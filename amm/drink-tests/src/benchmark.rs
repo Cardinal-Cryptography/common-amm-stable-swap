@@ -30,7 +30,7 @@ fn benchmark_mint_burn_liquidity_2_pool(&mut session: Session) {
     );
 
     let token_amount = 10_000;
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         ice.into(),
         stable_swap.into(),
@@ -38,7 +38,7 @@ fn benchmark_mint_burn_liquidity_2_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         wood.into(),
         stable_swap.into(),
@@ -46,13 +46,20 @@ fn benchmark_mint_burn_liquidity_2_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    let mut lp_tokens = handle_benchmark(
-        stable_swap::mint_liquidity(&mut session, stable_swap.into(), bob(), BOB),
+    let (mut lp_tokens, _) = handle_benchmark(
+        stable_swap::add_liquidity(
+            &mut session,
+            stable_swap.into(),
+            BOB,
+            1,
+            vec![token_amount, token_amount],
+            bob(),
+        ),
         "2POOL: Mint Liquidity 1",
     )
     .unwrap();
     let token_amount = 10_000;
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         ice.into(),
         stable_swap.into(),
@@ -60,7 +67,7 @@ fn benchmark_mint_burn_liquidity_2_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         wood.into(),
         stable_swap.into(),
@@ -68,41 +75,49 @@ fn benchmark_mint_burn_liquidity_2_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    lp_tokens += handle_benchmark(
-        stable_swap::mint_liquidity(&mut session, stable_swap.into(), bob(), BOB),
+    let tmp = handle_benchmark(
+        stable_swap::add_liquidity(
+            &mut session,
+            stable_swap.into(),
+            BOB,
+            1,
+            vec![token_amount, token_amount],
+            bob(),
+        ),
         "2POOL: Mint Liquidity 2",
     )
     .unwrap();
-    psp22_utils::transfer(
+    lp_tokens += tmp.0;
+    psp22_utils::increase_allowance(
         &mut session,
         stable_swap.into(),
         stable_swap.into(),
-        token_amount,
+        lp_tokens,
         BOB,
     )
     .unwrap();
     assert!(handle_benchmark(
-        stable_swap::burn_liquidity(&mut session, stable_swap.into(), bob(), None, BOB),
-        "2POOL: Burn Liquidity Equal",
-    )
-    .is_ok());
-    psp22_utils::transfer(
-        &mut session,
-        stable_swap.into(),
-        stable_swap.into(),
-        lp_tokens - token_amount,
-        BOB,
-    )
-    .unwrap();
-    assert!(handle_benchmark(
-        stable_swap::burn_liquidity(
+        stable_swap::remove_liquidity(
             &mut session,
             stable_swap.into(),
-            bob(),
-            Some(vec![20, 30]),
             BOB,
+            1_000_000_000_000,
+            vec![token_amount, token_amount],
+            bob()
         ),
-        "2POOL: Burn Liquidity Not Equal",
+        "2POOL: Burn Liquidity 1",
+    )
+    .is_ok());
+    assert!(handle_benchmark(
+        stable_swap::remove_liquidity(
+            &mut session,
+            stable_swap.into(),
+            BOB,
+            1_000_000_000_000,
+            vec![token_amount, token_amount],
+            bob()
+        ),
+        "2POOL: Burn Liquidity 2",
     )
     .is_ok());
 }
@@ -128,7 +143,7 @@ fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
     );
 
     let token_amount = 10_000;
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         ice.into(),
         stable_swap.into(),
@@ -136,7 +151,7 @@ fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         wood.into(),
         stable_swap.into(),
@@ -144,7 +159,7 @@ fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         fire.into(),
         stable_swap.into(),
@@ -152,12 +167,19 @@ fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    let mut lp_tokens = handle_benchmark(
-        stable_swap::mint_liquidity(&mut session, stable_swap.into(), bob(), BOB),
+    let (mut lp_tokens, _) = handle_benchmark(
+        stable_swap::add_liquidity(
+            &mut session,
+            stable_swap.into(),
+            BOB,
+            1,
+            vec![token_amount, token_amount, token_amount],
+            bob(),
+        ),
         "3POOL: Mint Liquidity 1",
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         ice.into(),
         stable_swap.into(),
@@ -165,7 +187,7 @@ fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         wood.into(),
         stable_swap.into(),
@@ -173,7 +195,7 @@ fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         fire.into(),
         stable_swap.into(),
@@ -181,41 +203,50 @@ fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    lp_tokens += handle_benchmark(
-        stable_swap::mint_liquidity(&mut session, stable_swap.into(), bob(), BOB),
+
+    let tmp = handle_benchmark(
+        stable_swap::add_liquidity(
+            &mut session,
+            stable_swap.into(),
+            BOB,
+            1,
+            vec![token_amount, token_amount, token_amount],
+            bob(),
+        ),
         "3POOL: Mint Liquidity 2",
     )
     .unwrap();
-    psp22_utils::transfer(
+    lp_tokens += tmp.0;
+    psp22_utils::increase_allowance(
         &mut session,
         stable_swap.into(),
         stable_swap.into(),
-        token_amount,
+        lp_tokens,
         BOB,
     )
     .unwrap();
     assert!(handle_benchmark(
-        stable_swap::burn_liquidity(&mut session, stable_swap.into(), bob(), None, BOB),
-        "3POOL: Burn Liquidity Equal",
-    )
-    .is_ok());
-    psp22_utils::transfer(
-        &mut session,
-        stable_swap.into(),
-        stable_swap.into(),
-        lp_tokens - token_amount,
-        BOB,
-    )
-    .unwrap();
-    assert!(handle_benchmark(
-        stable_swap::burn_liquidity(
+        stable_swap::remove_liquidity(
             &mut session,
             stable_swap.into(),
-            bob(),
-            Some(vec![20, 30, 50]),
             BOB,
+            1_000_000_000_000,
+            vec![token_amount, token_amount, token_amount],
+            bob()
         ),
-        "3POOL: Burn Liquidity Not Equal",
+        "3POOL: Burn Liquidity 1",
+    )
+    .is_ok());
+    assert!(handle_benchmark(
+        stable_swap::remove_liquidity(
+            &mut session,
+            stable_swap.into(),
+            BOB,
+            1_000_000_000_000,
+            vec![token_amount, token_amount, token_amount],
+            bob()
+        ),
+        "3POOL: Burn Liquidity 2",
     )
     .is_ok());
 }
@@ -240,7 +271,7 @@ fn benchmark_swap_2_pool(&mut session: Session) {
     );
 
     let token_amount = 10_000;
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         ice.into(),
         stable_swap.into(),
@@ -248,7 +279,7 @@ fn benchmark_swap_2_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         wood.into(),
         stable_swap.into(),
@@ -256,8 +287,15 @@ fn benchmark_swap_2_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    stable_swap::mint_liquidity(&mut session, stable_swap.into(), bob(), BOB);
-    psp22_utils::transfer(
+    stable_swap::add_liquidity(
+        &mut session,
+        stable_swap.into(),
+        BOB,
+        1,
+        vec![token_amount, token_amount],
+        bob(),
+    );
+    psp22_utils::increase_allowance(
         &mut session,
         ice.into(),
         stable_swap.into(),
@@ -265,11 +303,12 @@ fn benchmark_swap_2_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    handle_benchmark(
-        stable_swap::swap(&mut session, stable_swap.into(), 0, 1, bob(), BOB),
+    assert!(handle_benchmark(
+        stable_swap::swap(&mut session, stable_swap.into(), BOB, 0, 1, token_amount / 2, 1, bob()),
         "2POOL: Swap 1",
-    );
-    psp22_utils::transfer(
+    )
+    .is_ok());
+    psp22_utils::increase_allowance(
         &mut session,
         wood.into(),
         stable_swap.into(),
@@ -277,10 +316,11 @@ fn benchmark_swap_2_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    handle_benchmark(
-        stable_swap::swap(&mut session, stable_swap.into(), 1, 0, bob(), BOB),
+    assert!(handle_benchmark(
+        stable_swap::swap(&mut session, stable_swap.into(), BOB, 1, 0, token_amount / 2, 1, bob()),
         "2POOL: Swap 2",
-    );
+    )
+    .is_ok());
 }
 
 #[drink::test]
@@ -304,7 +344,7 @@ fn benchmark_swap_3_pool(&mut session: Session) {
     );
 
     let token_amount = 10_000;
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         ice.into(),
         stable_swap.into(),
@@ -312,7 +352,7 @@ fn benchmark_swap_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         wood.into(),
         stable_swap.into(),
@@ -320,7 +360,7 @@ fn benchmark_swap_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    psp22_utils::transfer(
+    psp22_utils::increase_allowance(
         &mut session,
         fire.into(),
         stable_swap.into(),
@@ -328,8 +368,15 @@ fn benchmark_swap_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    stable_swap::mint_liquidity(&mut session, stable_swap.into(), bob(), BOB);
-    psp22_utils::transfer(
+    stable_swap::add_liquidity(
+        &mut session,
+        stable_swap.into(),
+        BOB,
+        1,
+        vec![token_amount, token_amount, token_amount],
+        bob(),
+    );
+    psp22_utils::increase_allowance(
         &mut session,
         ice.into(),
         stable_swap.into(),
@@ -337,11 +384,12 @@ fn benchmark_swap_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    handle_benchmark(
-        stable_swap::swap(&mut session, stable_swap.into(), 0, 1, bob(), BOB),
+    assert!(handle_benchmark(
+        stable_swap::swap(&mut session, stable_swap.into(), BOB, 0, 1, token_amount / 2, 1, bob()),
         "3POOL: Swap 1",
-    );
-    psp22_utils::transfer(
+    )
+    .is_ok());
+    psp22_utils::increase_allowance(
         &mut session,
         fire.into(),
         stable_swap.into(),
@@ -349,8 +397,9 @@ fn benchmark_swap_3_pool(&mut session: Session) {
         BOB,
     )
     .unwrap();
-    handle_benchmark(
-        stable_swap::swap(&mut session, stable_swap.into(), 2, 0, bob(), BOB),
+    assert!(handle_benchmark(
+        stable_swap::swap(&mut session, stable_swap.into(), BOB, 2, 0, token_amount / 2, 1, bob()),
         "3POOL: Swap 2",
-    );
+    )
+    .is_ok());
 }

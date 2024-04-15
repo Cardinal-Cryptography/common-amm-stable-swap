@@ -17,21 +17,54 @@ pub trait StablePool {
 
     /// Mints liquidity to `to` account.
     /// The amount minted is equivalent to the excess of contract's balance and reserves.
-    /// Return amount of minted shares
+    /// Returns (amount of minted shares, fee part)
     #[ink(message)]
-    fn mint_liquidity(&mut self, to: AccountId) -> Result<u128, StablePoolError>;
+    fn add_liquidity(
+        &mut self,
+        min_share_amount: u128,
+        amounts: Vec<u128>,
+        to: AccountId,
+    ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Mints LP tokens to `to` account.
+    /// `to` account must allow enough spending allowance of underlying tokens
+    /// for this contract.
+    /// Returns an error if the required amounts of underlying tokens
+    /// are greater than `max_amounts`.
+    /// Returns <deposit_amounts,_>
+    #[ink(message)]
+    fn add_liquidity_by_share(
+        &mut self,
+        share_amount: u128,
+        max_amounts: Vec<u128>,
+        to: AccountId,
+    ) -> Result<Vec<u128>, StablePoolError>;
 
     /// Burns transferred liquidity based on specified `amounts`.
     /// Surplus of the LP tokens is transfered to `to` account.
     /// If `amounts` are `None` burns all tranferred liquidity.
     /// The tokens are withdrawn to `to` account.
-    /// Returns amount of <burnt_shares,withdraw_amounts>.
+    /// Returns amount of (burnt_shares,fee_part)
     #[ink(message)]
-    fn burn_liquidity(
+    fn remove_liquidity(
         &mut self,
+        max_share_amount: u128,
+        amounts: Vec<u128>,
         to: AccountId,
-        amounts: Option<Vec<u128>>,
-    ) -> Result<(u128, Vec<u128>), StablePoolError>;
+    ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Burns LP tokens and withdraws underlying tokens to `to` account.
+    /// `to` account must allow enough spending allowance of LP tokens
+    /// for this contract.
+    /// Returns an error if withdrawn amounts are less than `min_amounts`
+    /// Returns <withdraw_amounts,_>
+    #[ink(message)]
+    fn remove_liquidity_by_share(
+        &mut self,
+        share_amount: u128,
+        min_amounts: Vec<u128>,
+        to: AccountId,
+    ) -> Result<Vec<u128>, StablePoolError>;
 
     /// Swaps received amount of `token_in_id` for some amount of `token_out_id`.
     #[ink(message)]
@@ -39,8 +72,20 @@ pub trait StablePool {
         &mut self,
         token_in_id: u8,
         token_out_id: u8,
+        token_in_amount: u128,
+        min_token_out_amount: u128,
         to: AccountId,
-    ) -> Result<(), StablePoolError>;
+    ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Swaps received amount of `token_in_id` for some amount of `token_out_id`.
+    #[ink(message)]
+    fn swap_excess(
+        &mut self,
+        token_in_id: u8,
+        token_out_id: u8,
+        min_token_out_amount: u128,
+        to: AccountId,
+    ) -> Result<(u128, u128), StablePoolError>;
 
     /// Returns current value of amplification coefficient.
     #[ink(message)]
