@@ -277,7 +277,7 @@ pub mod stable_pool {
             let mut c_amounts: Vec<u128> = Vec::new();
             for (id, &token) in self.pool.tokens.iter().enumerate() {
                 self.token_by_address(token).transfer_from(
-                    to,
+                    self.env().caller(),
                     self.env().account_id(),
                     amounts[id],
                     vec![],
@@ -344,7 +344,7 @@ pub mod stable_pool {
                     return Err(StablePoolError::InsufficientInputAmount);
                 }
                 self.token_by_address(token).transfer_from(
-                    to,
+                    self.env().caller(),
                     self.env().account_id(),
                     token_deposit_amounts[i],
                     vec![],
@@ -382,7 +382,7 @@ pub mod stable_pool {
                 return Err(StablePoolError::InsufficientLiquidityBurned);
             }
             // burn shares
-            let events = self.burn_shares(to, shares_to_burn)?;
+            let events = self.burn_shares(self.env().caller(), shares_to_burn)?;
             self.emit_events(events);
             // mint admin fee
             if let Some(fee_to) = self.fee_to() {
@@ -423,7 +423,7 @@ pub mod stable_pool {
             )?;
             let token_withdraw_amounts = self.to_token_amounts(&withdraw_amounts)?;
             // burn shares
-            let events = self.burn_shares(to, share_amount)?;
+            let events = self.burn_shares(self.env().caller(), share_amount)?;
             self.emit_events(events);
             // transfer amounts
             for (i, &token) in self.pool.tokens.iter().enumerate() {
@@ -482,7 +482,7 @@ pub mod stable_pool {
             }
             // transfer token_in
             self.token_by_id(token_in_id)?.transfer_from(
-                to,
+                self.env().caller(),
                 self.env().account_id(),
                 token_in_amount,
                 vec![],
