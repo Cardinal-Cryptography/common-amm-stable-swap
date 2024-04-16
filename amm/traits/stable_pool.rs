@@ -6,7 +6,7 @@ use psp22::PSP22Error;
 use crate::MathError;
 
 #[ink::trait_definition]
-pub trait StablePool {
+pub trait StablePoolView {
     /// Returns list of tokens in the pool.
     #[ink(message)]
     fn tokens(&self) -> Vec<AccountId>;
@@ -15,6 +15,69 @@ pub trait StablePool {
     #[ink(message)]
     fn reserves(&self) -> Vec<u128>;
 
+    /// Returns current value of amplification coefficient.
+    #[ink(message)]
+    fn amp_coef(&self) -> Result<u128, StablePoolError>;
+
+    /// Calculate swap amount of token_out
+    /// given token_in amount
+    /// Returns (amount_out, fee)
+    /// fee is applied to token_out
+    #[ink(message)]
+    fn get_swap_amount_out(
+        &self,
+        token_in_id: u8,
+        token_out_id: u8,
+        token_in_amount: u128,
+    ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Calculate required amount of token_in
+    /// given swap token_out amount
+    /// Returns (amount_in, fee)
+    /// fee is applied to token_out
+    #[ink(message)]
+    fn get_swap_amount_in(
+        &self,
+        token_in_id: u8,
+        token_out_id: u8,
+        token_out_amount: u128,
+    ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Calculate how many lp tokens will be minted
+    /// given deposit `amounts`.
+    /// Returns (lp_amount, fee)
+    #[ink(message)]
+    fn get_mint_liquidity_for_amounts(
+        &self,
+        amounts: Vec<u128>,
+    ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Calculate ideal deposit amounts required
+    /// to mint `liquidity` amount of lp tokens
+    /// Returns required deposit amounts
+    #[ink(message)]
+    fn get_amounts_for_liquidity_mint(&self, liquidity: u128)
+        -> Result<Vec<u128>, StablePoolError>;
+
+    /// Calculate how many lp tokens will be burned
+    /// given withdraw `amounts`.
+    /// Returns (lp_amount, fee)
+    #[ink(message)]
+    fn get_burn_liquidity_for_amounts(
+        &self,
+        amounts: Vec<u128>,
+    ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Calculate ideal withdraw amounts for
+    /// burning `liquidity` amount of lp tokens
+    /// Returns withdraw amounts
+    #[ink(message)]
+    fn get_amounts_for_liquidity_burn(&self, liquidity: u128)
+        -> Result<Vec<u128>, StablePoolError>;
+}
+
+#[ink::trait_definition]
+pub trait StablePool {
     /// Mints LP tokens to `to` account from imbalanced `amounts`.
     /// `to` account must allow enough spending allowance of underlying tokens
     /// for this contract.
@@ -95,10 +158,6 @@ pub trait StablePool {
         min_token_out_amount: u128,
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
-
-    /// Returns current value of amplification coefficient.
-    #[ink(message)]
-    fn amp_coef(&self) -> Result<u128, StablePoolError>;
 
     /// Intializes amp_coef gradual change to `target_amp_coef` over `ramp_duration` milisecs
     /// @dev This method should be resticted to owner/admin

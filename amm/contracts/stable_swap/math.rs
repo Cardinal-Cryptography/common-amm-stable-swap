@@ -738,7 +738,6 @@ mod tests {
         let token_out = 9999495232;
         let expect_fee: u128 = 9999495232 / 10;
         let token_out_minus_expect_fee = token_out - expect_fee;
-        println!("token_out_min_fee: {token_out_minus_expect_fee:?}");
         let expect_token_in = 10000000000;
         let swap_result = swap_from(0, token_out_minus_expect_fee, 1, &reserves, &fees, amp_coef, true)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));

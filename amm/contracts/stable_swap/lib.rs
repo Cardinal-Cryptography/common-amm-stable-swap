@@ -26,7 +26,7 @@ pub mod stable_pool {
         {vec, vec::Vec},
     };
     use psp22::{PSP22Data, PSP22Error, PSP22Event, PSP22Metadata, PSP22};
-    use traits::{Factory, MathError, StablePool, StablePoolError};
+    use traits::{Factory, MathError, StablePool, StablePoolError, StablePoolView};
 
     #[ink(event)]
     #[derive(Debug)]
@@ -241,9 +241,27 @@ pub mod stable_pool {
             );
             Ok(())
         }
+
+        fn check_tokens_ids(
+            &self,
+            token_in_id: u8,
+            token_out_id: u8,
+        ) -> Result<(), StablePoolError> {
+            //check token ids
+            if token_in_id >= self.pool.tokens.len() as u8 {
+                return Err(StablePoolError::InvalidTokenId(token_in_id));
+            }
+            if token_out_id >= self.pool.tokens.len() as u8 {
+                return Err(StablePoolError::InvalidTokenId(token_out_id));
+            }
+            if token_in_id == token_out_id {
+                return Err(StablePoolError::IdenticalTokenId);
+            }
+            Ok(())
+        }
     }
 
-    impl StablePool for StablePoolContract {
+    impl StablePoolView for StablePoolContract {
         #[ink(message)]
         fn tokens(&self) -> Vec<AccountId> {
             self.pool.tokens.clone()
@@ -253,7 +271,126 @@ pub mod stable_pool {
         fn reserves(&self) -> Vec<u128> {
             self.pool.reserves.clone()
         }
+        #[ink(message)]
+        fn amp_coef(&self) -> Result<u128, StablePoolError> {
+            let current_time = self.env().block_timestamp();
+            Ok(self.pool.amp_coef.compute_amp_coef(current_time)?)
+        }
 
+        #[ink(message)]
+        fn get_swap_amount_out(
+            &self,
+            token_in_id: u8,
+            token_out_id: u8,
+            token_in_amount: u128,
+        ) -> Result<(u128, u128), StablePoolError> {
+            self.check_tokens_ids(token_in_id, token_out_id)?;
+            let res = math::swap_to(
+                token_in_id as usize,
+                self.to_comperable_amount(token_in_id as usize, token_in_amount)?,
+                token_out_id as usize,
+                &self.pool.reserves,
+                &self.pool.fees,
+                self.amp_coef()?,
+                self.fee_to().is_some(),
+            )?;
+            Ok((
+                self.to_token_amount(token_out_id as usize, res.amount_swapped)?,
+                self.to_token_amount(token_out_id as usize, res.fee)?,
+            ))
+        }
+
+        #[ink(message)]
+        fn get_swap_amount_in(
+            &self,
+            token_in_id: u8,
+            token_out_id: u8,
+            token_out_amount: u128,
+        ) -> Result<(u128, u128), StablePoolError> {
+            self.check_tokens_ids(token_in_id, token_out_id)?;
+            let res = math::swap_from(
+                token_in_id as usize,
+                self.to_comperable_amount(token_out_id as usize, token_out_amount)?,
+                token_out_id as usize,
+                &self.pool.reserves,
+                &self.pool.fees,
+                self.amp_coef()?,
+                self.fee_to().is_some(),
+            )?;
+            Ok((
+                self.to_token_amount(token_in_id as usize, res.amount_swapped)?,
+                self.to_token_amount(token_out_id as usize, res.fee)?,
+            ))
+        }
+
+        #[ink(message)]
+        fn get_mint_liquidity_for_amounts(
+            &self,
+            amounts: Vec<u128>,
+        ) -> Result<(u128, u128), StablePoolError> {
+            if amounts.len() != self.pool.tokens.len() {
+                return Err(StablePoolError::IncorrectAmountsCount);
+            }
+            math::compute_lp_amount_for_deposit(
+                &self.to_comperable_amounts(&amounts)?,
+                &self.pool.reserves,
+                self.psp22.total_supply(),
+                Some(&self.pool.fees),
+                self.amp_coef()?,
+            )
+            .map_err(|err| StablePoolError::MathError(err))
+        }
+
+        #[ink(message)]
+        fn get_amounts_for_liquidity_mint(
+            &self,
+            liquidity: u128,
+        ) -> Result<Vec<u128>, StablePoolError> {
+            match math::compute_deposit_amounts_for_lp(
+                liquidity,
+                &self.pool.reserves,
+                self.psp22.total_supply(),
+            ) {
+                Ok((amounts, _)) => Ok(self.to_token_amounts(&amounts)?),
+                Err(err) => Err(StablePoolError::MathError(err)),
+            }
+        }
+
+        #[ink(message)]
+        fn get_burn_liquidity_for_amounts(
+            &self,
+            amounts: Vec<u128>,
+        ) -> Result<(u128, u128), StablePoolError> {
+            if amounts.len() != self.pool.tokens.len() {
+                return Err(StablePoolError::IncorrectAmountsCount);
+            }
+            math::compute_lp_amount_for_withdraw(
+                &self.to_comperable_amounts(&amounts)?,
+                &self.pool.reserves,
+                self.psp22.total_supply(),
+                Some(&self.pool.fees),
+                self.amp_coef()?,
+            )
+            .map_err(|err| StablePoolError::MathError(err))
+        }
+
+        #[ink(message)]
+        fn get_amounts_for_liquidity_burn(
+            &self,
+            liquidity: u128,
+        ) -> Result<Vec<u128>, StablePoolError> {
+            match math::compute_withdraw_amounts_for_lp(
+                liquidity,
+                &self.pool.reserves,
+                self.psp22.total_supply(),
+            ) {
+                Ok((amounts, _)) => Ok(self.to_token_amounts(&amounts)?),
+                Err(err) => Err(StablePoolError::MathError(err)),
+            }
+        }
+    }
+
+    impl StablePool for StablePoolContract {
         #[ink(message)]
         fn add_liquidity(
             &mut self,
@@ -421,11 +558,8 @@ pub mod stable_pool {
                 if token_withdraw_amounts[i] < min_amounts[i] {
                     return Err(StablePoolError::InsufficientOutputAmount);
                 }
-                self.token_by_address(token).transfer(
-                    to,
-                    token_withdraw_amounts[i],
-                    vec![],
-                )?;
+                self.token_by_address(token)
+                    .transfer(to, token_withdraw_amounts[i], vec![])?;
             }
             // update reserves
             self.pool.reserves = new_reserves;
@@ -442,15 +576,7 @@ pub mod stable_pool {
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
             //check token ids
-            if token_in_id >= self.pool.tokens.len() as u8 {
-                return Err(StablePoolError::InvalidTokenId(token_in_id));
-            }
-            if token_out_id >= self.pool.tokens.len() as u8 {
-                return Err(StablePoolError::InvalidTokenId(token_out_id));
-            }
-            if token_in_id == token_out_id {
-                return Err(StablePoolError::IdenticalTokenId);
-            }
+            self.check_tokens_ids(token_in_id, token_out_id)?;
             // get fee_to account
             let fee_to = self.fee_to();
             let c_token_in_amount =
@@ -508,7 +634,10 @@ pub mod stable_pool {
                     .checked_add(swap_res.admin_fee)
                     .ok_or(MathError::AddOverflow(1))?;
             }
-            Ok((token_out_amount, swap_res.fee))
+            Ok((
+                token_out_amount,
+                self.to_token_amount(token_out_id as usize, swap_res.fee)?,
+            ))
         }
 
         #[ink(message)]
@@ -588,13 +717,10 @@ pub mod stable_pool {
                     .checked_add(swap_res.admin_fee)
                     .ok_or(MathError::AddOverflow(1))?;
             }
-            Ok((token_out_amount, swap_res.fee))
-        }
-
-        #[ink(message)]
-        fn amp_coef(&self) -> Result<u128, StablePoolError> {
-            let current_time = self.env().block_timestamp();
-            Ok(self.pool.amp_coef.compute_amp_coef(current_time)?)
+            Ok((
+                token_out_amount,
+                self.to_token_amount(token_out_id as usize, swap_res.fee)?,
+            ))
         }
 
         #[ink(message)]
