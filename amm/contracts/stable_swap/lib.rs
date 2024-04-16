@@ -410,13 +410,7 @@ pub mod stable_pool {
                     amounts[id],
                     vec![],
                 )?;
-                c_amounts.push(
-                    self.to_comperable_amount(
-                        id,
-                        self.token_by_address(token)
-                            .balance_of(self.env().account_id()),
-                    )?,
-                );
+                c_amounts.push(self.to_comperable_amount(id, amounts[id])?);
             }
             // calc lp tokens (shares_to_mint, fee)
             let (shares, fee_part) = math::compute_lp_amount_for_deposit(
