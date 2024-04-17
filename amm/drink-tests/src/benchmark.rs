@@ -7,399 +7,155 @@ use stable_swap_contract::StablePool as _;
 
 use drink::frame_support::sp_runtime::traits::IntegerSquareRoot;
 use drink::frame_support::sp_runtime::traits::Scale;
-use drink::{self, session::Session};
+use drink::{self, runtime::MinimalRuntime, session::Session};
+use ink_primitives::AccountId;
 use ink_wrapper_types::Connection;
 
-#[drink::test]
-#[cfg_attr(not(feature = "benchmark"), ignore)]
-fn benchmark_mint_burn_liquidity_2_pool(&mut session: Session) {
-    upload_all(&mut session);
+const ONE_LP: u128 = 10u128.pow(18);
+const ONE_ICE: u128 = 10u128.pow(6);
+const ONE_WOOD: u128 = 10u128.pow(12);
+const ONE_FIRE: u128 = 10u128.pow(18);
+
+const INIT_SUPPLY: u128 = 1_000_000; // 1M
+
+const RUNS: u64 = 20;
+
+fn setup_test_contracts_2pool(
+    session: &mut Session<MinimalRuntime>,
+    enable_admin_fee: bool,
+) -> (AccountId, AccountId, AccountId, AccountId) {
+    upload_all(session);
 
     let fee_to_setter = bob();
+    let factory = factory::setup(session, fee_to_setter);
+    if enable_admin_fee {
+        let _ = session.set_actor(BOB);
+        session.execute(
+            factory_contract::Instance::from(factory).set_fee_to(AccountId::from([42u8; 32])),
+        );
+    }
 
-    let factory = factory::setup(&mut session, fee_to_setter);
-    let ice = psp22_utils::setup(&mut session, ICE.to_string(), BOB);
-    let wood = psp22_utils::setup(&mut session, WOOD.to_string(), BOB);
+    let ice = psp22_utils::setup_with_amounts(session, ICE.to_string(), 6, INIT_SUPPLY, BOB);
+    let wood = psp22_utils::setup_with_amounts(session, WOOD.to_string(), 12, INIT_SUPPLY, BOB);
     let stable_swap = stable_swap::setup(
-        &mut session,
+        session,
         vec![ice.into(), wood.into()],
-        vec![12, 12],
-        100,
+        vec![6, 12],
+        100, // A = 100
         factory.into(),
         BOB,
     );
-
-    let token_amount = 10_000;
-    psp22_utils::increase_allowance(
-        &mut session,
-        ice.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        wood.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    let (mut lp_tokens, _) = handle_benchmark(
-        stable_swap::add_liquidity(
-            &mut session,
-            stable_swap.into(),
-            BOB,
-            1,
-            vec![token_amount, token_amount],
-            bob(),
-        ),
-        "2POOL: Mint Liquidity 1",
-    )
-    .unwrap();
-    let token_amount = 10_000;
-    psp22_utils::increase_allowance(
-        &mut session,
-        ice.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        wood.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    let tmp = handle_benchmark(
-        stable_swap::add_liquidity(
-            &mut session,
-            stable_swap.into(),
-            BOB,
-            1,
-            vec![token_amount, token_amount],
-            bob(),
-        ),
-        "2POOL: Mint Liquidity 2",
-    )
-    .unwrap();
-    lp_tokens += tmp.0;
-    psp22_utils::increase_allowance(
-        &mut session,
-        stable_swap.into(),
-        stable_swap.into(),
-        lp_tokens,
-        BOB,
-    )
-    .unwrap();
-    assert!(handle_benchmark(
-        stable_swap::remove_liquidity(
-            &mut session,
-            stable_swap.into(),
-            BOB,
-            1_000_000_000_000,
-            vec![token_amount, token_amount],
-            bob()
-        ),
-        "2POOL: Burn Liquidity 1",
-    )
-    .is_ok());
-    assert!(handle_benchmark(
-        stable_swap::remove_liquidity(
-            &mut session,
-            stable_swap.into(),
-            BOB,
-            1_000_000_000_000,
-            vec![token_amount, token_amount],
-            bob()
-        ),
-        "2POOL: Burn Liquidity 2",
-    )
-    .is_ok());
+    for token in [ice, wood] {
+        psp22_utils::increase_allowance(session, token.into(), stable_swap.into(), u128::MAX, BOB)
+            .unwrap();
+    }
+    (factory.into(), stable_swap.into(), ice.into(), wood.into())
 }
 
 #[drink::test]
 #[cfg_attr(not(feature = "benchmark"), ignore)]
-fn benchmark_mint_burn_liquidity_3_pool(&mut session: Session) {
-    upload_all(&mut session);
-
-    let fee_to_setter = bob();
-
-    let factory = factory::setup(&mut session, fee_to_setter);
-    let ice = psp22_utils::setup(&mut session, ICE.to_string(), BOB);
-    let wood = psp22_utils::setup(&mut session, WOOD.to_string(), BOB);
-    let fire = psp22_utils::setup(&mut session, FIRE.to_string(), BOB);
-    let stable_swap = stable_swap::setup(
-        &mut session,
-        vec![ice.into(), wood.into(), fire.into()],
-        vec![12, 12, 12],
-        100,
-        factory.into(),
-        BOB,
-    );
-
-    let token_amount = 10_000;
-    psp22_utils::increase_allowance(
-        &mut session,
-        ice.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        wood.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        fire.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    let (mut lp_tokens, _) = handle_benchmark(
-        stable_swap::add_liquidity(
+fn benchmark_2pool_mint_liquidity_imbalanced(&mut session: Session) {
+    let (_factory, stable_swap, ice, wood) = setup_test_contracts_2pool(&mut session, false);
+    let (mut total_rt, mut total_ps) = (0u64, 0u64);
+    let imbalance: u128 = 1_000; // 1k
+    for i in 0..RUNS {
+        let res = stable_swap::add_liquidity(
             &mut session,
             stable_swap.into(),
             BOB,
             1,
-            vec![token_amount, token_amount, token_amount],
+            vec![
+                INIT_SUPPLY * ONE_ICE / (RUNS as u128),
+                (INIT_SUPPLY - ((i as u128) * imbalance)) * ONE_WOOD / (RUNS as u128),
+            ],
             bob(),
-        ),
-        "3POOL: Mint Liquidity 1",
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        ice.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        wood.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        fire.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-
-    let tmp = handle_benchmark(
-        stable_swap::add_liquidity(
-            &mut session,
-            stable_swap.into(),
-            BOB,
-            1,
-            vec![token_amount, token_amount, token_amount],
-            bob(),
-        ),
-        "3POOL: Mint Liquidity 2",
-    )
-    .unwrap();
-    lp_tokens += tmp.0;
-    psp22_utils::increase_allowance(
-        &mut session,
-        stable_swap.into(),
-        stable_swap.into(),
-        lp_tokens,
-        BOB,
-    )
-    .unwrap();
-    assert!(handle_benchmark(
-        stable_swap::remove_liquidity(
-            &mut session,
-            stable_swap.into(),
-            BOB,
-            1_000_000_000_000,
-            vec![token_amount, token_amount, token_amount],
-            bob()
-        ),
-        "3POOL: Burn Liquidity 1",
-    )
-    .is_ok());
-    assert!(handle_benchmark(
-        stable_swap::remove_liquidity(
-            &mut session,
-            stable_swap.into(),
-            BOB,
-            1_000_000_000_000,
-            vec![token_amount, token_amount, token_amount],
-            bob()
-        ),
-        "3POOL: Burn Liquidity 2",
-    )
-    .is_ok());
+        );
+        total_rt += res.gas_required.ref_time();
+        total_ps += res.gas_required.proof_size();
+        assert!(handle_ink_error(res).is_ok());
+    }
+    let av_rt = total_rt / RUNS;
+    let av_ps = total_ps / RUNS;
+    println!("\x1b[0;36m2POOL: \x1b[1;36mMint Liquidity Imbalanced");
+    println!("\x1b[0;34mAverages over {RUNS:?} runs:");
+    println!("\x1b[0;33mRefTime     : \x1b[0;33m{av_rt:?}");
+    println!("\x1b[0;33mProofSize   : \x1b[0;33m{av_ps:?}");
+    println!("\x1b[0;0m");
 }
 
 #[drink::test]
 #[cfg_attr(not(feature = "benchmark"), ignore)]
-fn benchmark_swap_2_pool(&mut session: Session) {
-    upload_all(&mut session);
-
-    let fee_to_setter = bob();
-
-    let factory = factory::setup(&mut session, fee_to_setter);
-    let ice = psp22_utils::setup(&mut session, ICE.to_string(), BOB);
-    let wood = psp22_utils::setup(&mut session, WOOD.to_string(), BOB);
-    let stable_swap = stable_swap::setup(
-        &mut session,
-        vec![ice.into(), wood.into()],
-        vec![12, 12, 12],
-        100,
-        factory.into(),
-        BOB,
-    );
-
-    let token_amount = 10_000;
-    psp22_utils::increase_allowance(
-        &mut session,
-        ice.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        wood.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
+fn benchmark_2pool_burn_liquidity_imbalanced(&mut session: Session) {
+    let (_factory, stable_swap, ice, wood) = setup_test_contracts_2pool(&mut session, false);
+    let (mut total_rt, mut total_ps) = (0u64, 0u64);
+    let imbalance: u128 = 1_000; // 1k
     stable_swap::add_liquidity(
         &mut session,
         stable_swap.into(),
         BOB,
         1,
-        vec![token_amount, token_amount],
+        vec![INIT_SUPPLY * ONE_ICE, INIT_SUPPLY * ONE_WOOD],
         bob(),
     );
-    psp22_utils::increase_allowance(
-        &mut session,
-        ice.into(),
-        stable_swap.into(),
-        token_amount / 2,
-        BOB,
-    )
-    .unwrap();
-    assert!(handle_benchmark(
-        stable_swap::swap(&mut session, stable_swap.into(), BOB, 0, 1, token_amount / 2, 1, bob()),
-        "2POOL: Swap 1",
-    )
-    .is_ok());
-    psp22_utils::increase_allowance(
-        &mut session,
-        wood.into(),
-        stable_swap.into(),
-        token_amount / 2,
-        BOB,
-    )
-    .unwrap();
-    assert!(handle_benchmark(
-        stable_swap::swap(&mut session, stable_swap.into(), BOB, 1, 0, token_amount / 2, 1, bob()),
-        "2POOL: Swap 2",
-    )
-    .is_ok());
+    for i in 0..RUNS {
+        let res = stable_swap::remove_liquidity(
+            &mut session,
+            stable_swap.into(),
+            BOB,
+            INIT_SUPPLY * ONE_LP,
+            vec![
+                INIT_SUPPLY * ONE_ICE / (RUNS as u128),
+                (INIT_SUPPLY - ((i as u128) * imbalance)) * ONE_WOOD / (RUNS as u128),
+            ],
+            bob(),
+        );
+        total_rt += res.gas_required.ref_time();
+        total_ps += res.gas_required.proof_size();
+        assert!(handle_ink_error(res).is_ok());
+    }
+    let av_rt = total_rt / RUNS;
+    let av_ps = total_ps / RUNS;
+    println!("\x1b[0;36m2POOL: \x1b[1;36mBurn Liquidity Imbalanced");
+    println!("\x1b[0;34mAverages over {RUNS:?} runs:");
+    println!("\x1b[0;33mRefTime     : \x1b[0;33m{av_rt:?}");
+    println!("\x1b[0;33mProofSize   : \x1b[0;33m{av_ps:?}");
+    println!("\x1b[0;0m");
 }
 
 #[drink::test]
 #[cfg_attr(not(feature = "benchmark"), ignore)]
-fn benchmark_swap_3_pool(&mut session: Session) {
-    upload_all(&mut session);
-
-    let fee_to_setter = bob();
-
-    let factory = factory::setup(&mut session, fee_to_setter);
-    let ice = psp22_utils::setup(&mut session, ICE.to_string(), BOB);
-    let wood = psp22_utils::setup(&mut session, WOOD.to_string(), BOB);
-    let fire = psp22_utils::setup(&mut session, FIRE.to_string(), BOB);
-    let stable_swap = stable_swap::setup(
-        &mut session,
-        vec![ice.into(), wood.into(), fire.into()],
-        vec![12, 12, 12],
-        100,
-        factory.into(),
-        BOB,
-    );
-
-    let token_amount = 10_000;
-    psp22_utils::increase_allowance(
-        &mut session,
-        ice.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        wood.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
-    psp22_utils::increase_allowance(
-        &mut session,
-        fire.into(),
-        stable_swap.into(),
-        token_amount,
-        BOB,
-    )
-    .unwrap();
+fn benchmark_2pool_swap(&mut session: Session) {
+    let (_factory, stable_swap, ice, wood) = setup_test_contracts_2pool(&mut session, false);
+    let (mut total_rt, mut total_ps) = (0u64, 0u64);
     stable_swap::add_liquidity(
         &mut session,
         stable_swap.into(),
         BOB,
         1,
-        vec![token_amount, token_amount, token_amount],
+        vec![INIT_SUPPLY * ONE_ICE / 10, INIT_SUPPLY * ONE_WOOD / 10],
         bob(),
     );
-    psp22_utils::increase_allowance(
-        &mut session,
-        ice.into(),
-        stable_swap.into(),
-        token_amount / 2,
-        BOB,
-    )
-    .unwrap();
-    assert!(handle_benchmark(
-        stable_swap::swap(&mut session, stable_swap.into(), BOB, 0, 1, token_amount / 2, 1, bob()),
-        "3POOL: Swap 1",
-    )
-    .is_ok());
-    psp22_utils::increase_allowance(
-        &mut session,
-        fire.into(),
-        stable_swap.into(),
-        token_amount / 2,
-        BOB,
-    )
-    .unwrap();
-    assert!(handle_benchmark(
-        stable_swap::swap(&mut session, stable_swap.into(), BOB, 2, 0, token_amount / 2, 1, bob()),
-        "3POOL: Swap 2",
-    )
-    .is_ok());
+    let swap_amount = 1_000u128;
+    for i in 0..RUNS {
+        let res = stable_swap::swap(
+            &mut session,
+            stable_swap.into(),
+            BOB,
+            0,
+            1,
+            swap_amount * ONE_ICE, // token in
+            1,                     // min_token_out
+            bob(),
+        );
+        total_rt += res.gas_required.ref_time();
+        total_ps += res.gas_required.proof_size();
+        assert!(handle_ink_error(res).is_ok());
+    }
+    let av_rt = total_rt / RUNS;
+    let av_ps = total_ps / RUNS;
+    println!("\x1b[0;36m2POOL: \x1b[1;36mSwap");
+    println!("\x1b[0;34mAverages over {RUNS:?} runs:");
+    println!("\x1b[0;33mRefTime     : \x1b[0;33m{av_rt:?}");
+    println!("\x1b[0;33mProofSize   : \x1b[0;33m{av_ps:?}");
+    println!("\x1b[0;0m");
 }

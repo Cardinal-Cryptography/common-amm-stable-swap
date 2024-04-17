@@ -708,15 +708,10 @@ mod tests {
         let swap_result = swap_to(0, token_in, 1, &reserves, &fees, amp_coef, false)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
-            swap_result.amount_swapped,
-            expect_token_out_minus_fee,
+            swap_result.amount_swapped, expect_token_out_minus_fee,
             "Incorrect swap ammount"
         );
-        assert_eq!(
-            swap_result.fee,
-            expect_fee,
-            "Incorrect total fee ammount"
-        );
+        assert_eq!(swap_result.fee, expect_fee, "Incorrect total fee ammount");
         assert_eq!(swap_result.admin_fee, 0, "Incorrect admin fee ammount");
         assert_eq!(
             swap_result.new_source_amount,
@@ -739,8 +734,16 @@ mod tests {
         let expect_fee: u128 = 9999495232 / 10;
         let token_out_minus_expect_fee = token_out - expect_fee;
         let expect_token_in = 10000000000;
-        let swap_result = swap_from(0, token_out_minus_expect_fee, 1, &reserves, &fees, amp_coef, true)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        let swap_result = swap_from(
+            0,
+            token_out_minus_expect_fee,
+            1,
+            &reserves,
+            &fees,
+            amp_coef,
+            true,
+        )
+        .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
             swap_result.amount_swapped, expect_token_in,
             "Incorrect swap ammount"
@@ -783,8 +786,7 @@ mod tests {
             "Incorrect swap amount"
         );
         assert_eq!(
-            swap_from_result.fee,
-            swap_to_result.fee,
+            swap_from_result.fee, swap_to_result.fee,
             "Incorrect fee amount"
         );
     }
@@ -809,13 +811,11 @@ mod tests {
         )
         .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
-            swap_to_result.amount_swapped,
-            token_0_out,
+            swap_to_result.amount_swapped, token_0_out,
             "Incorrect swap amount"
         );
         assert_eq!(
-            swap_to_result.fee,
-            swap_from_result.fee,
+            swap_to_result.fee, swap_from_result.fee,
             "Incorrect fee amount"
         );
     }

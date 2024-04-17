@@ -172,7 +172,7 @@ pub mod router {
 
 pub mod stable_swap {
     use super::*;
-    use stable_swap_contract::{StablePool as _, StablePoolError};
+    use stable_swap_contract::{StablePool as _, StablePoolView as _, StablePoolError};
 
     pub fn setup(
         session: &mut Session<MinimalRuntime>,
@@ -262,6 +262,17 @@ pub mod stable_swap {
             ))
             .unwrap()
     }
+
+    pub fn reserves(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+    ) -> Vec<u128> {
+            session
+                .query(stable_swap_contract::Instance::from(stable_pool).reserves())
+                .unwrap()
+                .result
+                .unwrap()
+    }
 }
 
 pub mod psp22_utils {
@@ -284,6 +295,32 @@ pub mod psp22_utils {
             Some(name.clone()),
             Some(name),
             18,
+        );
+
+        session
+            .instantiate(instance)
+            .unwrap()
+            .result
+            .to_account_id()
+            .into()
+    }
+
+    pub fn setup_with_amounts(
+        session: &mut Session<MinimalRuntime>,
+        name: String,
+        decimals: u8,
+        init_supply: u128,
+        caller: drink::AccountId32,
+    ) -> psp22::Instance {
+        let _code_hash = session.upload_code(psp22::upload()).unwrap();
+
+        let _ = session.set_actor(caller);
+
+        let instance = PSP22::new(
+            init_supply * 10u128.pow(decimals.into()),
+            Some(name.clone()),
+            Some(name),
+            decimals,
         );
 
         session
@@ -362,18 +399,3 @@ pub fn handle_ink_error<R>(res: ContractResult<Result<R, InkLangError>>) -> R {
     }
 }
 
-pub fn handle_benchmark<R: std::fmt::Debug>(
-    res: ContractResult<Result<R, InkLangError>>,
-    description: &str,
-) -> R {
-    let rt = res.gas_required.ref_time();
-    let ps = res.gas_required.proof_size();
-    println!(
-        "\x1b[0;36mBenchmark desctiption: \x1b[1;36m{:?}",
-        description
-    );
-    println!("\x1b[0;33mRefTime     : \x1b[0;33m{:?}", rt);
-    println!("\x1b[0;33mProofSize   : \x1b[0;33m{:?}", ps);
-    println!("\x1b[0;0m");
-    handle_ink_error(res)
-}

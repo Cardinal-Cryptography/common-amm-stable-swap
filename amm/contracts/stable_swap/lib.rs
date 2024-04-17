@@ -181,12 +181,16 @@ pub mod stable_pool {
 
         /// Converts provided token `amount` to comparable amount
         fn to_comperable_amount(&self, token_id: usize, amount: u128) -> Result<u128, MathError> {
-           amount.checked_mul(self.pool.precisions[token_id]).ok_or(MathError::MulOverflow(1))
+            amount
+                .checked_mul(self.pool.precisions[token_id])
+                .ok_or(MathError::MulOverflow(1))
         }
 
         /// Converts provided comparable `amount` to token amount
         fn to_token_amount(&self, token_id: usize, amount: u128) -> Result<u128, MathError> {
-            amount.checked_div(self.pool.precisions[token_id]).ok_or(MathError::DivByZero(1))
+            amount
+                .checked_div(self.pool.precisions[token_id])
+                .ok_or(MathError::DivByZero(1))
         }
 
         /// Converts provided tokens `amounts` to comparable amounts
@@ -814,7 +818,7 @@ pub mod stable_pool {
         #[test]
         fn amount_to_comperable_and_back_1() {
             let stable_swap_contract = StablePoolContract::new(
-                vec![AccountId::from([1u8; 32]),AccountId::from([2u8; 32])],
+                vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![6, 12],
                 1,
                 AccountId::from([0u8; 32]),
@@ -845,7 +849,7 @@ pub mod stable_pool {
         #[test]
         fn amount_to_comperable_and_back_2() {
             let stable_swap_contract = StablePoolContract::new(
-                vec![AccountId::from([1u8; 32]),AccountId::from([2u8; 32])],
+                vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![0, 18],
                 1,
                 AccountId::from([0u8; 32]),
@@ -876,7 +880,7 @@ pub mod stable_pool {
         #[test]
         fn amount_to_comperable_and_back_3() {
             let stable_swap_contract = StablePoolContract::new(
-                vec![AccountId::from([1u8; 32]),AccountId::from([2u8; 32])],
+                vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![1, 17],
                 1,
                 AccountId::from([0u8; 32]),
