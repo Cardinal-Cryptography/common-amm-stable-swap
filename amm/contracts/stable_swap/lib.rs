@@ -11,9 +11,6 @@ pub mod stable_pool {
     // 0.0006 * 0.2 * amount (part of the TRADE_FEE)
     pub const ADMIN_FEE_BPS: u32 = 2_000;
 
-    /// The max number of supported token decimals
-    pub const MAX_DECIMAL: u8 = 18;
-
     pub use crate::amp_coef::*;
     pub use crate::fees::*;
     pub use crate::math;
@@ -75,8 +72,9 @@ pub mod stable_pool {
     #[ink(storage)]
     pub struct StablePoolContract {
         owner: AccountId,
-        psp22: PSP22Data,
         pool: StablePoolData,
+        psp22: PSP22Data,
+        decimals: u8,
     }
 
     impl StablePoolContract {
@@ -90,11 +88,12 @@ pub mod stable_pool {
         ) -> Self {
             let reserves = vec![0; tokens.len()];
             let mut precisions = vec![1; tokens.len()];
+            let max_decimal = tokens_decimals.iter().max().unwrap_or(&0);
             for (i, &decimal) in tokens_decimals.iter().enumerate() {
-                precisions[i] = 10u128.pow(MAX_DECIMAL.checked_sub(decimal).unwrap().into());
+                precisions[i] = 10u128.pow(max_decimal.checked_sub(decimal).unwrap().into());
             }
             Self {
-                psp22: PSP22Data::default(),
+                owner,
                 pool: StablePoolData {
                     factory: factory.into(),
                     tokens,
@@ -103,7 +102,8 @@ pub mod stable_pool {
                     amp_coef: AmplificationCoefficient::new(init_amp_coef),
                     fees: Fees::new(TRADE_FEE_BPS, ADMIN_FEE_BPS),
                 },
-                owner,
+                psp22: PSP22Data::default(),
+                decimals: *max_decimal,
             }
         }
 
@@ -126,9 +126,6 @@ pub mod stable_pool {
                 tokens.len() == tokens_decimals.len(),
                 StablePoolError::IncorrectTokenCount
             );
-            for &decimals in &tokens_decimals {
-                ensure!(decimals <= MAX_DECIMAL, StablePoolError::TokenDecimals);
-            }
             ensure!(init_amp_coef >= MIN_AMP, StablePoolError::AmpCoefToLow);
             ensure!(init_amp_coef <= MAX_AMP, StablePoolError::AmpCoefToHigh);
             Ok(Self::new(
@@ -441,6 +438,8 @@ pub mod stable_pool {
             for (i, &token) in self.pool.tokens.iter().enumerate() {
                 if token_deposit_amounts[i] > max_amounts[i] {
                     return Err(StablePoolError::InsufficientInputAmount);
+                } else if token_deposit_amounts[i] == 0 {
+                    return Err(StablePoolError::InsufficientLiquidityMinted);
                 }
                 self.token_by_address(token).transfer_from(
                     self.env().caller(),
@@ -806,7 +805,7 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn token_decimals(&self) -> u8 {
-            18
+            self.decimals
         }
     }
 
@@ -825,7 +824,7 @@ pub mod stable_pool {
                 AccountId::from([0u8; 32]),
             );
             let amount: u128 = 1_000_000_000_000; // 1000000.000000
-            let expect_amount: u128 = amount * 10u128.pow(12); // 1000000.000000000000000000
+            let expect_amount: u128 = amount * 10u128.pow(6); // 1000000.000000000000000000
             assert_eq!(
                 stable_swap_contract.to_comperable_amount(0, amount),
                 Ok(expect_amount)
@@ -835,7 +834,7 @@ pub mod stable_pool {
                 Ok(amount)
             );
             let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000000000
-            let expect_amount: u128 = amount * 10u128.pow(6); // 1000000.000000000000000000
+            let expect_amount: u128 = amount;
             assert_eq!(
                 stable_swap_contract.to_comperable_amount(1, amount),
                 Ok(expect_amount)
@@ -850,13 +849,13 @@ pub mod stable_pool {
         fn amount_to_comperable_and_back_2() {
             let stable_swap_contract = StablePoolContract::new(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
-                vec![0, 18],
+                vec![0, 24],
                 1,
                 AccountId::from([0u8; 32]),
                 AccountId::from([0u8; 32]),
             );
             let amount: u128 = 1_000_000; // 1000000
-            let expect_amount: u128 = amount * 10u128.pow(18); // 1000000.000000000000000000
+            let expect_amount: u128 = amount * 10u128.pow(24); // 1000000.000000000000000000000000
             assert_eq!(
                 stable_swap_contract.to_comperable_amount(0, amount),
                 Ok(expect_amount)
@@ -865,8 +864,8 @@ pub mod stable_pool {
                 stable_swap_contract.to_token_amount(0, expect_amount),
                 Ok(amount)
             );
-            let amount: u128 = 1_000_000_000_000_000_000_000_000; // 1000000.000000000000000000
-            let expect_amount: u128 = amount; // 1000000.000000000000000000
+            let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000000000
+            let expect_amount: u128 = amount;
             assert_eq!(
                 stable_swap_contract.to_comperable_amount(1, amount),
                 Ok(expect_amount)
@@ -881,7 +880,7 @@ pub mod stable_pool {
         fn amount_to_comperable_and_back_3() {
             let stable_swap_contract = StablePoolContract::new(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
-                vec![1, 17],
+                vec![1, 18],
                 1,
                 AccountId::from([0u8; 32]),
                 AccountId::from([0u8; 32]),
@@ -896,8 +895,8 @@ pub mod stable_pool {
                 stable_swap_contract.to_token_amount(0, expect_amount),
                 Ok(amount)
             );
-            let amount: u128 = 1_000_000_000_000_000_000_000_00; // 1000000.00000000000000000
-            let expect_amount: u128 = amount * 10; // 1000000.000000000000000000
+            let amount: u128 = 1_000_000_000_000_000_000_000_000; // 1000000.00000000000000000
+            let expect_amount: u128 = amount; // 1000000.000000000000000000
             assert_eq!(
                 stable_swap_contract.to_comperable_amount(1, amount),
                 Ok(expect_amount)
