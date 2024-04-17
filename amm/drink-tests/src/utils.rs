@@ -219,6 +219,26 @@ pub mod stable_swap {
             .unwrap()
     }
 
+    pub fn add_liquidity_by_share(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        caller: drink::AccountId32,
+        share_amount: u128,
+        max_amounts: Vec<u128>,
+        to: AccountId,
+    ) -> ContractResult<Result<Result<Vec<u128>, StablePoolError>, InkLangError>> {
+        let _ = session.set_actor(caller);
+        session
+            .execute(
+                stable_swap_contract::Instance::from(stable_pool).add_liquidity_by_share(
+                    share_amount,
+                    max_amounts,
+                    to,
+                ),
+            )
+            .unwrap()
+    }
+
     pub fn remove_liquidity(
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,
@@ -233,6 +253,26 @@ pub mod stable_swap {
                 stable_swap_contract::Instance::from(stable_pool).remove_liquidity(
                     max_share_amount,
                     amounts,
+                    to,
+                ),
+            )
+            .unwrap()
+    }
+
+    pub fn remove_liquidity_by_share(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        caller: drink::AccountId32,
+        share_amount: u128,
+        min_amounts: Vec<u128>,
+        to: AccountId,
+    ) -> ContractResult<Result<Result<Vec<u128>, StablePoolError>, InkLangError>> {
+        let _ = session.set_actor(caller);
+        session
+            .execute(
+                stable_swap_contract::Instance::from(stable_pool).remove_liquidity_by_share(
+                    share_amount,
+                    min_amounts,
                     to,
                 ),
             )
