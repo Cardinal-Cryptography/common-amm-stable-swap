@@ -11,10 +11,15 @@ use drink::{self, runtime::MinimalRuntime, session::Session};
 use ink_primitives::AccountId;
 use ink_wrapper_types::Connection;
 
-const ONE_LP: u128 = 10u128.pow(18);
-const ONE_ICE: u128 = 10u128.pow(6);
-const ONE_WOOD: u128 = 10u128.pow(12);
-const ONE_FIRE: u128 = 10u128.pow(18);
+const ICE_DEC: u8 = 6;
+const WOOD_DEC: u8 = 12;
+const FIRE_DEC: u8 = 18;
+const LP_DEC: u8 = 18;
+
+const ONE_ICE: u128 = 10u128.pow(ICE_DEC);
+const ONE_WOOD: u128 = 10u128.pow(WOOD_DEC);
+const ONE_FIRE: u128 = 10u128.pow(FIRE_DEC);
+const ONE_LP: u128 = 10u128.pow(LP_DEC);
 
 const INIT_SUPPLY: u128 = 1_000_000; // 1M
 
@@ -35,12 +40,12 @@ fn setup_test_contracts_2pool(
         );
     }
 
-    let ice = psp22_utils::setup_with_amounts(session, ICE.to_string(), 6, INIT_SUPPLY, BOB);
-    let wood = psp22_utils::setup_with_amounts(session, WOOD.to_string(), 12, INIT_SUPPLY, BOB);
+    let ice = psp22_utils::setup_with_amounts(session, ICE.to_string(), ICE_DEC, INIT_SUPPLY, BOB);
+    let wood = psp22_utils::setup_with_amounts(session, WOOD.to_string(), WOOD_DEC, INIT_SUPPLY, BOB);
     let stable_swap = stable_swap::setup(
         session,
         vec![ice.into(), wood.into()],
-        vec![6, 12],
+        vec![ICE_DEC, WOOD_DEC],
         100, // A = 100
         factory.into(),
         BOB,
@@ -72,7 +77,8 @@ fn benchmark_2pool_mint_liquidity_imbalanced(&mut session: Session) {
         );
         total_rt += res.gas_required.ref_time();
         total_ps += res.gas_required.proof_size();
-        assert!(handle_ink_error(res).is_ok());
+        let handled_res = handle_ink_error(res);
+        assert!(handled_res.is_ok(), "Error: {handled_res:?}");
     }
     let av_rt = total_rt / RUNS;
     let av_ps = total_ps / RUNS;
@@ -102,7 +108,7 @@ fn benchmark_2pool_burn_liquidity_imbalanced(&mut session: Session) {
             &mut session,
             stable_swap.into(),
             BOB,
-            INIT_SUPPLY * ONE_LP,
+            INIT_SUPPLY * ONE_LP * 2,
             vec![
                 INIT_SUPPLY * ONE_ICE / (RUNS as u128),
                 (INIT_SUPPLY - ((i as u128) * imbalance)) * ONE_WOOD / (RUNS as u128),
@@ -111,7 +117,8 @@ fn benchmark_2pool_burn_liquidity_imbalanced(&mut session: Session) {
         );
         total_rt += res.gas_required.ref_time();
         total_ps += res.gas_required.proof_size();
-        assert!(handle_ink_error(res).is_ok());
+        let handled_res = handle_ink_error(res);
+        assert!(handled_res.is_ok(), "Error: {handled_res:?}");
     }
     let av_rt = total_rt / RUNS;
     let av_ps = total_ps / RUNS;
@@ -149,7 +156,8 @@ fn benchmark_2pool_swap(&mut session: Session) {
         );
         total_rt += res.gas_required.ref_time();
         total_ps += res.gas_required.proof_size();
-        assert!(handle_ink_error(res).is_ok());
+        let handled_res = handle_ink_error(res);
+        assert!(handled_res.is_ok(), "Error: {handled_res:?}");
     }
     let av_rt = total_rt / RUNS;
     let av_ps = total_ps / RUNS;
