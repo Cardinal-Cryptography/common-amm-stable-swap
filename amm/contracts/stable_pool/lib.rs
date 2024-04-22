@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-mod amp_coef;
-mod fees;
+pub mod amp_coef;
+pub mod fees;
 pub mod math;
 
 #[ink::contract]
@@ -419,44 +419,6 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn add_liquidity_by_share(
-            &mut self,
-            share_amount: u128,
-            max_amounts: Vec<u128>,
-            to: AccountId,
-        ) -> Result<Vec<u128>, StablePoolError> {
-            if max_amounts.len() != self.pool.tokens.len() {
-                return Err(StablePoolError::IncorrectAmountsCount);
-            }
-            let (deposit_amounts, new_reserves) = math::compute_deposit_amounts_for_lp(
-                share_amount,
-                &self.pool.reserves,
-                self.psp22.total_supply(),
-            )?;
-            let token_deposit_amounts = self.to_token_amounts(&deposit_amounts)?;
-            // transfer amounts
-            for (i, &token) in self.pool.tokens.iter().enumerate() {
-                if token_deposit_amounts[i] > max_amounts[i] {
-                    return Err(StablePoolError::InsufficientInputAmount);
-                } else if token_deposit_amounts[i] == 0 {
-                    return Err(StablePoolError::InsufficientLiquidityMinted);
-                }
-                self.token_by_address(token).transfer_from(
-                    self.env().caller(),
-                    self.env().account_id(),
-                    token_deposit_amounts[i],
-                    vec![],
-                )?;
-            }
-            // mint shares
-            let events = self.psp22.mint(to, share_amount)?;
-            self.emit_events(events);
-            // update reserves
-            self.pool.reserves = new_reserves;
-            Ok(token_deposit_amounts)
-        }
-
-        #[ink(message)]
         fn remove_liquidity(
             &mut self,
             max_share_amount: u128,
@@ -502,38 +464,6 @@ pub mod stable_pool {
                     .ok_or(MathError::AddOverflow(1))?;
             }
             Ok((shares_to_burn, fee_part))
-        }
-
-        #[ink(message)]
-        fn remove_liquidity_by_share(
-            &mut self,
-            share_amount: u128,
-            min_amounts: Vec<u128>,
-            to: AccountId,
-        ) -> Result<Vec<u128>, StablePoolError> {
-            if min_amounts.len() != self.pool.tokens.len() {
-                return Err(StablePoolError::IncorrectAmountsCount);
-            }
-            let (withdraw_amounts, new_reserves) = math::compute_withdraw_amounts_for_lp(
-                share_amount,
-                &self.pool.reserves,
-                self.psp22.total_supply(),
-            )?;
-            let token_withdraw_amounts = self.to_token_amounts(&withdraw_amounts)?;
-            // burn shares
-            let events = self.psp22.burn(self.env().caller(), share_amount)?;
-            self.emit_events(events);
-            // transfer amounts
-            for (i, &token) in self.pool.tokens.iter().enumerate() {
-                if token_withdraw_amounts[i] < min_amounts[i] {
-                    return Err(StablePoolError::InsufficientOutputAmount);
-                }
-                self.token_by_address(token)
-                    .transfer(to, token_withdraw_amounts[i], vec![])?;
-            }
-            // update reserves
-            self.pool.reserves = new_reserves;
-            Ok(token_withdraw_amounts)
         }
 
         #[ink(message)]

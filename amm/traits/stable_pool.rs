@@ -92,20 +92,6 @@ pub trait StablePool {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
 
-    /// Mints LP tokens to `to` account.
-    /// caller account must allow enough spending allowance of underlying tokens
-    /// for this contract.
-    /// Returns an error if the required amounts of underlying tokens
-    /// are greater than `max_amounts`.
-    /// Returns <deposit_amounts,_>
-    #[ink(message)]
-    fn add_liquidity_by_share(
-        &mut self,
-        share_amount: u128,
-        max_amounts: Vec<u128>,
-        to: AccountId,
-    ) -> Result<Vec<u128>, StablePoolError>;
-
     /// Burns LP tokens and withdraws underlying tokens to `to` account
     /// in imbalanced `amounts`.
     /// Returns <(burned_share_amount, fee_part),_>
@@ -116,17 +102,6 @@ pub trait StablePool {
         amounts: Vec<u128>,
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
-
-    /// Burns LP tokens and withdraws underlying tokens to `to` account.
-    /// Returns an error if withdrawn amounts are less than `min_amounts`
-    /// Returns <withdraw_amounts,_>
-    #[ink(message)]
-    fn remove_liquidity_by_share(
-        &mut self,
-        share_amount: u128,
-        min_amounts: Vec<u128>,
-        to: AccountId,
-    ) -> Result<Vec<u128>, StablePoolError>;
 
     /// Swaps token_in to token_out.
     /// Swapped tokens are transferred to the `to` account.

@@ -765,10 +765,9 @@ mod tests {
     #[test]
     fn swap_to_from_computation() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0);
-        // let fees = Fees::zero();
-        let reserves: Vec<u128> = vec![110000000000, 91000454291];
-        let token_0_in: u128 = 10000000000;
+        let fees = Fees::new(2137, 0);
+        let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
+        let token_0_in: u128 = 62463425432;
         let swap_to_result = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef, false)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         let swap_from_result = swap_from(
@@ -794,10 +793,9 @@ mod tests {
     #[test]
     fn swap_from_to_computation() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0);
-        // let fees = Fees::zero();
-        let reserves: Vec<u128> = vec![110000000000, 91000454291];
-        let token_0_out: u128 = 10000000000;
+        let fees = Fees::new(2137, 0);
+        let reserves: Vec<u128> = vec![41324213432421314231423, 91421311432432000454291];
+        let token_0_out: u128 = 12344324213;
         let swap_from_result = swap_from(0, token_0_out, 1, &reserves, &fees, amp_coef, false)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         let swap_to_result = swap_to(
@@ -826,7 +824,7 @@ mod tests {
         let fees = Fees::new(1000, 2000); // 10% fee
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
-        let share = token_supply / 100; // 1%
+        let share = token_supply / 20; // 5%
         let (withdraw_amounts_by_share, _) =
             compute_withdraw_amounts_for_lp(share, &reserves, token_supply)
                 .unwrap_or_else(|_| panic!("Should work"));
@@ -851,23 +849,16 @@ mod tests {
         let fees = Fees::new(1000, 2000); // 10% fee
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
-        let amounts: Vec<u128> = Vec::from([50_000_000, 50_000_000]);
-        let (share, fee_part) =
-            compute_lp_amount_for_deposit(&amounts, &reserves, token_supply, Some(&fees), amp_coef)
-                .unwrap_or_else(|_| panic!("Should mint liquidity"));
-        assert_eq!(fee_part, 0, "Fee is should be 0");
-        let reserves_a = vec![reserves[0] + amounts[0], reserves[1] + amounts[1]];
+        let share = token_supply / 20; // 5%
         let (deposit_amounts, reserves_b) =
             compute_deposit_amounts_for_lp(share, &reserves, token_supply)
                 .unwrap_or_else(|_| panic!("Should mint liquidity"));
-        assert_eq!(amounts, deposit_amounts, "Deposit amounts differ.");
+        let (share_by_deposit, fee_part) =
+            compute_lp_amount_for_deposit(&deposit_amounts, &reserves, token_supply, Some(&fees), amp_coef)
+                .unwrap_or_else(|_| panic!("Should mint liquidity"));
+        assert_eq!(fee_part, 0, "Fee is should be 0");
+        let reserves_a = vec![reserves[0] + deposit_amounts[0], reserves[1] + deposit_amounts[1]];
+        assert_eq!(share, share_by_deposit, "Deposit amounts differ.");
         assert_eq!(reserves_a, reserves_b, "Reserves should match");
-    }
-    #[test]
-    fn biggie() {
-        let res = 10u128.checked_pow(12).unwrap();
-        assert!(res
-            .checked_mul(1_000_000_000_000_000_000_000_000_00)
-            .is_some())
     }
 }
