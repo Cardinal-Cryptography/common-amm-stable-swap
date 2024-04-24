@@ -126,8 +126,8 @@ pub mod stable_pool {
                 tokens.len() == tokens_decimals.len(),
                 StablePoolError::IncorrectTokenCount
             );
-            ensure!(init_amp_coef >= MIN_AMP, StablePoolError::AmpCoefToLow);
-            ensure!(init_amp_coef <= MAX_AMP, StablePoolError::AmpCoefToHigh);
+            ensure!(init_amp_coef >= MIN_AMP, StablePoolError::AmpCoefTooLow);
+            ensure!(init_amp_coef <= MAX_AMP, StablePoolError::AmpCoefTooHigh);
             Ok(Self::new(
                 tokens,
                 tokens_decimals,

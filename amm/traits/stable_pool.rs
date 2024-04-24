@@ -164,10 +164,10 @@ pub enum StablePoolError {
     ReservesOverflow,
     IncorrectTokenCount,
     TokenDecimals,
-    AmpCoefToHigh,
-    AmpCoefToLow,
-    AmpCoefChangeToLow,
-    AmpCoefRampDurationToShort,
+    AmpCoefTooHigh,
+    AmpCoefTooLow,
+    AmpCoefChangeTooLarge,
+    AmpCoefRampDurationTooShort,
     OnlyAdmin,
 }
 

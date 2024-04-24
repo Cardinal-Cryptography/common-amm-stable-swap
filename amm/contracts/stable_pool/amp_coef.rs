@@ -4,13 +4,13 @@ use traits::{MathError, StablePoolError};
 pub type Timestamp = u64;
 
 /// Minimum ramp duration, in milisec.
-pub const MIN_RAMP_DURATION: Timestamp = 86400;
+pub const MIN_RAMP_DURATION: Timestamp = 86400000;
 /// Min amplification coefficient.
 pub const MIN_AMP: u128 = 1;
 /// Max amplification coefficient.
 pub const MAX_AMP: u128 = 1_000_000;
 /// Max amplification change.
-// pub const MAX_AMP_CHANGE: u128 = 10;
+pub const MAX_AMP_CHANGE: u128 = 10;
 
 #[derive(Default, Debug, scale::Encode, scale::Decode, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
@@ -90,13 +90,21 @@ impl AmplificationCoefficient {
         ramp_duration: u64,
         current_time: u64,
     ) -> Result<(), StablePoolError> {
-        ensure!(target_amp_coef >= MIN_AMP, StablePoolError::AmpCoefToLow);
-        ensure!(target_amp_coef <= MAX_AMP, StablePoolError::AmpCoefToHigh);
+        ensure!(target_amp_coef >= MIN_AMP, StablePoolError::AmpCoefTooLow);
+        ensure!(target_amp_coef <= MAX_AMP, StablePoolError::AmpCoefTooHigh);
         ensure!(
-            ramp_duration > MIN_RAMP_DURATION,
-            StablePoolError::AmpCoefRampDurationToShort
+            ramp_duration >= MIN_RAMP_DURATION,
+            StablePoolError::AmpCoefRampDurationTooShort
         );
-        self.init_amp_coef = self.compute_amp_coef(current_time)?;
+        let current_amp_coef = self.compute_amp_coef(current_time)?;
+        ensure!(
+            (target_amp_coef >= current_amp_coef
+                && target_amp_coef <= current_amp_coef * MAX_AMP_CHANGE)
+                || (target_amp_coef < current_amp_coef
+                    && target_amp_coef * MAX_AMP_CHANGE >= current_amp_coef),
+            StablePoolError::AmpCoefChangeTooLarge
+        );
+        self.init_amp_coef = current_amp_coef;
         self.init_amp_time = current_time;
         self.target_amp_coef = target_amp_coef;
         self.stop_amp_time = current_time + ramp_duration;
@@ -106,6 +114,8 @@ impl AmplificationCoefficient {
 
 #[cfg(test)]
 mod tests {
+    use traits::StablePoolError;
+
     use crate::stable_pool::AmplificationCoefficient;
 
     #[test]
@@ -132,5 +142,33 @@ mod tests {
         assert_eq!(amp_coef.compute_amp_coef(100), Ok(1000));
         assert_eq!(amp_coef.compute_amp_coef(850), Ok(550));
         assert_eq!(amp_coef.compute_amp_coef(1600), Ok(100));
+    }
+
+    #[test]
+    fn amp_coef_change_duration() {
+        let mut amp_coef = AmplificationCoefficient {
+            init_amp_coef: 1000,
+            target_amp_coef: 100,
+            init_amp_time: 100,
+            stop_amp_time: 1600,
+        };
+        let one_day: u64 = 86400000;
+        assert_eq!(amp_coef.ramp_amp_coef(1000, one_day - 1, 100), Err(StablePoolError::AmpCoefRampDurationTooShort));
+        assert_eq!(amp_coef.ramp_amp_coef(1000, one_day, 100), Ok(()));
+    }
+    
+    #[test]
+    fn amp_coef_change_too_large() {
+        let mut amp_coef = AmplificationCoefficient {
+            init_amp_coef: 100,
+            target_amp_coef: 100,
+            init_amp_time: 100,
+            stop_amp_time: 1600,
+        };
+        let one_day: u64 = 86400000;
+        assert_eq!(amp_coef.ramp_amp_coef(1001, one_day, 100), Err(StablePoolError::AmpCoefChangeTooLarge));
+        assert_eq!(amp_coef.ramp_amp_coef(1000, one_day, 100), Ok(()));
+        assert_eq!(amp_coef.ramp_amp_coef(99, one_day, one_day + 100), Err(StablePoolError::AmpCoefChangeTooLarge));
+        assert_eq!(amp_coef.ramp_amp_coef(100, one_day, one_day + 100), Ok(()));
     }
 }
