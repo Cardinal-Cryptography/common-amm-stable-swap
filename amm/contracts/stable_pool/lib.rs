@@ -158,16 +158,6 @@ pub mod stable_pool {
         }
 
         /// A helper funciton for getting PSP22 contract ref
-        fn token_by_id(&self, id: u8) -> Result<contract_ref!(PSP22), StablePoolError> {
-            Ok((*self
-                .pool
-                .tokens
-                .get(id as usize)
-                .ok_or(StablePoolError::InvalidTokenId(id))?)
-            .into())
-        }
-
-        /// A helper funciton for getting PSP22 contract ref
         fn token_by_address(&self, address: AccountId) -> contract_ref!(PSP22) {
             address.into()
         }
@@ -216,22 +206,24 @@ pub mod stable_pool {
             Ok(())
         }
 
-        fn check_tokens_ids(
+        fn token_id(&self, token: AccountId) -> Result<usize, StablePoolError> {
+            self.pool.tokens
+            .iter()
+            .position(|&id| id == token).ok_or(StablePoolError::InvalidTokenId(token))
+        }
+
+        fn check_tokens(
             &self,
-            token_in_id: u8,
-            token_out_id: u8,
-        ) -> Result<(), StablePoolError> {
+            token_in: AccountId,
+            token_out: AccountId,
+        ) -> Result<(usize, usize), StablePoolError> {
             //check token ids
-            if token_in_id >= self.pool.tokens.len() as u8 {
-                return Err(StablePoolError::InvalidTokenId(token_in_id));
-            }
-            if token_out_id >= self.pool.tokens.len() as u8 {
-                return Err(StablePoolError::InvalidTokenId(token_out_id));
-            }
+            let token_in_id = self.token_id(token_in)?;
+            let token_out_id = self.token_id(token_out)?;
             if token_in_id == token_out_id {
                 return Err(StablePoolError::IdenticalTokenId);
             }
-            Ok(())
+            Ok((token_in_id, token_out_id))
         }
     }
 
@@ -254,11 +246,11 @@ pub mod stable_pool {
         #[ink(message)]
         fn get_swap_amount_out(
             &self,
-            token_in_id: u8,
-            token_out_id: u8,
+            token_in: AccountId,
+            token_out: AccountId,
             token_in_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
-            self.check_tokens_ids(token_in_id, token_out_id)?;
+            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
             let res = math::swap_to(
                 token_in_id as usize,
                 self.to_comperable_amount(token_in_id as usize, token_in_amount)?,
@@ -277,11 +269,11 @@ pub mod stable_pool {
         #[ink(message)]
         fn get_swap_amount_in(
             &self,
-            token_in_id: u8,
-            token_out_id: u8,
+            token_in: AccountId,
+            token_out: AccountId,
             token_out_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
-            self.check_tokens_ids(token_in_id, token_out_id)?;
+            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
             let res = math::swap_from(
                 token_in_id as usize,
                 self.to_comperable_amount(token_out_id as usize, token_out_amount)?,
@@ -469,14 +461,14 @@ pub mod stable_pool {
         #[ink(message)]
         fn swap(
             &mut self,
-            token_in_id: u8,
-            token_out_id: u8,
+            token_in: AccountId,
+            token_out: AccountId,
             token_in_amount: u128,
             min_token_out_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
             //check token ids
-            self.check_tokens_ids(token_in_id, token_out_id)?;
+            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
             // get fee_to account
             let fee_to = self.fee_to();
             let c_token_in_amount =
@@ -498,14 +490,14 @@ pub mod stable_pool {
                 return Err(StablePoolError::InsufficientOutputAmount);
             }
             // transfer token_in
-            self.token_by_id(token_in_id)?.transfer_from(
+            self.token_by_address(token_in).transfer_from(
                 self.env().caller(),
                 self.env().account_id(),
                 token_in_amount,
                 vec![],
             )?;
             // transfer token_out
-            self.token_by_id(token_out_id)?
+            self.token_by_address(token_out)
                 .transfer(to, token_out_amount, vec![])?;
             // update reserves
             self.pool.reserves[token_in_id as usize] = swap_res.new_source_amount;
@@ -543,27 +535,19 @@ pub mod stable_pool {
         #[ink(message)]
         fn swap_excess(
             &mut self,
-            token_in_id: u8,
-            token_out_id: u8,
+            token_in: AccountId,
+            token_out: AccountId,
             min_token_out_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
             //check token ids
-            if token_in_id >= self.pool.tokens.len() as u8 {
-                return Err(StablePoolError::InvalidTokenId(token_in_id));
-            }
-            if token_out_id >= self.pool.tokens.len() as u8 {
-                return Err(StablePoolError::InvalidTokenId(token_out_id));
-            }
-            if token_in_id == token_out_id {
-                return Err(StablePoolError::IdenticalTokenId);
-            }
+            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
             // get fee_to account
             let fee_to = self.fee_to();
             let c_token_in_amount = self
                 .to_comperable_amount(
                     token_in_id as usize,
-                    self.token_by_id(token_in_id)?
+                    self.token_by_address(token_in)
                         .balance_of(self.env().account_id()),
                 )?
                 .checked_sub(self.pool.reserves[token_in_id as usize])
@@ -588,7 +572,7 @@ pub mod stable_pool {
                 return Err(StablePoolError::InsufficientOutputAmount);
             };
             // transfer token_out
-            self.token_by_id(token_out_id)?
+            self.token_by_address(token_out)
                 .transfer(to, token_out_amount, vec![])?;
             // update reserves
             self.pool.reserves[token_in_id as usize] = swap_res.new_source_amount;
@@ -746,7 +730,7 @@ pub mod stable_pool {
         use super::*;
         #[test]
         fn amount_to_comperable_and_back_1() {
-            let stable_swap_contract = StablePoolContract::new(
+            let stable_pool_contract = StablePoolContract::new(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![6, 12],
                 1,
@@ -756,28 +740,28 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_000_000; // 1000000.000000
             let expect_amount: u128 = amount * 10u128.pow(6); // 1000000.000000000000000000
             assert_eq!(
-                stable_swap_contract.to_comperable_amount(0, amount),
+                stable_pool_contract.to_comperable_amount(0, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_swap_contract.to_token_amount(0, expect_amount),
+                stable_pool_contract.to_token_amount(0, expect_amount),
                 Ok(amount)
             );
             let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000000000
             let expect_amount: u128 = amount;
             assert_eq!(
-                stable_swap_contract.to_comperable_amount(1, amount),
+                stable_pool_contract.to_comperable_amount(1, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_swap_contract.to_token_amount(1, expect_amount),
+                stable_pool_contract.to_token_amount(1, expect_amount),
                 Ok(amount)
             );
         }
 
         #[test]
         fn amount_to_comperable_and_back_2() {
-            let stable_swap_contract = StablePoolContract::new(
+            let stable_pool_contract = StablePoolContract::new(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![0, 24],
                 1,
@@ -787,28 +771,28 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000; // 1000000
             let expect_amount: u128 = amount * 10u128.pow(24); // 1000000.000000000000000000000000
             assert_eq!(
-                stable_swap_contract.to_comperable_amount(0, amount),
+                stable_pool_contract.to_comperable_amount(0, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_swap_contract.to_token_amount(0, expect_amount),
+                stable_pool_contract.to_token_amount(0, expect_amount),
                 Ok(amount)
             );
             let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000000000
             let expect_amount: u128 = amount;
             assert_eq!(
-                stable_swap_contract.to_comperable_amount(1, amount),
+                stable_pool_contract.to_comperable_amount(1, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_swap_contract.to_token_amount(1, expect_amount),
+                stable_pool_contract.to_token_amount(1, expect_amount),
                 Ok(amount)
             );
         }
 
         #[test]
         fn amount_to_comperable_and_back_3() {
-            let stable_swap_contract = StablePoolContract::new(
+            let stable_pool_contract = StablePoolContract::new(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![1, 18],
                 1,
@@ -818,21 +802,21 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_0; // 1000000.0
             let expect_amount: u128 = amount * 10u128.pow(17); // 1000000.000000000000000000
             assert_eq!(
-                stable_swap_contract.to_comperable_amount(0, amount),
+                stable_pool_contract.to_comperable_amount(0, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_swap_contract.to_token_amount(0, expect_amount),
+                stable_pool_contract.to_token_amount(0, expect_amount),
                 Ok(amount)
             );
             let amount: u128 = 1_000_000_000_000_000_000_000_000; // 1000000.00000000000000000
             let expect_amount: u128 = amount; // 1000000.000000000000000000
             assert_eq!(
-                stable_swap_contract.to_comperable_amount(1, amount),
+                stable_pool_contract.to_comperable_amount(1, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_swap_contract.to_token_amount(1, expect_amount),
+                stable_pool_contract.to_token_amount(1, expect_amount),
                 Ok(amount)
             );
         }

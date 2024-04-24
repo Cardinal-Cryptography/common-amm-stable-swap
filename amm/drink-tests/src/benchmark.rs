@@ -1,12 +1,12 @@
 use crate::factory_contract;
 use crate::pair_contract::Pair;
 use crate::router_contract;
-use crate::stable_swap_contract;
+use crate::stable_pool_contract;
 use crate::utils::*;
 
 use factory_contract::Factory as _;
 use router_contract::Router as _;
-use stable_swap_contract::StablePool as _;
+use stable_pool_contract::StablePool as _;
 
 use drink::frame_support::sp_runtime::traits::IntegerSquareRoot;
 use drink::frame_support::sp_runtime::traits::Scale;
@@ -165,8 +165,8 @@ fn benchmark_2pool_swap(&mut session: Session) {
             &mut session,
             stable_swap.into(),
             BOB,
-            0,
-            1,
+            ice,
+            wood,
             swap_amount * ONE_ICE, // token in
             1,                     // min_token_out
             bob(),

@@ -26,8 +26,8 @@ pub trait StablePoolView {
     #[ink(message)]
     fn get_swap_amount_out(
         &self,
-        token_in_id: u8,
-        token_out_id: u8,
+        token_in: AccountId,
+        token_out: AccountId,
         token_in_amount: u128,
     ) -> Result<(u128, u128), StablePoolError>;
 
@@ -38,8 +38,8 @@ pub trait StablePoolView {
     #[ink(message)]
     fn get_swap_amount_in(
         &self,
-        token_in_id: u8,
-        token_out_id: u8,
+        token_in: AccountId,
+        token_out: AccountId,
         token_out_amount: u128,
     ) -> Result<(u128, u128), StablePoolError>;
 
@@ -113,8 +113,8 @@ pub trait StablePool {
     #[ink(message)]
     fn swap(
         &mut self,
-        token_in_id: u8,
-        token_out_id: u8,
+        token_in: AccountId,
+        token_out: AccountId,
         token_in_amount: u128,
         min_token_out_amount: u128,
         to: AccountId,
@@ -128,8 +128,8 @@ pub trait StablePool {
     #[ink(message)]
     fn swap_excess(
         &mut self,
-        token_in_id: u8,
-        token_out_id: u8,
+        token_in_id: AccountId,
+        token_out_id: AccountId,
         min_token_out_amount: u128,
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
@@ -153,7 +153,7 @@ pub enum StablePoolError {
     MathError(MathError),
     PSP22Error(PSP22Error),
     LangError(LangError),
-    InvalidTokenId(u8),
+    InvalidTokenId(AccountId),
     IdenticalTokenId,
     IncorrectAmountsCount,
     InsufficientLiquidityMinted,

@@ -11,7 +11,7 @@ mkdir -p $SCRIPT_DIR/../drink-tests/resources
 declare -a CONTRACTS=(
     "factory_contract" 
     "pair_contract" 
-    "stable_swap_contract" 
+    "stable_pool_contract" 
     "router_contract"
     "wrapped_azero"
     "psp22"

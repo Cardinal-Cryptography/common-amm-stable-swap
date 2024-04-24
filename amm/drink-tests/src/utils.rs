@@ -37,8 +37,8 @@ pub fn upload_all(session: &mut Session<MinimalRuntime>) {
         .upload_code(wrapped_azero::upload())
         .expect("Upload wrapped_azero code");
     session
-        .upload_code(stable_swap_contract::upload())
-        .expect("Upload stable_swap_contract code");
+        .upload_code(stable_pool_contract::upload())
+        .expect("Upload stable_pool_contract code");
 }
 
 pub mod wazero {
@@ -172,7 +172,7 @@ pub mod router {
 
 pub mod stable_swap {
     use super::*;
-    use stable_swap_contract::{StablePool as _, StablePoolView as _, StablePoolError};
+    use stable_pool_contract::{StablePool as _, StablePoolView as _, StablePoolError};
 
     pub fn setup(
         session: &mut Session<MinimalRuntime>,
@@ -181,9 +181,9 @@ pub mod stable_swap {
         init_amp_coef: u128,
         factory: AccountId,
         caller: drink::AccountId32,
-    ) -> stable_swap_contract::Instance {
+    ) -> stable_pool_contract::Instance {
         let _ = session.set_actor(caller.clone());
-        let instance = stable_swap_contract::Instance::new(
+        let instance = stable_pool_contract::Instance::new(
             tokens,
             tokens_decimals,
             init_amp_coef,
@@ -210,29 +210,9 @@ pub mod stable_swap {
         let _ = session.set_actor(caller);
         session
             .execute(
-                stable_swap_contract::Instance::from(stable_pool).add_liquidity(
+                stable_pool_contract::Instance::from(stable_pool).add_liquidity(
                     min_share_amount,
                     amounts,
-                    to,
-                ),
-            )
-            .unwrap()
-    }
-
-    pub fn add_liquidity_by_share(
-        session: &mut Session<MinimalRuntime>,
-        stable_pool: AccountId,
-        caller: drink::AccountId32,
-        share_amount: u128,
-        max_amounts: Vec<u128>,
-        to: AccountId,
-    ) -> ContractResult<Result<Result<Vec<u128>, StablePoolError>, InkLangError>> {
-        let _ = session.set_actor(caller);
-        session
-            .execute(
-                stable_swap_contract::Instance::from(stable_pool).add_liquidity_by_share(
-                    share_amount,
-                    max_amounts,
                     to,
                 ),
             )
@@ -250,29 +230,9 @@ pub mod stable_swap {
         let _ = session.set_actor(caller);
         session
             .execute(
-                stable_swap_contract::Instance::from(stable_pool).remove_liquidity(
+                stable_pool_contract::Instance::from(stable_pool).remove_liquidity(
                     max_share_amount,
                     amounts,
-                    to,
-                ),
-            )
-            .unwrap()
-    }
-
-    pub fn remove_liquidity_by_share(
-        session: &mut Session<MinimalRuntime>,
-        stable_pool: AccountId,
-        caller: drink::AccountId32,
-        share_amount: u128,
-        min_amounts: Vec<u128>,
-        to: AccountId,
-    ) -> ContractResult<Result<Result<Vec<u128>, StablePoolError>, InkLangError>> {
-        let _ = session.set_actor(caller);
-        session
-            .execute(
-                stable_swap_contract::Instance::from(stable_pool).remove_liquidity_by_share(
-                    share_amount,
-                    min_amounts,
                     to,
                 ),
             )
@@ -283,8 +243,8 @@ pub mod stable_swap {
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,
         caller: drink::AccountId32,
-        token_in_id: u8,
-        token_out_id: u8,
+        token_in: AccountId,
+        token_out: AccountId,
         token_in_amount: u128,
         min_token_out_amount: u128,
         to: AccountId,
@@ -293,9 +253,9 @@ pub mod stable_swap {
     > {
         let _ = session.set_actor(caller);
         session
-            .execute(stable_swap_contract::Instance::from(stable_pool).swap(
-                token_in_id,
-                token_out_id,
+            .execute(stable_pool_contract::Instance::from(stable_pool).swap(
+                token_in,
+                token_out,
                 token_in_amount,
                 min_token_out_amount,
                 to,
@@ -308,7 +268,7 @@ pub mod stable_swap {
         stable_pool: AccountId,
     ) -> Vec<u128> {
             session
-                .query(stable_swap_contract::Instance::from(stable_pool).reserves())
+                .query(stable_pool_contract::Instance::from(stable_pool).reserves())
                 .unwrap()
                 .result
                 .unwrap()

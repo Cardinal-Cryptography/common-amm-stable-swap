@@ -9,7 +9,7 @@ mod router_contract;
 #[cfg(test)]
 mod router_tests;
 #[cfg(test)]
-mod stable_swap_contract;
+mod stable_pool_contract;
 #[cfg(test)]
 mod utils;
 #[cfg(test)]
