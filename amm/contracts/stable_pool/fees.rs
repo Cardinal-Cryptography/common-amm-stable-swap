@@ -43,7 +43,7 @@ impl Fees {
         u128_ratio(amount, self.admin_fee_bps, FEE_BPS_DENOM)
     }
 
-    /// Used to normalize fee applid on difference amount with ideal u128, This logic is from
+    /// Used to normalize fee applied on difference amount with ideal u128, This logic is from
     /// https://github.com/ref-finance/ref-contracts/blob/main/ref-exchange/src/stable_swap/math.rs#L48
     /// https://github.com/saber-hq/stable-swap/blob/5db776fb0a41a0d1a23d46b99ef412ca7ccc5bf6/stable-swap-program/program/src/fees.rs#L73
     /// https://github.com/curvefi/curve-contract/blob/e5fb8c0e0bcd2fe2e03634135806c0f36b245511/tests/simulation.py#L124
