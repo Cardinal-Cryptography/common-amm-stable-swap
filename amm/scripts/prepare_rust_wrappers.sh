@@ -15,6 +15,8 @@ declare -a CONTRACTS=(
     "router_contract"
     "wrapped_azero"
     "psp22"
+    "sazero_azero_pair_contract"
+    "sazero_rate_mock_contract"
 )
 
 function wrap_contracts() {
