@@ -174,19 +174,18 @@ pub mod stable_pool {
         }
 
         /// Converts provided comparable `amount` to token amount
-        fn to_token_amount(&self, token_id: usize, amount: u128) -> Result<u128, MathError> {
-            amount
-                .checked_div(self.pool.precisions[token_id])
-                .ok_or(MathError::DivByZero(1))
+        fn to_token_amount(&self, token_id: usize, amount: u128) -> u128 {
+            // it is safe to unwrap since precision for any token is >= 1
+            amount.checked_div(self.pool.precisions[token_id]).unwrap()
         }
 
         /// Converts provided tokens `amounts` to comparable amounts
-        fn to_token_amounts(&self, amounts: &[u128]) -> Result<Vec<u128>, MathError> {
+        fn to_token_amounts(&self, amounts: &[u128]) -> Vec<u128> {
             let mut token_amounts: Vec<u128> = Vec::new();
             for (id, &amount) in amounts.iter().enumerate() {
-                token_amounts.push(self.to_token_amount(id, amount)?);
+                token_amounts.push(self.to_token_amount(id, amount));
             }
-            Ok(token_amounts)
+            token_amounts
         }
 
         /// Converts provided comparable `amounts` to tokens amounts
@@ -256,7 +255,7 @@ pub mod stable_pool {
                 self.amp_coef()?,
                 fee_to.is_some(),
             )?;
-            let token_out_amount = self.to_token_amount(token_out_id, swap_res.amount_swapped)?;
+            let token_out_amount = self.to_token_amount(token_out_id, swap_res.amount_swapped);
             // Check if swapped amount is not less than min_token_out_amount
             if token_out_amount < min_token_out_amount {
                 return Err(StablePoolError::InsufficientOutputAmount);
@@ -289,7 +288,7 @@ pub mod stable_pool {
             }
             Ok((
                 token_out_amount,
-                self.to_token_amount(token_out_id, swap_res.fee)?,
+                self.to_token_amount(token_out_id, swap_res.fee),
             ))
         }
     }
@@ -492,7 +491,7 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn reserves(&self) -> Vec<u128> {
-            self.pool.reserves.clone()
+            self.to_token_amounts(&self.pool.reserves)
         }
         #[ink(message)]
         fn amp_coef(&self) -> Result<u128, StablePoolError> {
@@ -518,8 +517,8 @@ pub mod stable_pool {
                 self.fee_to().is_some(),
             )?;
             Ok((
-                self.to_token_amount(token_out_id as usize, res.amount_swapped)?,
-                self.to_token_amount(token_out_id as usize, res.fee)?,
+                self.to_token_amount(token_out_id as usize, res.amount_swapped),
+                self.to_token_amount(token_out_id as usize, res.fee),
             ))
         }
 
@@ -541,8 +540,8 @@ pub mod stable_pool {
                 self.fee_to().is_some(),
             )?;
             Ok((
-                self.to_token_amount(token_in_id as usize, res.amount_swapped)?,
-                self.to_token_amount(token_out_id as usize, res.fee)?,
+                self.to_token_amount(token_in_id as usize, res.amount_swapped),
+                self.to_token_amount(token_out_id as usize, res.fee),
             ))
         }
 
@@ -574,7 +573,7 @@ pub mod stable_pool {
                 &self.pool.reserves,
                 self.psp22.total_supply(),
             ) {
-                Ok((amounts, _)) => Ok(self.to_token_amounts(&amounts)?),
+                Ok((amounts, _)) => Ok(self.to_token_amounts(&amounts)),
                 Err(err) => Err(StablePoolError::MathError(err)),
             }
         }
@@ -607,7 +606,7 @@ pub mod stable_pool {
                 &self.pool.reserves,
                 self.psp22.total_supply(),
             ) {
-                Ok((amounts, _)) => Ok(self.to_token_amounts(&amounts)?),
+                Ok((amounts, _)) => Ok(self.to_token_amounts(&amounts)),
                 Err(err) => Err(StablePoolError::MathError(err)),
             }
         }
@@ -729,7 +728,7 @@ pub mod stable_pool {
             );
             assert_eq!(
                 stable_pool_contract.to_token_amount(0, expect_amount),
-                Ok(amount)
+                amount
             );
             let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000000000
             let expect_amount: u128 = amount;
@@ -739,7 +738,7 @@ pub mod stable_pool {
             );
             assert_eq!(
                 stable_pool_contract.to_token_amount(1, expect_amount),
-                Ok(amount)
+                amount
             );
         }
 
@@ -760,7 +759,7 @@ pub mod stable_pool {
             );
             assert_eq!(
                 stable_pool_contract.to_token_amount(0, expect_amount),
-                Ok(amount)
+                amount
             );
             let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000000000
             let expect_amount: u128 = amount;
@@ -770,7 +769,7 @@ pub mod stable_pool {
             );
             assert_eq!(
                 stable_pool_contract.to_token_amount(1, expect_amount),
-                Ok(amount)
+                amount
             );
         }
 
@@ -791,7 +790,7 @@ pub mod stable_pool {
             );
             assert_eq!(
                 stable_pool_contract.to_token_amount(0, expect_amount),
-                Ok(amount)
+                amount
             );
             let amount: u128 = 1_000_000_000_000_000_000_000_000; // 1000000.00000000000000000
             let expect_amount: u128 = amount; // 1000000.000000000000000000
@@ -801,7 +800,7 @@ pub mod stable_pool {
             );
             assert_eq!(
                 stable_pool_contract.to_token_amount(1, expect_amount),
-                Ok(amount)
+                amount
             );
         }
     }
