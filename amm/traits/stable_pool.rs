@@ -11,7 +11,7 @@ pub trait StablePoolView {
     #[ink(message)]
     fn tokens(&self) -> Vec<AccountId>;
 
-    /// Returns list of reserves in comparable amounts.
+    /// Returns list of tokens reserves.
     #[ink(message)]
     fn reserves(&self) -> Vec<u128>;
 
