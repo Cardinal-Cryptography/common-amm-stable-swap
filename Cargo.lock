@@ -1071,10 +1071,8 @@ dependencies = [
  "amm-helpers",
  "ink",
  "parity-scale-codec",
- "primitive-types",
- "psp22 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "psp22",
  "scale-info",
- "sp-arithmetic",
  "traits",
 ]
 

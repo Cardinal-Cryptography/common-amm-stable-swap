@@ -1,5 +1,4 @@
-use amm_helpers::math::casted_mul;
-use traits::MathError;
+use crate::math::{casted_mul, MathError};
 
 pub const FEE_BPS_DENOM: u32 = 10_000;
 
