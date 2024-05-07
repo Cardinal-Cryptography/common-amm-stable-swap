@@ -886,7 +886,7 @@ dependencies = [
  "ink",
  "parity-scale-codec",
  "primitive-types",
- "psp22 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "psp22",
  "sazero_rate_mock_contract",
  "scale-info",
  "sp-arithmetic",
