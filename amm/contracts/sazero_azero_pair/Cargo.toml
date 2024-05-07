@@ -19,10 +19,6 @@ sazero_rate_mock_contract = {path = "../sazero_rate_mock", default-features = fa
 
 traits = { path = "../../traits", default-features = false }
 amm-helpers = { path = "../../../helpers", default-features = false }
-primitive-types = { version = "0.12.1", default-features = false, features = [
-    "codec",
-] }
-sp-arithmetic = { version = "18.0.0", default-features = false }
 
 [lib]
 name = "sazero_azero_pair_contract"

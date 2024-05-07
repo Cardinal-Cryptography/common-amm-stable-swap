@@ -885,11 +885,9 @@ dependencies = [
  "amm-helpers",
  "ink",
  "parity-scale-codec",
- "primitive-types",
  "psp22",
  "sazero_rate_mock_contract",
  "scale-info",
- "sp-arithmetic",
  "traits",
 ]
 

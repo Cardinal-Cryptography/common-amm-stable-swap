@@ -1,9 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-pub mod amp_coef;
-pub mod fees;
-pub mod math;
-
 #[ink::contract]
 pub mod sazero_azero_pair {
     // 0.0006 * amount
@@ -18,11 +14,11 @@ pub mod sazero_azero_pair {
     pub const ONE_SAZERO: u128 = 10u128.pow(SAZERO_DECIMALS as u32);
     pub const ONE_AZERO: u128 = 10u128.pow(AZERO_DECIMALS as u32);
 
-    pub use crate::amp_coef::*;
-    pub use crate::fees::*;
-    pub use crate::math;
-    use amm_helpers::ensure;
-    use amm_helpers::math::casted_mul;
+    use amm_helpers::{
+        ensure,
+        math::casted_mul,
+        stable_swap_math::{self as math, amp_coef::*, fees::Fees},
+    };
     use ink::contract_ref;
     use ink::prelude::{
         string::{String, ToString},
@@ -138,8 +134,8 @@ pub mod sazero_azero_pair {
             owner: AccountId,
         ) -> Result<Self, StablePoolError> {
             ensure!(sazero != wazero, StablePoolError::IdenticalTokenId);
-            ensure!(init_amp_coef >= MIN_AMP, StablePoolError::AmpCoefTooLow);
-            ensure!(init_amp_coef <= MAX_AMP, StablePoolError::AmpCoefTooHigh);
+            ensure!(init_amp_coef >= MIN_AMP, AmpCoefError::AmpCoefTooLow);
+            ensure!(init_amp_coef <= MAX_AMP, AmpCoefError::AmpCoefTooHigh);
             Ok(Self::new(
                 sazero,
                 wazero,
@@ -574,11 +570,10 @@ pub mod sazero_azero_pair {
             ramp_duration: u64,
         ) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
-            self.pool.amp_coef.ramp_amp_coef(
-                target_amp_coef,
-                ramp_duration,
-                self.env().block_timestamp(),
-            )
+            self.pool
+                .amp_coef
+                .ramp_amp_coef(target_amp_coef, ramp_duration, self.env().block_timestamp())
+                .map_err(|err| StablePoolError::AmpCoefError(err))
         }
 
         #[ink(message)]
