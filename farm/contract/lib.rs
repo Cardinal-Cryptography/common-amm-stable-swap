@@ -171,31 +171,40 @@ mod farm {
         // 2) self.user_cumulative_last_update[acc][i] = self.farm_cumulative[i] for all i
         fn update_account(&mut self, account: AccountId) {
             let user_shares = self.shares.get(account).unwrap_or(0);
-            let new_reward_vector = match self.user_cumulative_reward_last_update.take(account) {
-                Some(user_cumulative_reward_last_update) => {
-                    let mut user_claimable_rewards = self
-                        .user_claimable_rewards
-                        .take(account)
-                        .unwrap_or(vec![0; self.reward_tokens.len()]);
-                    for (idx, user_cumulative) in
-                        user_cumulative_reward_last_update.into_iter().enumerate()
-                    {
-                        let user_reward = rewards_earned_by_shares(
-                            user_shares,
-                            self.farm_cumulative_reward_per_share[idx]
-                                .0
-                                .saturating_sub(user_cumulative.0),
-                        )
-                        .unwrap_or(0);
-                        user_claimable_rewards[idx] =
-                            user_claimable_rewards[idx].saturating_add(user_reward);
-                    }
-                    user_claimable_rewards
+            let rewards_len = self.reward_tokens.len();
+            let mut new_reward_vector = vec![0; rewards_len];
+
+            if let Some(mut user_cumulative_reward_last_update) =
+                self.user_cumulative_reward_last_update.take(account)
+            {
+                let mut user_claimable_rewards = self
+                    .user_claimable_rewards
+                    .take(account)
+                    .unwrap_or(vec![0; rewards_len]);
+
+                // Extend to cover for the new reward tokens.
+                user_cumulative_reward_last_update.extend(vec![
+                        WrappedU256::ZERO;
+                        rewards_len - user_cumulative_reward_last_update.len()
+                    ]);
+                user_claimable_rewards.extend(vec![0; rewards_len - user_claimable_rewards.len()]);
+
+                for (idx, user_cumulative) in
+                    user_cumulative_reward_last_update.into_iter().enumerate()
+                {
+                    let user_reward = rewards_earned_by_shares(
+                        user_shares,
+                        self.farm_cumulative_reward_per_share[idx]
+                            .0
+                            .saturating_sub(user_cumulative.0),
+                    )
+                    .unwrap_or(0);
+                    user_claimable_rewards[idx] =
+                        user_claimable_rewards[idx].saturating_add(user_reward);
                 }
-                None => {
-                    vec![0; self.reward_tokens.len()]
-                }
-            };
+                new_reward_vector = user_claimable_rewards;
+            }
+
             self.user_claimable_rewards
                 .insert(account, &new_reward_vector);
             self.user_cumulative_reward_last_update
@@ -278,7 +287,7 @@ mod farm {
                     rr.0.checked_div(U256::from(SCALING_FACTOR))
                         .ok_or(MathError::DivByZero(4))?
                         .try_into()
-                        .map_err(|_| MathError::Overflow(3))?,
+                        .map_err(|_| MathError::CastOverflow(3))?,
                 );
             }
             Ok(rates)
@@ -318,8 +327,8 @@ mod farm {
             rewards: Vec<u128>,
         ) -> Result<(), FarmError> {
             ensure!(self.env().caller() == self.owner, FarmError::CallerNotOwner);
-            self.update()?;
             ensure!(!self.is_active, FarmError::FarmIsRunning);
+            self.update()?;
             self.farm_reward_rates = self.assert_start_params(start, end, rewards.clone())?;
             self.start = start;
             self.end = end;
@@ -378,6 +387,30 @@ mod farm {
             }
             token_ref.transfer(self.owner, undistributed_balance, vec![])?;
             Ok(undistributed_balance)
+        }
+
+        #[ink(message)]
+        fn owner_add_reward_token(&mut self, token: AccountId) -> Result<(), FarmError> {
+            ensure!(self.env().caller() == self.owner, FarmError::CallerNotOwner);
+            ensure!(!self.is_active, FarmError::FarmIsRunning);
+            for r in self.reward_tokens.iter() {
+                if r == &token {
+                    return Err(FarmError::DuplicateRewardTokens);
+                }
+            }
+            if self.reward_tokens.len() == MAX_REWARD_TOKENS as usize {
+                return Err(FarmError::TooManyRewardTokens);
+            }
+            if self.pool_id == token {
+                return Err(FarmError::RewardTokenIsPoolToken);
+            }
+            self.update()?;
+            self.reward_tokens.push(token);
+            self.farm_distributed_unclaimed_rewards.push(0);
+            self.farm_cumulative_reward_per_share
+                .push(WrappedU256::ZERO);
+            self.farm_reward_rates.push(WrappedU256::ZERO);
+            Ok(())
         }
 
         // To learn how much rewards the user has, it's best to dry-run claim_rewards.
@@ -490,11 +523,11 @@ mod farm {
 
         let time_delta = to_timestamp
             .checked_sub(from_timestamp)
-            .ok_or(MathError::Underflow)?;
+            .ok_or(MathError::SubUnderflow(1))?;
 
         reward_rate
             .checked_mul(U256::from(time_delta))
-            .ok_or(MathError::Overflow(1))?
+            .ok_or(MathError::MulOverflow(1))?
             .checked_div(U256::from(total_shares))
             .ok_or(MathError::DivByZero(1))
     }
@@ -507,14 +540,14 @@ mod farm {
     ) -> Result<u128, MathError> {
         rewards_per_share
             .checked_mul(U256::from(shares))
-            .ok_or(MathError::Overflow(2))?
+            .ok_or(MathError::MulOverflow(2))?
             .checked_div(U256::from(SCALING_FACTOR))
             .ok_or(MathError::DivByZero(2))?
             .try_into()
-            .map_err(|_| MathError::CastOverflow)
+            .map_err(|_| MathError::CastOverflow(1))
     }
 
-    pub fn no_duplicates<A: Eq + PartialEq>(v: &Vec<A>) -> bool {
+    pub fn no_duplicates<A: Eq + PartialEq>(v: &[A]) -> bool {
         for (idx, el) in v.iter().enumerate() {
             // Add 1 since the first `idx=0` and we would
             // start iterating from the beginning (rather than the next element).

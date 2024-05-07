@@ -12,6 +12,8 @@ pub const FIRE: &str = "FIRE";
 pub const BOB: drink::AccountId32 = AccountId32::new([1u8; 32]);
 pub const CHARLIE: drink::AccountId32 = AccountId32::new([3u8; 32]);
 
+pub const TOKEN: u128 = 10u128.pow(18);
+
 pub fn bob() -> ink_primitives::AccountId {
     AsRef::<[u8; 32]>::as_ref(&BOB).clone().into()
 }
@@ -273,6 +275,141 @@ pub mod stable_swap {
                 .result
                 .unwrap()
     }
+
+    pub fn get_cached_pair(
+        session: &mut Session<MinimalRuntime>,
+        router: AccountId,
+        token0: AccountId,
+        token1: AccountId,
+    ) -> AccountId {
+        session
+            .query(router_contract::Instance::from(router).read_cache(token0, token1))
+            .unwrap()
+            .result
+            .unwrap()
+            .unwrap()
+            .0
+    }
+}
+
+pub mod stable_swap {
+    use super::*;
+    use stable_pool_contract::{StablePool as _, StablePoolView as _, StablePoolError};
+
+    pub fn setup(
+        session: &mut Session<MinimalRuntime>,
+        tokens: Vec<AccountId>,
+        tokens_decimals: Vec<u8>,
+        init_amp_coef: u128,
+        factory: AccountId,
+        caller: drink::AccountId32,
+    ) -> stable_pool_contract::Instance {
+        let _ = session.set_actor(caller.clone());
+        let instance = stable_pool_contract::Instance::new(
+            tokens,
+            tokens_decimals,
+            init_amp_coef,
+            factory,
+            caller.to_account_id(),
+        );
+
+        session
+            .instantiate(instance)
+            .unwrap()
+            .result
+            .to_account_id()
+            .into()
+    }
+
+    pub fn add_liquidity(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        caller: drink::AccountId32,
+        min_share_amount: u128,
+        amounts: Vec<u128>,
+        to: AccountId,
+    ) -> ContractResult<Result<Result<(u128, u128), StablePoolError>, InkLangError>> {
+        let _ = session.set_actor(caller);
+        session
+            .execute(
+                stable_pool_contract::Instance::from(stable_pool).add_liquidity(
+                    min_share_amount,
+                    amounts,
+                    to,
+                ),
+            )
+            .unwrap()
+    }
+
+    pub fn remove_liquidity(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        caller: drink::AccountId32,
+        max_share_amount: u128,
+        amounts: Vec<u128>,
+        to: AccountId,
+    ) -> ContractResult<Result<Result<(u128, u128), StablePoolError>, InkLangError>> {
+        let _ = session.set_actor(caller);
+        session
+            .execute(
+                stable_pool_contract::Instance::from(stable_pool).remove_liquidity(
+                    max_share_amount,
+                    amounts,
+                    to,
+                ),
+            )
+            .unwrap()
+    }
+
+    pub fn swap(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        caller: drink::AccountId32,
+        token_in: AccountId,
+        token_out: AccountId,
+        token_in_amount: u128,
+        min_token_out_amount: u128,
+        to: AccountId,
+    ) -> ContractResult<
+        Result<Result<(u128, u128), StablePoolError>, ink_wrapper_types::InkLangError>,
+    > {
+        let _ = session.set_actor(caller);
+        session
+            .execute(stable_pool_contract::Instance::from(stable_pool).swap(
+                token_in,
+                token_out,
+                token_in_amount,
+                min_token_out_amount,
+                to,
+            ))
+            .unwrap()
+    }
+
+    pub fn reserves(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+    ) -> Vec<u128> {
+            session
+                .query(stable_pool_contract::Instance::from(stable_pool).reserves())
+                .unwrap()
+                .result
+                .unwrap()
+    }
+
+    pub fn get_cached_pair(
+        session: &mut Session<MinimalRuntime>,
+        router: AccountId,
+        token0: AccountId,
+        token1: AccountId,
+    ) -> AccountId {
+        session
+            .query(router_contract::Instance::from(router).read_cache(token0, token1))
+            .unwrap()
+            .result
+            .unwrap()
+            .unwrap()
+            .0
+    }
 }
 
 pub mod psp22_utils {
@@ -291,7 +428,7 @@ pub mod psp22_utils {
         let _ = session.set_actor(caller);
 
         let instance = PSP22::new(
-            1_000_000_000u128 * 10u128.pow(18),
+            1_000_000_000u128 * TOKEN,
             Some(name.clone()),
             Some(name),
             18,
@@ -348,7 +485,7 @@ pub mod psp22_utils {
         )
     }
 
-    /// Transfer.
+    /// Increases allowance of given token to given spender by given amount.
     pub fn transfer(
         session: &mut Session<MinimalRuntime>,
         token: AccountId,
@@ -360,7 +497,7 @@ pub mod psp22_utils {
 
         handle_ink_error(
             session
-                .execute(PSP22::transfer(&token.into(), to, amount, vec![]))
+                .execute(PSP22::transfer(&token.into(), to, amount, [].to_vec()))
                 .unwrap(),
         )
     }
