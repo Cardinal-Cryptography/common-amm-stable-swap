@@ -6,8 +6,6 @@
 
 readonly SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-mkdir -p $SCRIPT_DIR/../drink-tests/resources
-
 declare -a CONTRACTS=(
     "factory_contract" 
     "pair_contract" 
@@ -22,22 +20,10 @@ declare -a CONTRACTS=(
 function wrap_contracts() {
     for c in ${CONTRACTS[@]}; do
         echo "Wrapping $c"
-        ink-wrapper --metadata $SCRIPT_DIR/../../target/ink/$c/$c.json \
-		            --wasm-path ../resources/$c.wasm \
+        ink-wrapper --metadata $SCRIPT_DIR/../../artifacts/$c.json \
+		            --wasm-path $SCRIPT_DIR/../../artifacts/$c.wasm \
 	 		| rustfmt --edition 2021 > $SCRIPT_DIR/../drink-tests/src/$c.rs ;
     done
 }
 
-function copy_wasms() {
-    for c in ${CONTRACTS[@]}; do
-        echo "Copying $c.wasm"
-        cp $SCRIPT_DIR/../../target/ink/$c/$c.wasm $SCRIPT_DIR/../drink-tests/resources/$c.wasm;
-    done
-}
-
-function run() {
-    wrap_contracts
-    copy_wasms
-}
-
-run
+wrap_contracts

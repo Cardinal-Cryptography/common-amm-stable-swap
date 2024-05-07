@@ -1,3 +1,4 @@
+use amm_helpers::stable_swap_math::amp_coef::AmpCoefError;
 use ink::prelude::vec::Vec;
 use ink::primitives::AccountId;
 use ink::LangError;
@@ -150,6 +151,7 @@ pub trait StablePool {
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum StablePoolError {
+    AmpCoefError(AmpCoefError),
     MathError(MathError),
     PSP22Error(PSP22Error),
     LangError(LangError),
@@ -164,10 +166,6 @@ pub enum StablePoolError {
     ReservesOverflow,
     IncorrectTokenCount,
     TokenDecimals,
-    AmpCoefTooHigh,
-    AmpCoefTooLow,
-    AmpCoefChangeTooLarge,
-    AmpCoefRampDurationTooShort,
     OnlyAdmin,
 }
 
@@ -186,5 +184,11 @@ impl From<LangError> for StablePoolError {
 impl From<MathError> for StablePoolError {
     fn from(error: MathError) -> Self {
         StablePoolError::MathError(error)
+    }
+}
+
+impl From<AmpCoefError> for StablePoolError {
+    fn from(error: AmpCoefError) -> Self {
+        StablePoolError::AmpCoefError(error)
     }
 }

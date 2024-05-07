@@ -1,9 +1,11 @@
-use amm_helpers::math::casted_mul;
+pub mod amp_coef;
+pub mod fees;
+
+use crate::math::{casted_mul, MathError};
 use ink::prelude::{vec, vec::Vec};
 use primitive_types::U256;
-use traits::MathError;
 
-use crate::fees::Fees;
+use fees::Fees;
 
 /// Max number of iterations for curve computation using Newton–Raphson method
 pub const MAX_ITERATIONS: u8 = 255;
@@ -853,11 +855,19 @@ mod tests {
         let (deposit_amounts, reserves_b) =
             compute_deposit_amounts_for_lp(share, &reserves, token_supply)
                 .unwrap_or_else(|_| panic!("Should mint liquidity"));
-        let (share_by_deposit, fee_part) =
-            compute_lp_amount_for_deposit(&deposit_amounts, &reserves, token_supply, Some(&fees), amp_coef)
-                .unwrap_or_else(|_| panic!("Should mint liquidity"));
+        let (share_by_deposit, fee_part) = compute_lp_amount_for_deposit(
+            &deposit_amounts,
+            &reserves,
+            token_supply,
+            Some(&fees),
+            amp_coef,
+        )
+        .unwrap_or_else(|_| panic!("Should mint liquidity"));
         assert_eq!(fee_part, 0, "Fee is should be 0");
-        let reserves_a = vec![reserves[0] + deposit_amounts[0], reserves[1] + deposit_amounts[1]];
+        let reserves_a = vec![
+            reserves[0] + deposit_amounts[0],
+            reserves[1] + deposit_amounts[1],
+        ];
         assert_eq!(share, share_by_deposit, "Deposit amounts differ.");
         assert_eq!(reserves_a, reserves_b, "Reserves should match");
     }

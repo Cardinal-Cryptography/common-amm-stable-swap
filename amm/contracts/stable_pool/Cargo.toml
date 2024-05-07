@@ -18,10 +18,6 @@ psp22 = { version = "=0.2.2" , default-features = false }
 
 traits = { path = "../../traits", default-features = false }
 amm-helpers = { path = "../../../helpers", default-features = false }
-primitive-types = { version = "0.12.1", default-features = false, features = [
-    "codec",
-] }
-sp-arithmetic = { version = "18.0.0", default-features = false }
 
 [lib]
 name = "stable_pool_contract"

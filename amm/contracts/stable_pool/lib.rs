@@ -1,20 +1,15 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-pub mod amp_coef;
-pub mod fees;
-pub mod math;
-
 #[ink::contract]
 pub mod stable_pool {
-    // 0.0006 * amount
+    // amount * 0.06%
     pub const TRADE_FEE_BPS: u32 = 6;
-    // 0.0006 * 0.2 * amount (part of the TRADE_FEE)
+    // amount * 0.06% * 20% (part of the TRADE_FEE)
     pub const ADMIN_FEE_BPS: u32 = 2_000;
-
-    pub use crate::amp_coef::*;
-    pub use crate::fees::*;
-    pub use crate::math;
-    use amm_helpers::ensure;
+    use amm_helpers::{
+        ensure,
+        stable_swap_math::{self as math, amp_coef::*, fees::Fees},
+    };
     use ink::contract_ref;
     use ink::prelude::{
         string::{String, ToString},
@@ -126,8 +121,8 @@ pub mod stable_pool {
                 tokens.len() == tokens_decimals.len(),
                 StablePoolError::IncorrectTokenCount
             );
-            ensure!(init_amp_coef >= MIN_AMP, StablePoolError::AmpCoefTooLow);
-            ensure!(init_amp_coef <= MAX_AMP, StablePoolError::AmpCoefTooHigh);
+            ensure!(init_amp_coef >= MIN_AMP, AmpCoefError::AmpCoefTooLow);
+            ensure!(init_amp_coef <= MAX_AMP, AmpCoefError::AmpCoefTooHigh);
             Ok(Self::new(
                 tokens,
                 tokens_decimals,
@@ -213,6 +208,7 @@ pub mod stable_pool {
                 .ok_or(StablePoolError::InvalidTokenId(token))
         }
 
+        /// Checks if tokens are valid and returns the tokens ids
         fn check_tokens(
             &self,
             token_in: AccountId,
@@ -264,9 +260,6 @@ pub mod stable_pool {
             self.pool.reserves[token_in_id] = swap_res.new_source_amount;
             self.pool.reserves[token_out_id] = swap_res.new_destination_amount;
             // mint fees for admin
-            // "Because amp_coef may change over time, we can't
-            // determine the fees only when depositing/withdrawing
-            // liquidity, admin fees must be minted and distributed on every swap"
             if fee_to.is_some() && swap_res.admin_fee > 0 {
                 let mut admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
                 admin_deposit_amounts[token_out_id] = swap_res.admin_fee;
@@ -468,11 +461,10 @@ pub mod stable_pool {
             ramp_duration: u64,
         ) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
-            self.pool.amp_coef.ramp_amp_coef(
-                target_amp_coef,
-                ramp_duration,
-                self.env().block_timestamp(),
-            )
+            self.pool
+                .amp_coef
+                .ramp_amp_coef(target_amp_coef, ramp_duration, self.env().block_timestamp())
+                .map_err(|err| StablePoolError::AmpCoefError(err))
         }
 
         #[ink(message)]
