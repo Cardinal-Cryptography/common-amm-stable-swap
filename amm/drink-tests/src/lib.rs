@@ -17,7 +17,7 @@ mod wrapped_azero;
 #[cfg(test)]
 mod benchmark;
 #[cfg(test)]
-mod sazero_azero_pair_contract;
+mod rated_stable_pair_contract;
 #[cfg(test)]
 mod sazero_rate_mock_contract;
 #[cfg(test)]

@@ -2,7 +2,6 @@
 
 #[ink::contract]
 mod sazero_rate_mock {
-    use crate::SazeroRate;
 
     const ONE_SHARE: u128 = 10u128.pow(18);
     const ONE_AZERO: u128 = 10u128.pow(12);
@@ -19,12 +18,10 @@ mod sazero_rate_mock {
                 initial_ts: Self::env().block_timestamp(),
             }
         }
-    }
 
-    impl SazeroRate for SazeroMockContract {
         /// Calculate the value of sAZERO in terms of AZERO
         #[ink(message)]
-        fn get_azero_from_shares(&self, shares: u128) -> u128 {
+        pub fn get_azero_from_shares(&self, shares: u128) -> u128 {
             // mock increasing rate (0.01% every 1 minute)
             let now = self.env().block_timestamp();
             let time_d = (now - self.initial_ts) as u128; // ms elapsed
@@ -43,13 +40,10 @@ mod sazero_rate_mock {
             let minute: u64 = 60 * 1000;
             let rate_contract = SazeroMockContract::new();
             set_block_timestamp::<DefaultEnvironment>(minute * 10000); // after 10000 minutes should be doubled
-            assert_eq!(rate_contract.get_azero_from_shares(ONE_SHARE), ONE_AZERO * 2);
+            assert_eq!(
+                rate_contract.get_azero_from_shares(ONE_SHARE),
+                ONE_AZERO * 2
+            );
         }
     }
-}
-
-#[ink::trait_definition]
-pub trait SazeroRate {
-    #[ink(message)]
-    fn get_azero_from_shares(&self, shares: u128) -> u128;
 }

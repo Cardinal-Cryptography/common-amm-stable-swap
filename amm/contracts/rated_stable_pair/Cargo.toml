@@ -1,5 +1,5 @@
 [package]
-name = "sazero_azero_pair_contract"
+name = "rated_stable_pair_contract"
 version = "0.1.0"
 authors = ["Cardinal Cryptography"]
 edition = "2021"
@@ -15,13 +15,12 @@ scale-info = { version = "2.9", default-features = false, features = [
 ], optional = true }
 
 psp22 = { version = "=0.2.2" , default-features = false }
-sazero_rate_mock_contract = {path = "../sazero_rate_mock", default-features = false, features = ["ink-as-dependency"]}
 
 traits = { path = "../../traits", default-features = false }
 amm-helpers = { path = "../../../helpers", default-features = false }
 
 [lib]
-name = "sazero_azero_pair_contract"
+name = "rated_stable_pair_contract"
 path = "lib.rs"
 doctest = false
 
@@ -34,6 +33,5 @@ std = [
     "psp22/std",
     "traits/std",
     "amm-helpers/std",
-    "sazero_rate_mock_contract/std",
 ]
 ink-as-dependency = []

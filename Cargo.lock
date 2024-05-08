@@ -806,6 +806,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rated_stable_pair_contract"
+version = "0.1.0"
+dependencies = [
+ "amm-helpers",
+ "ink",
+ "parity-scale-codec",
+ "psp22",
+ "scale-info",
+ "traits",
+]
+
+[[package]]
 name = "regex"
 version = "1.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -877,19 +889,6 @@ name = "ryu"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad4cc8da4ef723ed60bced201181d83791ad433213d8c24efffda1eec85d741"
-
-[[package]]
-name = "sazero_azero_pair_contract"
-version = "0.1.0"
-dependencies = [
- "amm-helpers",
- "ink",
- "parity-scale-codec",
- "psp22",
- "sazero_rate_mock_contract",
- "scale-info",
- "traits",
-]
 
 [[package]]
 name = "sazero_rate_mock_contract"

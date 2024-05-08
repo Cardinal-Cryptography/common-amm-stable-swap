@@ -1,22 +1,15 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
+mod token_rate;
 
 #[ink::contract]
-pub mod sazero_azero_pair {
+pub mod rated_stable_pair {
     // 0.0006 * amount
     pub const TRADE_FEE_BPS: u32 = 6;
     // 0.0006 * 0.2 * amount (part of the TRADE_FEE)
     pub const ADMIN_FEE_BPS: u32 = 2_000;
-    // 24 h
-    pub const RATE_EXPIRE_TS: u64 = 86400000;
-
-    pub const SAZERO_DECIMALS: u8 = 18;
-    pub const AZERO_DECIMALS: u8 = 12;
-    pub const ONE_SAZERO: u128 = 10u128.pow(SAZERO_DECIMALS as u32);
-    pub const ONE_AZERO: u128 = 10u128.pow(AZERO_DECIMALS as u32);
 
     use amm_helpers::{
         ensure,
-        math::casted_mul,
         stable_swap_math::{self as math, amp_coef::*, fees::Fees},
     };
     use ink::contract_ref;
@@ -25,8 +18,9 @@ pub mod sazero_azero_pair {
         {vec, vec::Vec},
     };
     use psp22::{PSP22Data, PSP22Error, PSP22Event, PSP22Metadata, PSP22};
-    use sazero_rate_mock_contract::SazeroRate as SazeroRateContractTrait;
     use traits::{Factory, MathError, StablePool, StablePoolError, StablePoolView};
+
+    use crate::token_rate::*;
 
     #[ink(event)]
     #[derive(Debug)]
@@ -59,10 +53,10 @@ pub mod sazero_azero_pair {
 
     #[ink::storage_item]
     #[derive(Debug)]
-    pub struct SazeroAzeroPairData {
+    pub struct RatedStablePairData {
         /// Factory contract
         factory: contract_ref!(Factory),
-        /// Tokens.
+        /// List of tokens. Token at id 0 is the rated token.
         tokens: Vec<AccountId>,
         /// Tokens precision factors used for normalization.
         precisions: Vec<u128>,
@@ -72,74 +66,75 @@ pub mod sazero_azero_pair {
         amp_coef: AmplificationCoefficient,
         /// Fees
         fees: Fees,
-        ///
-        cached_sazero_rate: u128,
-        ///
-        last_sazero_rate_update_ts: u64,
-        ///
-        sazero_rate_contract: contract_ref!(SazeroRateContractTrait),
+        /// Rate of the token at id 0
+        token_0_rate: TokenRate,
     }
 
     #[ink(storage)]
-    pub struct SazeroAzeroPairContract {
+    pub struct RatedStablePairContract {
         owner: AccountId,
-        pool: SazeroAzeroPairData,
+        pool: RatedStablePairData,
         psp22: PSP22Data,
         decimals: u8,
     }
 
-    impl SazeroAzeroPairContract {
+    impl RatedStablePairContract {
         #[ink(constructor)]
         pub fn new(
-            sazero: AccountId,
-            wazero: AccountId,
-            sazero_rate_contract: AccountId,
+            token_0_rated: AccountId,
+            token_1: AccountId,
+            token_0_decimals: u8,
+            token_1_decimals: u8,
+            token_0_rate_contract: AccountId,
             init_amp_coef: u128,
             factory: AccountId,
             owner: AccountId,
         ) -> Self {
             let reserves = vec![0, 0];
+            let max_decimals = token_0_decimals.max(token_1_decimals);
             let precisions = vec![
-                1,
-                10u128.pow(SAZERO_DECIMALS.checked_sub(AZERO_DECIMALS).unwrap().into()),
+                10u128.pow(max_decimals.checked_sub(token_0_decimals).unwrap().into()),
+                10u128.pow(max_decimals.checked_sub(token_1_decimals).unwrap().into()),
             ];
-            let mut instance = Self {
+            Self {
                 owner,
-                pool: SazeroAzeroPairData {
+                pool: RatedStablePairData {
                     factory: factory.into(),
-                    tokens: vec![sazero, wazero],
+                    tokens: vec![token_0_rated, token_1],
                     precisions,
                     reserves,
                     amp_coef: AmplificationCoefficient::new(init_amp_coef),
                     fees: Fees::new(TRADE_FEE_BPS, ADMIN_FEE_BPS),
-                    cached_sazero_rate: ONE_AZERO,
-                    last_sazero_rate_update_ts: 0,
-                    sazero_rate_contract: sazero_rate_contract.into(),
+                    token_0_rate: TokenRate::new(
+                        Self::env().block_timestamp(),
+                        token_0_rate_contract,
+                    ),
                 },
                 psp22: PSP22Data::default(),
                 decimals: SAZERO_DECIMALS,
-            };
-            instance.update_sazero_rate();
-            instance
+            }
         }
 
-        // TODO: probably to remove
         #[ink(constructor)]
         pub fn new_test(
-            sazero: AccountId,
-            wazero: AccountId,
-            sazero_rate_contract: AccountId,
+            token_0_rated: AccountId,
+            token_1: AccountId,
+            token_0_decimals: u8,
+            token_1_decimals: u8,
+            token_0_rate_contract: AccountId,
             init_amp_coef: u128,
             factory: AccountId,
             owner: AccountId,
         ) -> Result<Self, StablePoolError> {
-            ensure!(sazero != wazero, StablePoolError::IdenticalTokenId);
+            ensure!(token_0_rated != token_1, StablePoolError::IdenticalTokenId);
             ensure!(init_amp_coef >= MIN_AMP, AmpCoefError::AmpCoefTooLow);
             ensure!(init_amp_coef <= MAX_AMP, AmpCoefError::AmpCoefTooHigh);
             Ok(Self::new(
-                sazero,
-                wazero,
-                sazero_rate_contract,
+                token_0_rated,
+                token_1,
+                token_0_decimals,
+                token_1_decimals,
+                token_0_rate_contract,
                 init_amp_coef,
                 factory,
                 owner,
@@ -256,9 +251,12 @@ pub mod sazero_azero_pair {
             // get fee_to account
             let fee_to = self.fee_to();
             // rate reserve and amount in
-            let rate = self.get_actual_sazero_rate_and_update();
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate_and_update(self.env().block_timestamp());
             let rated_comparable_token_in_amount =
-                Self::amount_to_rated_amount(comparable_token_in_amount, rate, token_in_id)?;
+                amount_to_rated_amount(comparable_token_in_amount, rate, token_in_id)?;
             // calc amount_out and fees
             let swap_res = math::swap_to(
                 token_in_id,
@@ -270,7 +268,7 @@ pub mod sazero_azero_pair {
                 fee_to.is_some(),
             )?;
             let amount_swapped =
-                Self::rated_amount_to_amount(swap_res.amount_swapped, rate, token_out_id)?;
+                rated_amount_to_amount(swap_res.amount_swapped, rate, token_out_id)?;
             let token_out_amount = self.to_token_amount(token_out_id, amount_swapped)?;
             // Check if swapped amount is not less than min_token_out_amount
             if token_out_amount < min_token_out_amount {
@@ -278,16 +276,15 @@ pub mod sazero_azero_pair {
             };
             // update reserves
             self.pool.reserves[token_in_id] =
-                Self::rated_amount_to_amount(swap_res.new_source_amount, rate, token_in_id)?;
+                rated_amount_to_amount(swap_res.new_source_amount, rate, token_in_id)?;
             self.pool.reserves[token_out_id] =
-                Self::rated_amount_to_amount(swap_res.new_destination_amount, rate, token_out_id)?;
+                rated_amount_to_amount(swap_res.new_destination_amount, rate, token_out_id)?;
             // mint fees for admin
             // "Because amp_coef may change over time, we can't
             // determine the fees only when depositing/withdrawing
             // liquidity, admin fees must be minted and distributed on every swap"
             if fee_to.is_some() && swap_res.admin_fee > 0 {
-                let admin_fee =
-                    Self::rated_amount_to_amount(swap_res.admin_fee, rate, token_out_id)?;
+                let admin_fee = rated_amount_to_amount(swap_res.admin_fee, rate, token_out_id)?;
                 let mut admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
                 admin_deposit_amounts[token_out_id] = admin_fee;
                 // calc shares from admin fee
@@ -308,7 +305,7 @@ pub mod sazero_azero_pair {
             }
             Ok((
                 token_out_amount,
-                Self::rated_amount_to_amount(
+                rated_amount_to_amount(
                     self.to_token_amount(token_out_id, swap_res.fee)?,
                     rate,
                     token_out_id,
@@ -316,80 +313,12 @@ pub mod sazero_azero_pair {
             ))
         }
 
-        fn amount_to_rated_amount(amount: u128, rate: u128, id: usize) -> Result<u128, MathError> {
-            if id == 0 {
-                Ok(casted_mul(amount, rate)
-                    .checked_div(ONE_AZERO.into())
-                    .ok_or(MathError::DivByZero(1))?
-                    .as_u128())
-            } else {
-                Ok(amount)
-            }
-        }
-
-        fn rated_amount_to_amount(
-            rated_amount: u128,
-            rate: u128,
-            id: usize,
-        ) -> Result<u128, MathError> {
-            if id == 0 {
-                Ok(casted_mul(rated_amount, ONE_AZERO)
-                    .checked_div(rate.into())
-                    .ok_or(MathError::DivByZero(1))?
-                    .as_u128())
-            } else {
-                Ok(rated_amount)
-            }
-        }
-
         fn rated_reserves(&self, rate: u128) -> Result<Vec<u128>, MathError> {
-            let mut reserves = self.pool.reserves.clone();
-            reserves[0] = Self::amount_to_rated_amount(reserves[0], rate, 0)?;
-            Ok(reserves)
-        }
-
-        fn update_sazero_rate(&mut self) -> u128 {
-            let rate = self
-                .pool
-                .sazero_rate_contract
-                .get_azero_from_shares(ONE_SAZERO);
-            self.pool.cached_sazero_rate = rate;
-            self.pool.last_sazero_rate_update_ts = self.env().block_timestamp();
-            rate
-        }
-
-        fn get_actual_sazero_rate(&self) -> u128 {
-            if self
-                .pool
-                .last_sazero_rate_update_ts
-                .checked_add(RATE_EXPIRE_TS)
-                .unwrap()
-                > self.env().block_timestamp()
-            {
-                self.pool.cached_sazero_rate
-            } else {
-                self.pool
-                    .sazero_rate_contract
-                    .get_azero_from_shares(ONE_SAZERO)
-            }
-        }
-
-        fn get_actual_sazero_rate_and_update(&mut self) -> u128 {
-            if self
-                .pool
-                .last_sazero_rate_update_ts
-                .checked_add(RATE_EXPIRE_TS)
-                .unwrap()
-                < self.env().block_timestamp()
-            {
-                self.update_sazero_rate()
-            } else {
-                self.pool.cached_sazero_rate
-            }
+            amounts_to_rated_amounts(&self.pool.reserves, rate)
         }
     }
 
-    impl StablePool for SazeroAzeroPairContract {
+    impl StablePool for RatedStablePairContract {
         #[ink(message)]
         fn add_liquidity(
             &mut self,
@@ -411,9 +340,11 @@ pub mod sazero_azero_pair {
                 )?;
                 c_amounts.push(self.to_comperable_amount(id, amounts[id])?);
             }
-            let rate = self.get_actual_sazero_rate_and_update();
-            let mut rated_c_amounts = c_amounts.clone();
-            rated_c_amounts[0] = Self::amount_to_rated_amount(c_amounts[0], rate, 0)?;
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate_and_update(self.env().block_timestamp());
+            let rated_c_amounts = amounts_to_rated_amounts(&c_amounts, rate)?;
             // calc lp tokens (shares_to_mint, fee)
             let (shares, fee_part) = math::compute_lp_amount_for_deposit(
                 &rated_c_amounts,
@@ -457,10 +388,12 @@ pub mod sazero_azero_pair {
                 return Err(StablePoolError::IncorrectAmountsCount);
             }
             // calc comparable amounts
-            let rate = self.get_actual_sazero_rate_and_update();
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate_and_update(self.env().block_timestamp());
             let c_amounts = self.to_comperable_amounts(&amounts)?;
-            let mut rated_c_amounts = c_amounts.clone();
-            rated_c_amounts[0] = Self::amount_to_rated_amount(c_amounts[0], rate, 0)?;
+            let rated_c_amounts = amounts_to_rated_amounts(&c_amounts, rate)?;
             let (shares_to_burn, fee_part) = math::compute_lp_amount_for_withdraw(
                 &rated_c_amounts,
                 &self.rated_reserves(rate)?,
@@ -584,7 +517,7 @@ pub mod sazero_azero_pair {
         }
     }
 
-    impl StablePoolView for SazeroAzeroPairContract {
+    impl StablePoolView for RatedStablePairContract {
         #[ink(message)]
         fn tokens(&self) -> Vec<AccountId> {
             self.pool.tokens.clone()
@@ -608,9 +541,11 @@ pub mod sazero_azero_pair {
             token_in_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-            let rate = self.get_actual_sazero_rate();
-            let rated_token_in_amount =
-                Self::amount_to_rated_amount(token_in_amount, rate, token_in_id)?;
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate(self.env().block_timestamp());
+            let rated_token_in_amount = amount_to_rated_amount(token_in_amount, rate, token_in_id)?;
             let res = math::swap_to(
                 token_in_id,
                 self.to_comperable_amount(token_in_id, rated_token_in_amount)?,
@@ -621,12 +556,12 @@ pub mod sazero_azero_pair {
                 self.fee_to().is_some(),
             )?;
             Ok((
-                Self::rated_amount_to_amount(
+                rated_amount_to_amount(
                     self.to_token_amount(token_out_id, res.amount_swapped)?,
                     rate,
                     token_out_id,
                 )?,
-                Self::rated_amount_to_amount(
+                rated_amount_to_amount(
                     self.to_token_amount(token_out_id, res.fee)?,
                     rate,
                     token_in_id,
@@ -642,9 +577,12 @@ pub mod sazero_azero_pair {
             token_out_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-            let rate = self.get_actual_sazero_rate();
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate(self.env().block_timestamp());
             let rated_token_out_amount =
-                Self::amount_to_rated_amount(token_out_amount, rate, token_out_id)?;
+                amount_to_rated_amount(token_out_amount, rate, token_out_id)?;
             let res = math::swap_from(
                 token_in_id,
                 self.to_comperable_amount(token_out_id, rated_token_out_amount)?,
@@ -655,12 +593,12 @@ pub mod sazero_azero_pair {
                 self.fee_to().is_some(),
             )?;
             Ok((
-                Self::rated_amount_to_amount(
+                rated_amount_to_amount(
                     self.to_token_amount(token_in_id, res.amount_swapped)?,
                     rate,
                     token_in_id,
                 )?,
-                Self::rated_amount_to_amount(
+                rated_amount_to_amount(
                     self.to_token_amount(token_out_id, res.fee)?,
                     rate,
                     token_in_id,
@@ -676,9 +614,12 @@ pub mod sazero_azero_pair {
             if amounts.len() != self.pool.tokens.len() {
                 return Err(StablePoolError::IncorrectAmountsCount);
             }
-            let mut rated_amounts = self.to_comperable_amounts(&amounts)?;
-            let rate = self.get_actual_sazero_rate();
-            rated_amounts[0] = Self::amount_to_rated_amount(rated_amounts[0], rate, 0)?;
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate(self.env().block_timestamp());
+            let rated_amounts =
+                amounts_to_rated_amounts(&self.to_comperable_amounts(&amounts)?, rate)?;
             math::compute_lp_amount_for_deposit(
                 &rated_amounts,
                 &self.rated_reserves(rate)?,
@@ -694,15 +635,17 @@ pub mod sazero_azero_pair {
             &self,
             liquidity: u128,
         ) -> Result<Vec<u128>, StablePoolError> {
-            let rate = self.get_actual_sazero_rate();
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate(self.env().block_timestamp());
             match math::compute_deposit_amounts_for_lp(
                 liquidity,
                 &self.rated_reserves(rate)?,
                 self.psp22.total_supply(),
             ) {
-                Ok((mut amounts, _)) => {
-                    amounts[0] = Self::rated_amount_to_amount(amounts[0], rate, 0)?;
-                    Ok(self.to_token_amounts(&amounts)?)
+                Ok((amounts, _)) => {
+                    Ok(self.to_token_amounts(&rated_amounts_to_amounts(&amounts, rate)?)?)
                 }
                 Err(err) => Err(StablePoolError::MathError(err)),
             }
@@ -716,9 +659,12 @@ pub mod sazero_azero_pair {
             if amounts.len() != self.pool.tokens.len() {
                 return Err(StablePoolError::IncorrectAmountsCount);
             }
-            let mut rated_amounts = self.to_comperable_amounts(&amounts)?;
-            let rate = self.get_actual_sazero_rate();
-            rated_amounts[0] = Self::amount_to_rated_amount(rated_amounts[0], rate, 0)?;
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate(self.env().block_timestamp());
+            let rated_amounts =
+                amounts_to_rated_amounts(&self.to_comperable_amounts(&amounts)?, rate)?;
             math::compute_lp_amount_for_withdraw(
                 &rated_amounts,
                 &self.rated_reserves(rate)?,
@@ -734,22 +680,24 @@ pub mod sazero_azero_pair {
             &self,
             liquidity: u128,
         ) -> Result<Vec<u128>, StablePoolError> {
-            let rate = self.get_actual_sazero_rate();
+            let rate = self
+                .pool
+                .token_0_rate
+                .get_rate(self.env().block_timestamp());
             match math::compute_withdraw_amounts_for_lp(
                 liquidity,
                 &self.rated_reserves(rate)?,
                 self.psp22.total_supply(),
             ) {
-                Ok((mut amounts, _)) => {
-                    amounts[0] = Self::rated_amount_to_amount(amounts[0], rate, 0)?;
-                    Ok(self.to_token_amounts(&amounts)?)
+                Ok((amounts, _)) => {
+                    Ok(self.to_token_amounts(&rated_amounts_to_amounts(&amounts, rate)?)?)
                 }
                 Err(err) => Err(StablePoolError::MathError(err)),
             }
         }
     }
 
-    impl PSP22 for SazeroAzeroPairContract {
+    impl PSP22 for RatedStablePairContract {
         #[ink(message)]
         fn total_supply(&self) -> u128 {
             self.psp22.total_supply()
@@ -826,7 +774,7 @@ pub mod sazero_azero_pair {
         }
     }
 
-    impl PSP22Metadata for SazeroAzeroPairContract {
+    impl PSP22Metadata for RatedStablePairContract {
         #[ink(message)]
         fn token_name(&self) -> Option<String> {
             Some("CommonAMM-V2".to_string())
@@ -842,103 +790,4 @@ pub mod sazero_azero_pair {
             self.decimals
         }
     }
-
-    // #[cfg(test)]
-    // mod test {
-    //     use ink::primitives::AccountId;
-
-    //     use super::*;
-    //     #[test]
-    //     fn amount_to_comperable_and_back_1() {
-    //         let stable_pool_contract = SazeroAzeroPairContract::new(
-    //             vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
-    //             vec![6, 12],
-    //             1,
-    //             AccountId::from([0u8; 32]),
-    //             AccountId::from([0u8; 32]),
-    //         );
-    //         let amount: u128 = 1_000_000_000_000; // 1000000.000000
-    //         let expect_amount: u128 = amount * 10u128.pow(6); // 1000000.000000000000000000
-    //         assert_eq!(
-    //             stable_pool_contract.to_comperable_amount(0, amount),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract.to_token_amount(0, expect_amount),
-    //             Ok(amount)
-    //         );
-    //         let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000000000
-    //         let expect_amount: u128 = amount;
-    //         assert_eq!(
-    //             stable_pool_contract.to_comperable_amount(1, amount),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract.to_token_amount(1, expect_amount),
-    //             Ok(amount)
-    //         );
-    //     }
-
-    //     #[test]
-    //     fn amount_to_comperable_and_back_2() {
-    //         let stable_pool_contract = SazeroAzeroPairContract::new(
-    //             vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
-    //             vec![0, 24],
-    //             1,
-    //             AccountId::from([0u8; 32]),
-    //             AccountId::from([0u8; 32]),
-    //         );
-    //         let amount: u128 = 1_000_000; // 1000000
-    //         let expect_amount: u128 = amount * 10u128.pow(24); // 1000000.000000000000000000000000
-    //         assert_eq!(
-    //             stable_pool_contract.to_comperable_amount(0, amount),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract.to_token_amount(0, expect_amount),
-    //             Ok(amount)
-    //         );
-    //         let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000000000
-    //         let expect_amount: u128 = amount;
-    //         assert_eq!(
-    //             stable_pool_contract.to_comperable_amount(1, amount),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract.to_token_amount(1, expect_amount),
-    //             Ok(amount)
-    //         );
-    //     }
-
-    //     #[test]
-    //     fn amount_to_comperable_and_back_3() {
-    //         let stable_pool_contract = SazeroAzeroPairContract::new(
-    //             vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
-    //             vec![1, 18],
-    //             1,
-    //             AccountId::from([0u8; 32]),
-    //             AccountId::from([0u8; 32]),
-    //         );
-    //         let amount: u128 = 1_000_000_0; // 1000000.0
-    //         let expect_amount: u128 = amount * 10u128.pow(17); // 1000000.000000000000000000
-    //         assert_eq!(
-    //             stable_pool_contract.to_comperable_amount(0, amount),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract.to_token_amount(0, expect_amount),
-    //             Ok(amount)
-    //         );
-    //         let amount: u128 = 1_000_000_000_000_000_000_000_000; // 1000000.00000000000000000
-    //         let expect_amount: u128 = amount; // 1000000.000000000000000000
-    //         assert_eq!(
-    //             stable_pool_contract.to_comperable_amount(1, amount),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract.to_token_amount(1, expect_amount),
-    //             Ok(amount)
-    //         );
-    //     }
-    // }
 }

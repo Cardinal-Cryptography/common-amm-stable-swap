@@ -2,7 +2,7 @@ use crate::factory_contract;
 use crate::pair_contract;
 use crate::pair_contract::Pair;
 use crate::router_contract;
-use crate::sazero_azero_pair_contract;
+use crate::rated_stable_pair_contract;
 use crate::sazero_rate_mock_contract;
 use crate::utils::*;
 
@@ -32,11 +32,11 @@ fn setup_rated_swap(
     init_amp_coef: u128,
     factory: AccountId,
     caller: drink::AccountId32,
-) -> sazero_azero_pair_contract::Instance {
+) -> rated_stable_pair_contract::Instance {
     //upload and deploy rate mock
     session
-        .upload_code(sazero_azero_pair_contract::upload())
-        .expect("Upload sazero_azero_pair_contract code");
+        .upload_code(rated_stable_pair_contract::upload())
+        .expect("Upload rated_stable_pair_contract code");
     session
         .upload_code(sazero_rate_mock_contract::upload())
         .expect("Upload sazero_rate_mock_contract code");
@@ -51,9 +51,11 @@ fn setup_rated_swap(
         .to_account_id()
         .into();
 
-    let instance = sazero_azero_pair_contract::Instance::new(
+    let instance = rated_stable_pair_contract::Instance::new(
         sazero,
         wazero,
+        SAZERO_DEC,
+        WAZERO_DEC,
         rate_mock_address,
         init_amp_coef,
         factory,
@@ -130,7 +132,7 @@ fn rated_test_1(mut session: Session) {
         1,
         vec![INIT_SUPPLY * ONE_SAZERO, INIT_SUPPLY * ONE_AZERO],
         bob(),
-    );
+    ).result;
     println!("RES: {res:?}");
 }
 
@@ -159,6 +161,6 @@ fn rated_test_2(mut session: Session) {
         10 * ONE_SAZERO,
         1,                     // min_token_out
         bob(),
-    );
+    ).result;
     println!("RES: {res:?}");
 }
