@@ -44,13 +44,15 @@ pub struct AmplificationCoefficient {
 }
 
 impl AmplificationCoefficient {
-    pub fn new(init_amp_coef: u128) -> Self {
-        Self {
+    pub fn new(init_amp_coef: u128) -> Result<Self, AmpCoefError> {
+        ensure!(init_amp_coef >= MIN_AMP, AmpCoefError::AmpCoefTooLow);
+        ensure!(init_amp_coef <= MAX_AMP, AmpCoefError::AmpCoefTooHigh);
+        Ok(Self {
             init_amp_coef,
             target_amp_coef: init_amp_coef,
             init_amp_time: 0,
             stop_amp_time: 0,
-        }
+        })
     }
     /// from https://github.com/ref-finance/ref-contracts/blob/752f42d7ec67b66fadda7756ed7eb3d312fb6473/ref-exchange/src/stable_swap/math.rs#L100-L101
     pub fn compute_amp_coef(&self, current_time: u64) -> Result<u128, MathError> {

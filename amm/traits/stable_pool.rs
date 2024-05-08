@@ -162,11 +162,8 @@ pub enum StablePoolError {
     InsufficientLiquidityBurned,
     InsufficientOutputAmount,
     InsufficientInputAmount,
-    InsufficientLiquidity,
-    ReservesOverflow,
     IncorrectTokenCount,
-    TokenDecimals,
-    OnlyAdmin,
+    OnlyOwner,
 }
 
 impl From<PSP22Error> for StablePoolError {
