@@ -6,6 +6,7 @@ pub mod stable_pool {
     pub const TRADE_FEE_BPS: u32 = 6;
     // amount * 0.06% * 20% (part of the TRADE_FEE)
     pub const ADMIN_FEE_BPS: u32 = 2_000;
+
     use amm_helpers::{
         ensure,
         stable_swap_math::{self as math, amp_coef::*, fees::Fees},
@@ -19,8 +20,45 @@ pub mod stable_pool {
     use traits::{Factory, MathError, StablePool, StablePoolError, StablePoolView};
 
     #[ink(event)]
-    #[derive(Debug)]
-    #[cfg_attr(feature = "std", derive(Eq, PartialEq))]
+    pub struct AddLiquidity {
+        #[ink(topic)]
+        pub provider: AccountId,
+        pub token_amounts: Vec<u128>,
+        pub shares: u128,
+        #[ink(topic)]
+        pub to: AccountId,
+    }
+    
+    #[ink(event)]
+    pub struct RemoveLiquidity {
+        #[ink(topic)]
+        pub provider: AccountId,
+        pub token_amounts: Vec<u128>,
+        pub shares: u128,
+        #[ink(topic)]
+        pub to: AccountId,
+    }
+
+    #[ink(event)]
+    pub struct Swap {
+        #[ink(topic)]
+        pub sender: AccountId,
+        pub token_in: AccountId,
+        pub amount_in: u128,
+        pub token_out: AccountId,
+        pub amount_out: u128,
+        #[ink(topic)]
+        pub to: AccountId,
+    }
+    #[ink(event)]
+    pub struct RampAmpCoef {
+        pub old_amp_coef: u128,
+        pub new_amp_coef: u128,
+        pub init_time: u64,
+        pub ramp_duration: u64,
+    }
+
+    #[ink(event)]
     pub struct Approval {
         /// Account providing allowance.
         #[ink(topic)]
@@ -34,8 +72,6 @@ pub mod stable_pool {
 
     /// Event emitted when transfer of tokens occurs.
     #[ink(event)]
-    #[derive(Debug)]
-    #[cfg_attr(feature = "std", derive(Eq, PartialEq))]
     pub struct Transfer {
         /// Transfer sender. `None` in case of minting new tokens.
         #[ink(topic)]
@@ -54,7 +90,7 @@ pub mod stable_pool {
         factory: contract_ref!(Factory),
         /// Tokens.
         tokens: Vec<AccountId>,
-        /// Tokens precision factors used for normalization.
+        /// Tokens precision that token amounts are multiplied by in order to adjust to comparable amounts (common precision).
         precisions: Vec<u128>,
         /// Reserves in comparable amounts.
         reserves: Vec<u128>,
@@ -195,7 +231,7 @@ pub mod stable_pool {
         fn ensure_onwer(&self) -> Result<(), StablePoolError> {
             ensure!(
                 self.env().caller() == self.owner,
-                StablePoolError::OnlyAdmin
+                StablePoolError::OnlyOwner
             );
             Ok(())
         }
@@ -337,6 +373,12 @@ pub mod stable_pool {
                     .checked_add(amount)
                     .ok_or(MathError::AddOverflow(1))?;
             }
+            self.env().emit_event(AddLiquidity {
+                provider: self.env().caller(),
+                token_amounts: amounts,
+                shares,
+                to
+            });
             Ok((shares, fee_part))
         }
 
@@ -385,6 +427,12 @@ pub mod stable_pool {
                     .checked_add(amount)
                     .ok_or(MathError::AddOverflow(1))?;
             }
+            self.env().emit_event(RemoveLiquidity {
+                provider: self.env().caller(),
+                token_amounts: amounts,
+                shares: shares_to_burn,
+                to
+            });
             Ok((shares_to_burn, fee_part))
         }
 
@@ -419,6 +467,14 @@ pub mod stable_pool {
             // transfer token_out
             self.token_by_address(token_out)
                 .transfer(to, token_out_amount, vec![])?;
+            self.env().emit_event(Swap {
+                sender: self.env().caller(),
+                token_in,
+                amount_in: token_in_amount,
+                token_out,
+                amount_out: token_out_amount,
+                to,
+            });
             Ok((token_out_amount, swap_fee))
         }
 
@@ -451,6 +507,14 @@ pub mod stable_pool {
             // transfer token_out
             self.token_by_address(token_out)
                 .transfer(to, token_out_amount, vec![])?;
+            self.env().emit_event(Swap {
+                sender: self.env().caller(),
+                token_in,
+                amount_in: self.to_token_amount(token_in_id, comparable_token_in_amount),
+                token_out,
+                amount_out: token_out_amount,
+                to,
+            });
             Ok((token_out_amount, swap_fee))
         }
 
@@ -461,10 +525,18 @@ pub mod stable_pool {
             ramp_duration: u64,
         ) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
+            let current_amp_coef = self.amp_coef()?;
             self.pool
                 .amp_coef
                 .ramp_amp_coef(target_amp_coef, ramp_duration, self.env().block_timestamp())
-                .map_err(|err| StablePoolError::AmpCoefError(err))
+                .map_err(|err| StablePoolError::AmpCoefError(err))?;
+            self.env().emit_event(RampAmpCoef {
+                old_amp_coef: current_amp_coef,
+                new_amp_coef: target_amp_coef,
+                init_time: self.env().block_timestamp(),
+                ramp_duration
+            });
+            Ok(())
         }
 
         #[ink(message)]

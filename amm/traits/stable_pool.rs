@@ -166,7 +166,7 @@ pub enum StablePoolError {
     ReservesOverflow,
     IncorrectTokenCount,
     TokenDecimals,
-    OnlyAdmin,
+    OnlyOwner,
 }
 
 impl From<PSP22Error> for StablePoolError {
