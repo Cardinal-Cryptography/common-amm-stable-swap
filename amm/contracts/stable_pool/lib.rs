@@ -129,8 +129,8 @@ pub mod stable_pool {
                 StablePoolError::IncorrectTokenCount
             );
             let reserves = vec![0; tokens.len()];
-            let mut precisions = vec![1; tokens.len()];
             let max_decimal = tokens_decimals.iter().max().unwrap_or(&0);
+            let mut precisions = vec![1; tokens.len()];
             for (i, &decimal) in tokens_decimals.iter().enumerate() {
                 precisions[i] = 10u128.pow(max_decimal.checked_sub(decimal).unwrap().into());
             }
@@ -179,7 +179,7 @@ pub mod stable_pool {
         }
 
         /// Converts provided token `amount` to comparable amount
-        fn to_comperable_amount(&self, token_id: usize, amount: u128) -> Result<u128, MathError> {
+        fn to_comparable_amount(&self, token_id: usize, amount: u128) -> Result<u128, MathError> {
             amount
                 .checked_mul(self.pool.precisions[token_id])
                 .ok_or(MathError::MulOverflow(1))
@@ -201,12 +201,12 @@ pub mod stable_pool {
         }
 
         /// Converts provided comparable `amounts` to tokens amounts
-        fn to_comperable_amounts(&self, amounts: &[u128]) -> Result<Vec<u128>, MathError> {
-            let mut comperable_amounts: Vec<u128> = Vec::new();
+        fn to_comparable_amounts(&self, amounts: &[u128]) -> Result<Vec<u128>, MathError> {
+            let mut comparable_amounts: Vec<u128> = Vec::new();
             for (id, &amount) in amounts.iter().enumerate() {
-                comperable_amounts.push(self.to_comperable_amount(id, amount)?);
+                comparable_amounts.push(self.to_comparable_amount(id, amount)?);
             }
-            Ok(comperable_amounts)
+            Ok(comparable_amounts)
         }
 
         fn ensure_onwer(&self) -> Result<(), StablePoolError> {
@@ -245,6 +245,7 @@ pub mod stable_pool {
         /// - calculates swap fee
         /// - mints admin fee
         /// - updates reserves
+        ///
         /// Returns (token_out_amount, swap_fee)
         fn _swap(
             &mut self,
@@ -323,7 +324,7 @@ pub mod stable_pool {
                     amounts[id],
                     vec![],
                 )?;
-                c_amounts.push(self.to_comperable_amount(id, amounts[id])?);
+                c_amounts.push(self.to_comparable_amount(id, amounts[id])?);
             }
             // calc lp tokens (shares_to_mint, fee)
             let (shares, fee_part) = math::compute_lp_amount_for_deposit(
@@ -374,7 +375,7 @@ pub mod stable_pool {
                 return Err(StablePoolError::IncorrectAmountsCount);
             }
             // calc comparable amounts
-            let c_amounts = self.to_comperable_amounts(&amounts)?;
+            let c_amounts = self.to_comparable_amounts(&amounts)?;
             let (shares_to_burn, fee_part) = math::compute_lp_amount_for_withdraw(
                 &c_amounts,
                 &self.pool.reserves,
@@ -437,7 +438,7 @@ pub mod stable_pool {
             )?;
             // convert token_in_amount to comparable amount
             let comparable_token_in_amount =
-                self.to_comperable_amount(token_in_id as usize, token_in_amount)?;
+                self.to_comparable_amount(token_in_id as usize, token_in_amount)?;
             // calculate amount out, mint admin fee and update reserves
             let (token_out_amount, swap_fee) = self._swap(
                 token_in_id,
@@ -469,9 +470,9 @@ pub mod stable_pool {
         ) -> Result<(u128, u128), StablePoolError> {
             //check token ids
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-            // convert the excess of token_in to comperable amount
+            // convert the excess of token_in to comparable amount
             let comparable_token_in_amount = self
-                .to_comperable_amount(
+                .to_comparable_amount(
                     token_in_id as usize,
                     self.token_by_address(token_in)
                         .balance_of(self.env().account_id()),
@@ -554,7 +555,7 @@ pub mod stable_pool {
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
             let res = math::swap_to(
                 token_in_id as usize,
-                self.to_comperable_amount(token_in_id as usize, token_in_amount)?,
+                self.to_comparable_amount(token_in_id as usize, token_in_amount)?,
                 token_out_id as usize,
                 &self.pool.reserves,
                 &self.pool.fees,
@@ -577,7 +578,7 @@ pub mod stable_pool {
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
             let res = math::swap_from(
                 token_in_id as usize,
-                self.to_comperable_amount(token_out_id as usize, token_out_amount)?,
+                self.to_comparable_amount(token_out_id as usize, token_out_amount)?,
                 token_out_id as usize,
                 &self.pool.reserves,
                 &self.pool.fees,
@@ -599,7 +600,7 @@ pub mod stable_pool {
                 return Err(StablePoolError::IncorrectAmountsCount);
             }
             math::compute_lp_amount_for_deposit(
-                &self.to_comperable_amounts(&amounts)?,
+                &self.to_comparable_amounts(&amounts)?,
                 &self.pool.reserves,
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
@@ -632,7 +633,7 @@ pub mod stable_pool {
                 return Err(StablePoolError::IncorrectAmountsCount);
             }
             math::compute_lp_amount_for_withdraw(
-                &self.to_comperable_amounts(&amounts)?,
+                &self.to_comparable_amounts(&amounts)?,
                 &self.pool.reserves,
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
@@ -757,7 +758,7 @@ pub mod stable_pool {
 
         use super::*;
         #[test]
-        fn amount_to_comperable_and_back_1() {
+        fn amount_to_comparable_and_back_1() {
             let stable_pool_contract = StablePoolContract::new(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![6, 12],
@@ -770,7 +771,7 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_000_000; // 1000000.000000
             let expect_amount: u128 = amount * 10u128.pow(6); // 1000000.000000000000000000
             assert_eq!(
-                stable_pool_contract.to_comperable_amount(0, amount),
+                stable_pool_contract.to_comparable_amount(0, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
@@ -780,7 +781,7 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000000000
             let expect_amount: u128 = amount;
             assert_eq!(
-                stable_pool_contract.to_comperable_amount(1, amount),
+                stable_pool_contract.to_comparable_amount(1, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
@@ -790,7 +791,7 @@ pub mod stable_pool {
         }
 
         #[test]
-        fn amount_to_comperable_and_back_2() {
+        fn amount_to_comparable_and_back_2() {
             let stable_pool_contract = StablePoolContract::new(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![0, 24],
@@ -803,7 +804,7 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000; // 1000000
             let expect_amount: u128 = amount * 10u128.pow(24); // 1000000.000000000000000000000000
             assert_eq!(
-                stable_pool_contract.to_comperable_amount(0, amount),
+                stable_pool_contract.to_comparable_amount(0, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
@@ -813,7 +814,7 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000000000
             let expect_amount: u128 = amount;
             assert_eq!(
-                stable_pool_contract.to_comperable_amount(1, amount),
+                stable_pool_contract.to_comparable_amount(1, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
@@ -823,7 +824,7 @@ pub mod stable_pool {
         }
 
         #[test]
-        fn amount_to_comperable_and_back_3() {
+        fn amount_to_comparable_and_back_3() {
             let stable_pool_contract = StablePoolContract::new(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
                 vec![1, 18],
@@ -836,7 +837,7 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_0; // 1000000.0
             let expect_amount: u128 = amount * 10u128.pow(17); // 1000000.000000000000000000
             assert_eq!(
-                stable_pool_contract.to_comperable_amount(0, amount),
+                stable_pool_contract.to_comparable_amount(0, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
@@ -846,7 +847,7 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_000_000_000_000_000_000; // 1000000.00000000000000000
             let expect_amount: u128 = amount; // 1000000.000000000000000000
             assert_eq!(
-                stable_pool_contract.to_comperable_amount(1, amount),
+                stable_pool_contract.to_comparable_amount(1, amount),
                 Ok(expect_amount)
             );
             assert_eq!(
