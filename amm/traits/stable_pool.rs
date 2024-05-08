@@ -162,10 +162,7 @@ pub enum StablePoolError {
     InsufficientLiquidityBurned,
     InsufficientOutputAmount,
     InsufficientInputAmount,
-    InsufficientLiquidity,
-    ReservesOverflow,
     IncorrectTokenCount,
-    TokenDecimals,
     OnlyOwner,
 }
 

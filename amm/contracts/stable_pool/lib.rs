@@ -28,7 +28,7 @@ pub mod stable_pool {
         #[ink(topic)]
         pub to: AccountId,
     }
-    
+
     #[ink(event)]
     pub struct RemoveLiquidity {
         #[ink(topic)]
@@ -116,35 +116,6 @@ pub mod stable_pool {
             init_amp_coef: u128,
             factory: AccountId,
             owner: AccountId,
-        ) -> Self {
-            let reserves = vec![0; tokens.len()];
-            let mut precisions = vec![1; tokens.len()];
-            let max_decimal = tokens_decimals.iter().max().unwrap_or(&0);
-            for (i, &decimal) in tokens_decimals.iter().enumerate() {
-                precisions[i] = 10u128.pow(max_decimal.checked_sub(decimal).unwrap().into());
-            }
-            Self {
-                owner,
-                pool: StablePoolData {
-                    factory: factory.into(),
-                    tokens,
-                    precisions,
-                    reserves,
-                    amp_coef: AmplificationCoefficient::new(init_amp_coef),
-                    fees: Fees::new(TRADE_FEE_BPS, ADMIN_FEE_BPS),
-                },
-                psp22: PSP22Data::default(),
-                decimals: *max_decimal,
-            }
-        }
-
-        #[ink(constructor)]
-        pub fn new_checked(
-            tokens: Vec<AccountId>,
-            tokens_decimals: Vec<u8>,
-            init_amp_coef: u128,
-            factory: AccountId,
-            owner: AccountId,
         ) -> Result<Self, StablePoolError> {
             let mut unique_tokens = tokens.clone();
             unique_tokens.sort();
@@ -157,15 +128,25 @@ pub mod stable_pool {
                 tokens.len() == tokens_decimals.len(),
                 StablePoolError::IncorrectTokenCount
             );
-            ensure!(init_amp_coef >= MIN_AMP, AmpCoefError::AmpCoefTooLow);
-            ensure!(init_amp_coef <= MAX_AMP, AmpCoefError::AmpCoefTooHigh);
-            Ok(Self::new(
-                tokens,
-                tokens_decimals,
-                init_amp_coef,
-                factory,
+            let reserves = vec![0; tokens.len()];
+            let mut precisions = vec![1; tokens.len()];
+            let max_decimal = tokens_decimals.iter().max().unwrap_or(&0);
+            for (i, &decimal) in tokens_decimals.iter().enumerate() {
+                precisions[i] = 10u128.pow(max_decimal.checked_sub(decimal).unwrap().into());
+            }
+            Ok(Self {
                 owner,
-            ))
+                pool: StablePoolData {
+                    factory: factory.into(),
+                    tokens,
+                    precisions,
+                    reserves,
+                    amp_coef: AmplificationCoefficient::new(init_amp_coef)?,
+                    fees: Fees::new(TRADE_FEE_BPS, ADMIN_FEE_BPS),
+                },
+                psp22: PSP22Data::default(),
+                decimals: *max_decimal,
+            })
         }
 
         /// A helper function emitting events contained in a vector of PSP22Events.
@@ -377,7 +358,7 @@ pub mod stable_pool {
                 provider: self.env().caller(),
                 token_amounts: amounts,
                 shares,
-                to
+                to,
             });
             Ok((shares, fee_part))
         }
@@ -431,7 +412,7 @@ pub mod stable_pool {
                 provider: self.env().caller(),
                 token_amounts: amounts,
                 shares: shares_to_burn,
-                to
+                to,
             });
             Ok((shares_to_burn, fee_part))
         }
@@ -534,7 +515,7 @@ pub mod stable_pool {
                 old_amp_coef: current_amp_coef,
                 new_amp_coef: target_amp_coef,
                 init_time: self.env().block_timestamp(),
-                ramp_duration
+                ramp_duration,
             });
             Ok(())
         }
@@ -783,7 +764,9 @@ pub mod stable_pool {
                 1,
                 AccountId::from([0u8; 32]),
                 AccountId::from([0u8; 32]),
-            );
+            )
+            .map_err(|err| panic!("Contract instantiation error: {err:?}"))
+            .unwrap();
             let amount: u128 = 1_000_000_000_000; // 1000000.000000
             let expect_amount: u128 = amount * 10u128.pow(6); // 1000000.000000000000000000
             assert_eq!(
@@ -814,7 +797,9 @@ pub mod stable_pool {
                 1,
                 AccountId::from([0u8; 32]),
                 AccountId::from([0u8; 32]),
-            );
+            )
+            .map_err(|err| panic!("Contract instantiation error: {err:?}"))
+            .unwrap();
             let amount: u128 = 1_000_000; // 1000000
             let expect_amount: u128 = amount * 10u128.pow(24); // 1000000.000000000000000000000000
             assert_eq!(
@@ -845,7 +830,9 @@ pub mod stable_pool {
                 1,
                 AccountId::from([0u8; 32]),
                 AccountId::from([0u8; 32]),
-            );
+            )
+            .map_err(|err| panic!("Contract instantiation error: {err:?}"))
+            .unwrap();
             let amount: u128 = 1_000_000_0; // 1000000.0
             let expect_amount: u128 = amount * 10u128.pow(17); // 1000000.000000000000000000
             assert_eq!(
