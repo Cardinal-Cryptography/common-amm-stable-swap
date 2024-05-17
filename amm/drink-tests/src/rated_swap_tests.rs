@@ -15,7 +15,7 @@ use drink::{self, runtime::MinimalRuntime, session::Session};
 use ink_primitives::AccountId;
 use ink_wrapper_types::{Connection, ToAccountId};
 
-const SAZERO_DEC: u8 = 18;
+const SAZERO_DEC: u8 = 12;
 const WAZERO_DEC: u8 = 12;
 
 const ONE_SAZERO: u128 = 10u128.pow(SAZERO_DEC as u32);
@@ -123,21 +123,6 @@ fn setup_all(
 
 #[drink::test]
 fn rated_test_1(mut session: Session) {
-    upload_all(&mut session);
-    let (rated_swap, sazero, wazero) = setup_all(&mut session, false);
-    let res = stable_swap::add_liquidity(
-        &mut session,
-        rated_swap.into(),
-        BOB,
-        1,
-        vec![INIT_SUPPLY * ONE_SAZERO, INIT_SUPPLY * ONE_AZERO],
-        bob(),
-    ).result;
-    println!("RES: {res:?}");
-}
-
-#[drink::test]
-fn rated_test_2(mut session: Session) {
     let one_minute: u64 = 60000;
     let now = get_timestamp(&mut session);
     set_timestamp(&mut session, now);
@@ -151,16 +136,38 @@ fn rated_test_2(mut session: Session) {
         vec![INIT_SUPPLY * ONE_SAZERO / 2, INIT_SUPPLY * ONE_AZERO / 2],
         bob(),
     );
+    let amount = 10 * ONE_SAZERO;
+    psp22_utils::transfer(
+        &mut session,
+        sazero.into(),
+        rated_swap.into(),
+        amount,
+        BOB,
+    )
+    .unwrap();
     set_timestamp(&mut session, now + 10000 * one_minute);
-    let res = stable_swap::swap(
+    let res = stable_swap::swap_excess(
         &mut session,
         rated_swap.into(),
         BOB,
         sazero.into(),
         wazero.into(),
-        10 * ONE_SAZERO,
         1,                     // min_token_out
         bob(),
     ).result;
-    println!("RES: {res:?}");
+    let reserves = stable_swap::reserves(
+        &mut session,
+        rated_swap.into(),
+    );
+    let balance_0 = psp22_utils::balance_of(
+        &mut session,
+        sazero.into(),
+        rated_swap.into()
+    );
+    let balance_1 = psp22_utils::balance_of(
+        &mut session,
+        wazero.into(),
+        rated_swap.into()
+    );
+    assert_eq!(reserves, vec![balance_0, balance_1]);
 }

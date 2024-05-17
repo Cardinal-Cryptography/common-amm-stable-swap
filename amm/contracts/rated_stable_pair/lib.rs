@@ -303,24 +303,25 @@ pub mod rated_stable_pair {
 
             // distribute admin fee
             if let Some(fee_to) = self.fee_to() {
-                // calc shares from admin fee
                 let r_c_admin_fee = self.pool.fees.admin_trade_fee(r_c_fee)?;
-                let mut r_c_admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
-                r_c_admin_deposit_amounts[token_out_id] = r_c_admin_fee;
-                let (admin_fee_lp, _) = math::compute_lp_amount_for_deposit(
-                    &r_c_admin_deposit_amounts,
-                    &self.pool.c_reserves,
-                    self.psp22.total_supply(),
-                    None, // no fees
-                    self.amp_coef()?,
-                )?;
-                // mint fee (shares) to admin
-                let events = self.psp22.mint(fee_to, admin_fee_lp)?;
-                self.emit_events(events);
-                // update reserve (token_out) accounting for admin fee
-                self.pool.c_reserves[token_out_id] = self.pool.c_reserves[token_out_id]
-                    .checked_add(rate.rated_amount_to_amount(r_c_admin_fee, token_out_id)?)
-                    .ok_or(MathError::AddOverflow(101))?;
+                if r_c_admin_fee > 0 {
+                    let mut r_c_admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
+                    r_c_admin_deposit_amounts[token_out_id] = r_c_admin_fee;
+                    let mut r_c_reserves = rate.amounts_to_rated_amounts(&self.pool.c_reserves)?;
+                    r_c_reserves[token_out_id] = r_c_reserves[token_out_id]
+                        .checked_sub(r_c_admin_fee)
+                        .ok_or(MathError::SubUnderflow(102))?;
+                    let (admin_fee_lp, _) = math::compute_lp_amount_for_deposit(
+                        &r_c_admin_deposit_amounts,
+                        &r_c_reserves,
+                        self.psp22.total_supply(),
+                        None, // no fees
+                        self.amp_coef()?,
+                    )?;
+                    // mint fee (shares) to admin
+                    let events = self.psp22.mint(fee_to, admin_fee_lp)?;
+                    self.emit_events(events);
+                }
             }
             Ok((
                 token_out_amount,
@@ -388,7 +389,7 @@ pub mod rated_stable_pair {
             for (i, &amount) in c_amounts.iter().enumerate() {
                 self.pool.c_reserves[i] = self.pool.c_reserves[i]
                     .checked_add(amount)
-                    .ok_or(MathError::AddOverflow(101))?;
+                    .ok_or(MathError::AddOverflow(102))?;
             }
             self.env().emit_event(AddLiquidity {
                 provider: self.env().caller(),
@@ -446,7 +447,7 @@ pub mod rated_stable_pair {
             for (i, &amount) in c_amounts.iter().enumerate() {
                 self.pool.c_reserves[i] = self.pool.c_reserves[i]
                     .checked_add(amount)
-                    .ok_or(MathError::AddOverflow(101))?;
+                    .ok_or(MathError::AddOverflow(103))?;
             }
             self.env().emit_event(RemoveLiquidity {
                 provider: self.env().caller(),
@@ -516,7 +517,7 @@ pub mod rated_stable_pair {
                     token_in_id,
                 )?
                 .checked_sub(self.pool.c_reserves[token_in_id])
-                .ok_or(MathError::SubUnderflow(102))?;
+                .ok_or(MathError::SubUnderflow(103))?;
             // calculate amount out, mint admin fee and update reserves
             let (token_out_amount, swap_fee) = self._swap(
                 token_in_id,
