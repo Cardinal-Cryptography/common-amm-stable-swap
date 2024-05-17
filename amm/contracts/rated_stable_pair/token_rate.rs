@@ -59,7 +59,7 @@ impl TokenRate {
         if id == 0 {
             Ok(casted_mul(amount, self.cached_token_rate)
                 .checked_div(ONE_AZERO.into())
-                .ok_or(MathError::DivByZero(1))?
+                .ok_or(MathError::DivByZero(201))?
                 .as_u128())
         } else {
             Ok(amount)
@@ -71,7 +71,7 @@ impl TokenRate {
         if id == 0 {
             Ok(casted_mul(rated_amount, ONE_AZERO)
                 .checked_div(self.cached_token_rate.into())
-                .ok_or(MathError::DivByZero(1))?
+                .ok_or(MathError::DivByZero(202))?
                 .as_u128())
         } else {
             Ok(rated_amount)
@@ -82,7 +82,7 @@ impl TokenRate {
         let mut rated_amounts = amounts.clone();
         rated_amounts[0] = casted_mul(amounts[0], self.cached_token_rate)
             .checked_div(ONE_AZERO.into())
-            .ok_or(MathError::DivByZero(1))?
+            .ok_or(MathError::DivByZero(203))?
             .as_u128();
         Ok(rated_amounts)
     }
@@ -94,7 +94,7 @@ impl TokenRate {
         let mut amounts = rated_amounts.clone();
         amounts[0] = casted_mul(rated_amounts[0], ONE_AZERO)
             .checked_div(self.cached_token_rate.into())
-            .ok_or(MathError::DivByZero(1))?
+            .ok_or(MathError::DivByZero(204))?
             .as_u128();
         Ok(amounts)
     }
