@@ -21,7 +21,7 @@ pub const ONE_AZERO: u128 = 10u128.pow(AZERO_DECIMALS as u32);
 pub const RATE_EXPIRE_TS: u64 = 86400000;
 
 #[ink::storage_item]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TokenRate {
     ///
     cached_token_rate: u128,
@@ -38,13 +38,69 @@ impl TokenRate {
             last_token_rate_update_ts: current_time,
             token_rate_contract,
         };
-        token_rate.update_token_rate(current_time);
+        token_rate._update(current_time);
         token_rate
     }
 
-    /// Gets current token rate through a cross-contract call
-    pub fn call_get_rate(&self) -> u128 {
-        // TODO: add error handling?
+    /// Updates cached rate with current rate if cache is older than `RATE_EXPIRE_TS`.
+    pub fn update(&mut self, current_time: u64) {
+        if self
+            .last_token_rate_update_ts
+            .checked_add(RATE_EXPIRE_TS)
+            .unwrap()
+            < current_time
+        {
+            self._update(current_time);
+        }
+    }
+
+    /// Converts amount to rated amount if `id` is equal `0`.
+    pub fn amount_to_rated_amount(&self, amount: u128, id: usize) -> Result<u128, MathError> {
+        if id == 0 {
+            Ok(casted_mul(amount, self.cached_token_rate)
+                .checked_div(ONE_AZERO.into())
+                .ok_or(MathError::DivByZero(1))?
+                .as_u128())
+        } else {
+            Ok(amount)
+        }
+    }
+
+    /// Converts rated amount to amount if `id` is equal `0`.
+    pub fn rated_amount_to_amount(&self, rated_amount: u128, id: usize) -> Result<u128, MathError> {
+        if id == 0 {
+            Ok(casted_mul(rated_amount, ONE_AZERO)
+                .checked_div(self.cached_token_rate.into())
+                .ok_or(MathError::DivByZero(1))?
+                .as_u128())
+        } else {
+            Ok(rated_amount)
+        }
+    }
+
+    pub fn amounts_to_rated_amounts(&self, amounts: &Vec<u128>) -> Result<Vec<u128>, MathError> {
+        let mut rated_amounts = amounts.clone();
+        rated_amounts[0] = casted_mul(amounts[0], self.cached_token_rate)
+            .checked_div(ONE_AZERO.into())
+            .ok_or(MathError::DivByZero(1))?
+            .as_u128();
+        Ok(rated_amounts)
+    }
+
+    pub fn rated_amounts_to_amounts(
+        &self,
+        rated_amounts: &Vec<u128>,
+    ) -> Result<Vec<u128>, MathError> {
+        let mut amounts = rated_amounts.clone();
+        amounts[0] = casted_mul(rated_amounts[0], ONE_AZERO)
+            .checked_div(self.cached_token_rate.into())
+            .ok_or(MathError::DivByZero(1))?
+            .as_u128();
+        Ok(amounts)
+    }
+
+    /// Gets current token rate through a cross-contract call.
+    fn call_get_rate(&self) -> u128 {
         build_call::<DefaultEnvironment>()
             .call(self.token_rate_contract)
             .exec_input(
@@ -54,83 +110,8 @@ impl TokenRate {
             .invoke()
     }
 
-    /// Returns cached rate OR current rate if cache is older than `RATE_EXPIRE_TS`
-    pub fn get_rate(&self, current_time: u64) -> u128 {
-        if self
-            .last_token_rate_update_ts
-            .checked_add(RATE_EXPIRE_TS)
-            .unwrap()
-            < current_time
-        {
-            self.call_get_rate()
-        } else {
-            self.cached_token_rate
-        }
-    }
-
-    /// Updates cached rate with current rate if cache is older than `RATE_EXPIRE_TS
-    /// Return cached rate
-    pub fn get_rate_and_update(&mut self, current_time: u64) -> u128 {
-        if self
-            .last_token_rate_update_ts
-            .checked_add(RATE_EXPIRE_TS)
-            .unwrap()
-            < current_time
-        {
-            self.update_token_rate(current_time);
-        }
-        self.cached_token_rate
-    }
-
-    fn update_token_rate(&mut self, current_time: u64) {
+    fn _update(&mut self, current_time: u64) {
         self.cached_token_rate = self.call_get_rate();
         self.last_token_rate_update_ts = current_time;
     }
-}
-
-pub fn amount_to_rated_amount(amount: u128, rate: u128, id: usize) -> Result<u128, MathError> {
-    if id == 0 {
-        Ok(casted_mul(amount, rate)
-            .checked_div(ONE_AZERO.into())
-            .ok_or(MathError::DivByZero(1))?
-            .as_u128())
-    } else {
-        Ok(amount)
-    }
-}
-
-pub fn rated_amount_to_amount(
-    rated_amount: u128,
-    rate: u128,
-    id: usize,
-) -> Result<u128, MathError> {
-    if id == 0 {
-        Ok(casted_mul(rated_amount, ONE_AZERO)
-            .checked_div(rate.into())
-            .ok_or(MathError::DivByZero(1))?
-            .as_u128())
-    } else {
-        Ok(rated_amount)
-    }
-}
-
-pub fn amounts_to_rated_amounts(amounts: &Vec<u128>, rate: u128) -> Result<Vec<u128>, MathError> {
-    let mut rated_amounts = amounts.clone();
-    rated_amounts[0] = casted_mul(amounts[0], rate)
-        .checked_div(ONE_AZERO.into())
-        .ok_or(MathError::DivByZero(1))?
-        .as_u128();
-    Ok(rated_amounts)
-}
-
-pub fn rated_amounts_to_amounts(
-    rated_amounts: &Vec<u128>,
-    rate: u128,
-) -> Result<Vec<u128>, MathError> {
-    let mut amounts = rated_amounts.clone();
-    amounts[0] = casted_mul(rated_amounts[0], ONE_AZERO)
-        .checked_div(rate.into())
-        .ok_or(MathError::DivByZero(1))?
-        .as_u128();
-    Ok(amounts)
 }
