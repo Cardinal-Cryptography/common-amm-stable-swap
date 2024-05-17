@@ -93,7 +93,7 @@ pub mod stable_pool {
         /// Tokens precision that token amounts are multiplied by in order to adjust to comparable amounts (common precision).
         precisions: Vec<u128>,
         /// Reserves in comparable amounts.
-        reserves: Vec<u128>,
+        c_reserves: Vec<u128>,
         /// Amplification coefficient.
         amp_coef: AmplificationCoefficient,
         /// Fees
@@ -128,7 +128,7 @@ pub mod stable_pool {
                 tokens.len() == tokens_decimals.len(),
                 StablePoolError::IncorrectTokenCount
             );
-            let reserves = vec![0; tokens.len()];
+            let c_reserves = vec![0; tokens.len()];
             let max_decimal = tokens_decimals.iter().max().unwrap_or(&0);
             let mut precisions = vec![1; tokens.len()];
             for (i, &decimal) in tokens_decimals.iter().enumerate() {
@@ -140,7 +140,7 @@ pub mod stable_pool {
                     factory: factory.into(),
                     tokens,
                     precisions,
-                    reserves,
+                    c_reserves,
                     amp_coef: AmplificationCoefficient::new(init_amp_coef)?,
                     fees: Fees::new(TRADE_FEE_BPS, ADMIN_FEE_BPS),
                 },
@@ -179,14 +179,14 @@ pub mod stable_pool {
         }
 
         /// Converts provided token `amount` to comparable amount
-        fn to_comparable_amount(&self, token_id: usize, amount: u128) -> Result<u128, MathError> {
+        fn to_comparable_amount(&self, amount: u128, token_id: usize) -> Result<u128, MathError> {
             amount
                 .checked_mul(self.pool.precisions[token_id])
-                .ok_or(MathError::MulOverflow(1))
+                .ok_or(MathError::MulOverflow(101))
         }
 
         /// Converts provided comparable `amount` to token amount
-        fn to_token_amount(&self, token_id: usize, amount: u128) -> u128 {
+        fn to_token_amount(&self, amount: u128, token_id: usize) -> u128 {
             // it is safe to unwrap since precision for any token is >= 1
             amount.checked_div(self.pool.precisions[token_id]).unwrap()
         }
@@ -195,7 +195,7 @@ pub mod stable_pool {
         fn to_token_amounts(&self, amounts: &[u128]) -> Vec<u128> {
             let mut token_amounts: Vec<u128> = Vec::new();
             for (id, &amount) in amounts.iter().enumerate() {
-                token_amounts.push(self.to_token_amount(id, amount));
+                token_amounts.push(self.to_token_amount(amount, id));
             }
             token_amounts
         }
@@ -204,7 +204,7 @@ pub mod stable_pool {
         fn to_comparable_amounts(&self, amounts: &[u128]) -> Result<Vec<u128>, MathError> {
             let mut comparable_amounts: Vec<u128> = Vec::new();
             for (id, &amount) in amounts.iter().enumerate() {
-                comparable_amounts.push(self.to_comparable_amount(id, amount)?);
+                comparable_amounts.push(self.to_comparable_amount(amount, id)?);
             }
             Ok(comparable_amounts)
         }
@@ -251,56 +251,56 @@ pub mod stable_pool {
             &mut self,
             token_in_id: usize,
             token_out_id: usize,
-            comparable_token_in_amount: u128,
+            c_token_in_amount: u128,
             min_token_out_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
-            if comparable_token_in_amount == 0 {
+            if c_token_in_amount == 0 {
                 return Err(StablePoolError::InsufficientInputAmount);
             }
-            // get fee_to account
-            let fee_to = self.fee_to();
             // calc amount_out and fees
-            let swap_res = math::swap_to(
+            let (c_token_out_amount, c_fee) = math::swap_to(
                 token_in_id,
-                comparable_token_in_amount,
+                c_token_in_amount,
                 token_out_id,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 &self.pool.fees,
                 self.amp_coef()?,
-                fee_to.is_some(),
             )?;
-            let token_out_amount = self.to_token_amount(token_out_id, swap_res.amount_swapped);
+            let token_out_amount = self.to_token_amount(c_token_out_amount, token_out_id);
             // Check if swapped amount is not less than min_token_out_amount
             if token_out_amount < min_token_out_amount {
                 return Err(StablePoolError::InsufficientOutputAmount);
             };
             // update reserves
-            self.pool.reserves[token_in_id] = swap_res.new_source_amount;
-            self.pool.reserves[token_out_id] = swap_res.new_destination_amount;
-            // mint fees for admin
-            if fee_to.is_some() && swap_res.admin_fee > 0 {
-                let mut admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
-                admin_deposit_amounts[token_out_id] = swap_res.admin_fee;
+            self.pool.c_reserves[token_in_id] = self.pool.c_reserves[token_in_id]
+                .checked_add(c_token_in_amount)
+                .ok_or(MathError::AddOverflow(101))?;
+            self.pool.c_reserves[token_out_id] = self.pool.c_reserves[token_out_id]
+                .checked_sub(c_token_out_amount)
+                .ok_or(MathError::SubUnderflow(101))?;
+
+            // distribute admin fee
+            if let Some(fee_to) = self.fee_to() {
                 // calc shares from admin fee
+                let c_admin_fee = self.pool.fees.admin_trade_fee(c_fee)?;
+                let mut r_c_admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
+                r_c_admin_deposit_amounts[token_out_id] = c_admin_fee;
                 let (admin_fee_lp, _) = math::compute_lp_amount_for_deposit(
-                    &admin_deposit_amounts,
-                    &self.pool.reserves,
+                    &r_c_admin_deposit_amounts,
+                    &self.pool.c_reserves,
                     self.psp22.total_supply(),
-                    None,
+                    None, // no fees
                     self.amp_coef()?,
                 )?;
                 // mint fee (shares) to admin
-                let events = self.psp22.mint(fee_to.unwrap(), admin_fee_lp)?;
+                let events = self.psp22.mint(fee_to, admin_fee_lp)?;
                 self.emit_events(events);
-                // update reserve again
-                self.pool.reserves[token_out_id] = self.pool.reserves[token_out_id]
-                    .checked_add(swap_res.admin_fee)
-                    .ok_or(MathError::AddOverflow(1))?;
+                // update reserve (token_out) accounting for admin fee
+                self.pool.c_reserves[token_out_id] = self.pool.c_reserves[token_out_id]
+                    .checked_add(c_admin_fee)
+                    .ok_or(MathError::AddOverflow(101))?;
             }
-            Ok((
-                token_out_amount,
-                self.to_token_amount(token_out_id, swap_res.fee),
-            ))
+            Ok((token_out_amount, self.to_token_amount(c_fee, token_out_id)))
         }
     }
 
@@ -324,12 +324,12 @@ pub mod stable_pool {
                     amounts[id],
                     vec![],
                 )?;
-                c_amounts.push(self.to_comparable_amount(id, amounts[id])?);
+                c_amounts.push(self.to_comparable_amount(amounts[id], id)?);
             }
             // calc lp tokens (shares_to_mint, fee)
             let (shares, fee_part) = math::compute_lp_amount_for_deposit(
                 &c_amounts,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
                 self.amp_coef()?,
@@ -351,9 +351,9 @@ pub mod stable_pool {
             }
             // update reserves
             for (i, &amount) in c_amounts.iter().enumerate() {
-                self.pool.reserves[i] = self.pool.reserves[i]
+                self.pool.c_reserves[i] = self.pool.c_reserves[i]
                     .checked_add(amount)
-                    .ok_or(MathError::AddOverflow(1))?;
+                    .ok_or(MathError::AddOverflow(101))?;
             }
             self.env().emit_event(AddLiquidity {
                 provider: self.env().caller(),
@@ -378,7 +378,7 @@ pub mod stable_pool {
             let c_amounts = self.to_comparable_amounts(&amounts)?;
             let (shares_to_burn, fee_part) = math::compute_lp_amount_for_withdraw(
                 &c_amounts,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
                 self.amp_coef()?,
@@ -405,9 +405,9 @@ pub mod stable_pool {
             }
             // update reserves
             for (i, &amount) in c_amounts.iter().enumerate() {
-                self.pool.reserves[i] = self.pool.reserves[i]
+                self.pool.c_reserves[i] = self.pool.c_reserves[i]
                     .checked_add(amount)
-                    .ok_or(MathError::AddOverflow(1))?;
+                    .ok_or(MathError::AddOverflow(101))?;
             }
             self.env().emit_event(RemoveLiquidity {
                 provider: self.env().caller(),
@@ -437,13 +437,12 @@ pub mod stable_pool {
                 vec![],
             )?;
             // convert token_in_amount to comparable amount
-            let comparable_token_in_amount =
-                self.to_comparable_amount(token_in_id as usize, token_in_amount)?;
+            let c_token_in_amount = self.to_comparable_amount(token_in_amount, token_in_id)?;
             // calculate amount out, mint admin fee and update reserves
             let (token_out_amount, swap_fee) = self._swap(
                 token_in_id,
                 token_out_id,
-                comparable_token_in_amount,
+                c_token_in_amount,
                 min_token_out_amount,
             )?;
             // transfer token_out
@@ -470,20 +469,20 @@ pub mod stable_pool {
         ) -> Result<(u128, u128), StablePoolError> {
             //check token ids
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-            // convert the excess of token_in to comparable amount
-            let comparable_token_in_amount = self
+            // convert the balance of token_in to comparable amount and sub c_reserve
+            let c_token_in_amount = self
                 .to_comparable_amount(
-                    token_in_id as usize,
                     self.token_by_address(token_in)
                         .balance_of(self.env().account_id()),
+                    token_in_id,
                 )?
-                .checked_sub(self.pool.reserves[token_in_id as usize])
-                .ok_or(MathError::SubUnderflow(1))?;
+                .checked_sub(self.pool.c_reserves[token_in_id as usize])
+                .ok_or(MathError::SubUnderflow(102))?;
             // calculate amount out, mint admin fee and update reserves
             let (token_out_amount, swap_fee) = self._swap(
                 token_in_id,
                 token_out_id,
-                comparable_token_in_amount,
+                c_token_in_amount,
                 min_token_out_amount,
             )?;
             // transfer token_out
@@ -492,7 +491,7 @@ pub mod stable_pool {
             self.env().emit_event(Swap {
                 sender: self.env().caller(),
                 token_in,
-                amount_in: self.to_token_amount(token_in_id, comparable_token_in_amount),
+                amount_in: self.to_token_amount(c_token_in_amount, token_in_id),
                 token_out,
                 amount_out: token_out_amount,
                 to,
@@ -537,7 +536,7 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn reserves(&self) -> Vec<u128> {
-            self.to_token_amounts(&self.pool.reserves)
+            self.to_token_amounts(&self.pool.c_reserves)
         }
         #[ink(message)]
         fn amp_coef(&self) -> Result<u128, StablePoolError> {
@@ -553,18 +552,17 @@ pub mod stable_pool {
             token_in_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-            let res = math::swap_to(
+            let (c_token_out_amount, c_fee) = math::swap_to(
                 token_in_id as usize,
-                self.to_comparable_amount(token_in_id as usize, token_in_amount)?,
+                self.to_comparable_amount(token_in_amount, token_in_id)?,
                 token_out_id as usize,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 &self.pool.fees,
                 self.amp_coef()?,
-                self.fee_to().is_some(),
             )?;
             Ok((
-                self.to_token_amount(token_out_id as usize, res.amount_swapped),
-                self.to_token_amount(token_out_id as usize, res.fee),
+                self.to_token_amount(c_token_out_amount, token_out_id),
+                self.to_token_amount(c_fee, token_out_id),
             ))
         }
 
@@ -576,18 +574,17 @@ pub mod stable_pool {
             token_out_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-            let res = math::swap_from(
+            let (c_token_in_amount, c_fee) = math::swap_from(
                 token_in_id as usize,
-                self.to_comparable_amount(token_out_id as usize, token_out_amount)?,
+                self.to_comparable_amount(token_out_amount, token_out_id)?,
                 token_out_id as usize,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 &self.pool.fees,
                 self.amp_coef()?,
-                self.fee_to().is_some(),
             )?;
             Ok((
-                self.to_token_amount(token_in_id as usize, res.amount_swapped),
-                self.to_token_amount(token_out_id as usize, res.fee),
+                self.to_token_amount(c_token_in_amount, token_in_id),
+                self.to_token_amount(c_fee, token_out_id),
             ))
         }
 
@@ -601,7 +598,7 @@ pub mod stable_pool {
             }
             math::compute_lp_amount_for_deposit(
                 &self.to_comparable_amounts(&amounts)?,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
                 self.amp_coef()?,
@@ -616,7 +613,7 @@ pub mod stable_pool {
         ) -> Result<Vec<u128>, StablePoolError> {
             match math::compute_deposit_amounts_for_lp(
                 liquidity,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 self.psp22.total_supply(),
             ) {
                 Ok((amounts, _)) => Ok(self.to_token_amounts(&amounts)),
@@ -634,7 +631,7 @@ pub mod stable_pool {
             }
             math::compute_lp_amount_for_withdraw(
                 &self.to_comparable_amounts(&amounts)?,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
                 self.amp_coef()?,
@@ -649,7 +646,7 @@ pub mod stable_pool {
         ) -> Result<Vec<u128>, StablePoolError> {
             match math::compute_withdraw_amounts_for_lp(
                 liquidity,
-                &self.pool.reserves,
+                &self.pool.c_reserves,
                 self.psp22.total_supply(),
             ) {
                 Ok((amounts, _)) => Ok(self.to_token_amounts(&amounts)),
@@ -771,21 +768,21 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_000_000; // 1000000.000000
             let expect_amount: u128 = amount * 10u128.pow(6); // 1000000.000000000000000000
             assert_eq!(
-                stable_pool_contract.to_comparable_amount(0, amount),
+                stable_pool_contract.to_comparable_amount(amount, 0),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_pool_contract.to_token_amount(0, expect_amount),
+                stable_pool_contract.to_token_amount(expect_amount, 0),
                 amount
             );
             let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000000000
             let expect_amount: u128 = amount;
             assert_eq!(
-                stable_pool_contract.to_comparable_amount(1, amount),
+                stable_pool_contract.to_comparable_amount(amount, 1),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_pool_contract.to_token_amount(1, expect_amount),
+                stable_pool_contract.to_token_amount(expect_amount, 1),
                 amount
             );
         }
@@ -804,21 +801,21 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000; // 1000000
             let expect_amount: u128 = amount * 10u128.pow(24); // 1000000.000000000000000000000000
             assert_eq!(
-                stable_pool_contract.to_comparable_amount(0, amount),
+                stable_pool_contract.to_comparable_amount(amount, 0),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_pool_contract.to_token_amount(0, expect_amount),
+                stable_pool_contract.to_token_amount(expect_amount, 0),
                 amount
             );
             let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000000000
             let expect_amount: u128 = amount;
             assert_eq!(
-                stable_pool_contract.to_comparable_amount(1, amount),
+                stable_pool_contract.to_comparable_amount(amount, 1),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_pool_contract.to_token_amount(1, expect_amount),
+                stable_pool_contract.to_token_amount(expect_amount, 1),
                 amount
             );
         }
@@ -837,21 +834,21 @@ pub mod stable_pool {
             let amount: u128 = 1_000_000_0; // 1000000.0
             let expect_amount: u128 = amount * 10u128.pow(17); // 1000000.000000000000000000
             assert_eq!(
-                stable_pool_contract.to_comparable_amount(0, amount),
+                stable_pool_contract.to_comparable_amount(amount, 0),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_pool_contract.to_token_amount(0, expect_amount),
+                stable_pool_contract.to_token_amount(expect_amount, 0),
                 amount
             );
             let amount: u128 = 1_000_000_000_000_000_000_000_000; // 1000000.00000000000000000
             let expect_amount: u128 = amount; // 1000000.000000000000000000
             assert_eq!(
-                stable_pool_contract.to_comparable_amount(1, amount),
+                stable_pool_contract.to_comparable_amount(amount, 1),
                 Ok(expect_amount)
             );
             assert_eq!(
-                stable_pool_contract.to_token_amount(1, expect_amount),
+                stable_pool_contract.to_token_amount(expect_amount, 1),
                 amount
             );
         }

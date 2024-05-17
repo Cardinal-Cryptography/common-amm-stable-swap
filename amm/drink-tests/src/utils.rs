@@ -280,6 +280,28 @@ pub mod stable_swap {
             .unwrap()
     }
 
+    pub fn swap_excess(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        caller: drink::AccountId32,
+        token_in: AccountId,
+        token_out: AccountId,
+        min_token_out_amount: u128,
+        to: AccountId,
+    ) -> ContractResult<
+        Result<Result<(u128, u128), StablePoolError>, ink_wrapper_types::InkLangError>,
+    > {
+        let _ = session.set_actor(caller);
+        session
+            .execute(stable_pool_contract::Instance::from(stable_pool).swap_excess(
+                token_in,
+                token_out,
+                min_token_out_amount,
+                to,
+            ))
+            .unwrap()
+    }
+
     pub fn reserves(
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,

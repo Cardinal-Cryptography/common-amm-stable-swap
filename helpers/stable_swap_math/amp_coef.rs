@@ -60,10 +60,10 @@ impl AmplificationCoefficient {
             let time_range = self
                 .stop_amp_time
                 .checked_sub(self.init_amp_time)
-                .ok_or(MathError::SubUnderflow(1))?;
+                .ok_or(MathError::SubUnderflow(51))?;
             let time_delta = current_time
                 .checked_sub(self.init_amp_time)
-                .ok_or(MathError::SubUnderflow(2))?;
+                .ok_or(MathError::SubUnderflow(52))?;
 
             // Compute amp factor based on ramp time
             if self.target_amp_coef >= self.init_amp_coef {
@@ -71,12 +71,12 @@ impl AmplificationCoefficient {
                 let amp_range = self
                     .target_amp_coef
                     .checked_sub(self.init_amp_coef)
-                    .ok_or(MathError::SubUnderflow(3))?;
+                    .ok_or(MathError::SubUnderflow(53))?;
                 let amp_delta = amp_range
                     .checked_mul(time_delta as u128)
-                    .ok_or(MathError::MulOverflow(1))?
+                    .ok_or(MathError::MulOverflow(51))?
                     .checked_div(time_range as u128)
-                    .ok_or(MathError::DivByZero(1))?;
+                    .ok_or(MathError::DivByZero(51))?;
                 self.init_amp_coef
                     .checked_add(amp_delta)
                     .ok_or(MathError::AddOverflow(1))
@@ -85,15 +85,15 @@ impl AmplificationCoefficient {
                 let amp_range = self
                     .init_amp_coef
                     .checked_sub(self.target_amp_coef)
-                    .ok_or(MathError::SubUnderflow(4))?;
+                    .ok_or(MathError::SubUnderflow(54))?;
                 let amp_delta = amp_range
                     .checked_mul(time_delta as u128)
-                    .ok_or(MathError::MulOverflow(2))?
+                    .ok_or(MathError::MulOverflow(52))?
                     .checked_div(time_range as u128)
-                    .ok_or(MathError::DivByZero(2))?;
+                    .ok_or(MathError::DivByZero(52))?;
                 self.init_amp_coef
                     .checked_sub(amp_delta)
-                    .ok_or(MathError::SubUnderflow(5))
+                    .ok_or(MathError::SubUnderflow(55))
             }
         } else {
             // when stop_ramp_ts == 0 or current_ts >= stop_ramp_ts
