@@ -35,7 +35,7 @@ pub fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError>
             .checked_sub(1.into())
             .ok_or(MathError::SubUnderflow(1))?;
         // n + 1
-        let n_add_one = n.checked_add(1).ok_or(MathError::AddOverflow(1))?;
+        let n_add_one = n.checked_add(1).ok_or(MathError::AddOverflow(2))?;
         let mut d = amount_sum;
         // Computes next D unitl satisfying precision is reached
         for _ in 0..MAX_ITERATIONS {
@@ -67,11 +67,11 @@ fn compute_d_next(
     for amount in amounts {
         d_prod = d_prod
             .checked_mul(d_prev)
-            .ok_or(MathError::MulOverflow(1))?
+            .ok_or(MathError::MulOverflow(3))?
             .checked_div(
                 amount
                     .checked_mul(n.into())
-                    .ok_or(MathError::MulOverflow(2))?
+                    .ok_or(MathError::MulOverflow(4))?
                     .into(),
             )
             .ok_or(MathError::DivByZero(1))?;
@@ -80,20 +80,20 @@ fn compute_d_next(
         .checked_mul(
             d_prod
                 .checked_mul(n.into())
-                .ok_or(MathError::MulOverflow(3))?
+                .ok_or(MathError::MulOverflow(5))?
                 .checked_add(ann_sum)
-                .ok_or(MathError::AddOverflow(1))?,
+                .ok_or(MathError::AddOverflow(3))?,
         )
-        .ok_or(MathError::MulOverflow(4))?;
+        .ok_or(MathError::MulOverflow(6))?;
     let denominator = d_prev
         .checked_mul(ann_sub_one)
-        .ok_or(MathError::MulOverflow(5))?
+        .ok_or(MathError::MulOverflow(7))?
         .checked_add(
             d_prod
                 .checked_mul(n_add_one.into())
-                .ok_or(MathError::MulOverflow(6))?,
+                .ok_or(MathError::MulOverflow(8))?,
         )
-        .ok_or(MathError::AddOverflow(2))?;
+        .ok_or(MathError::AddOverflow(4))?;
     numerator
         .checked_div(denominator)
         .ok_or(MathError::DivByZero(2))
@@ -113,15 +113,15 @@ pub fn compute_y(
     let n = reserves.len() as u32;
     let ann: U256 = casted_mul(
         amp_coef,
-        n.checked_pow(n).ok_or(MathError::MulOverflow(1))?.into(),
+        n.checked_pow(n).ok_or(MathError::MulOverflow(9))?.into(),
     );
     let d: U256 = compute_d(reserves, amp_coef)?;
 
     let mut c = d
         .checked_mul(d)
-        .ok_or(MathError::MulOverflow(2))?
+        .ok_or(MathError::MulOverflow(10))?
         .checked_div(new_reserve_x.into())
-        .ok_or(MathError::DivByZero(1))?;
+        .ok_or(MathError::DivByZero(3))?;
     let mut reservers_sum: U256 = new_reserve_x.into();
     // reserves_sum = ... + x_(i') + ...
     // c1 = ... * d / x_(i') * ... * d
@@ -130,39 +130,39 @@ pub fn compute_y(
         if idx != token_x_id && idx != token_y_id {
             reservers_sum = reservers_sum
                 .checked_add(reserve.into())
-                .ok_or(MathError::AddOverflow(1))?;
+                .ok_or(MathError::AddOverflow(5))?;
             c = c
                 .checked_mul(d)
-                .ok_or(MathError::MulOverflow(3))?
+                .ok_or(MathError::MulOverflow(11))?
                 .checked_div(reserve.into())
-                .ok_or(MathError::DivByZero(2))?;
+                .ok_or(MathError::DivByZero(4))?;
         }
     }
     // c = c_1 * d / (A * n^2n)
     c = c
         .checked_mul(d)
-        .ok_or(MathError::MulOverflow(4))?
+        .ok_or(MathError::MulOverflow(12))?
         .checked_div(
-            ann.checked_mul((n).checked_pow(n).ok_or(MathError::MulOverflow(5))?.into())
-                .ok_or(MathError::MulOverflow(6))?,
+            ann.checked_mul((n).checked_pow(n).ok_or(MathError::MulOverflow(13))?.into())
+                .ok_or(MathError::MulOverflow(14))?,
         )
-        .ok_or(MathError::DivByZero(3))?;
+        .ok_or(MathError::DivByZero(5))?;
     // reserves_sum + d / ( A * n^n)
     let b: U256 = d
         .checked_div(ann)
-        .ok_or(MathError::DivByZero(4))?
+        .ok_or(MathError::DivByZero(6))?
         .checked_add(reservers_sum)
-        .ok_or(MathError::AddOverflow(2))?; // d will be subtracted later
+        .ok_or(MathError::AddOverflow(6))?; // d will be subtracted later
 
     let mut y_prev = d;
     let mut y = y_prev;
     for _ in 0..MAX_ITERATIONS {
         y = compute_y_next(y_prev, b, c, d)?;
         if y > y_prev {
-            if y.checked_sub(y_prev).ok_or(MathError::SubUnderflow(2))? <= 1.into() {
+            if y.checked_sub(y_prev).ok_or(MathError::SubUnderflow(4))? <= 1.into() {
                 return Ok(y.as_u128());
             }
-        } else if y_prev.checked_sub(y).ok_or(MathError::SubUnderflow(3))? <= 1.into() {
+        } else if y_prev.checked_sub(y).ok_or(MathError::SubUnderflow(5))? <= 1.into() {
             return Ok(y.as_u128());
         }
         y_prev = y;
@@ -173,42 +173,25 @@ pub fn compute_y(
 fn compute_y_next(y_prev: U256, b: U256, c: U256, d: U256) -> Result<U256, MathError> {
     let numerator = y_prev
         .checked_pow(2.into())
-        .ok_or(MathError::MulOverflow(1))?
+        .ok_or(MathError::MulOverflow(15))?
         .checked_add(c)
-        .ok_or(MathError::AddOverflow(1))?;
+        .ok_or(MathError::AddOverflow(7))?;
     let denominator = y_prev
         .checked_mul(2.into())
-        .ok_or(MathError::MulOverflow(2))?
+        .ok_or(MathError::MulOverflow(16))?
         .checked_add(b)
-        .ok_or(MathError::AddOverflow(2))?
+        .ok_or(MathError::AddOverflow(8))?
         .checked_sub(d)
-        .ok_or(MathError::SubUnderflow(1))?;
+        .ok_or(MathError::SubUnderflow(6))?;
     numerator
         .checked_div(denominator)
-        .ok_or(MathError::DivByZero(1))
+        .ok_or(MathError::DivByZero(7))
 }
 
-/// Encodes all results of swapping from a source token to a destination token.
-#[derive(Debug)]
-pub struct SwapResult {
-    /// New amount of source token.
-    pub new_source_amount: u128,
-    /// New amount of destination token (with fees applied).
-    pub new_destination_amount: u128,
-    /// If token_in_amount is known:
-    ///     Amount of destination token swapped (with fees applied).
-    /// If token_out_amount is known:
-    ///     Amount of source token swapped (with fees applied).
-    pub amount_swapped: u128,
-    /// Admin fee for the swap (part of the `fee`).
-    pub admin_fee: u128,
-    /// Fee for the swap (applied to token_out).
-    pub fee: u128,
-}
-
-/// Compute SwapResult after an exchange given `amount_in` of the `token_in_id`
-/// panics if token ids are out of bounds
-/// NOTICE: it does not check if `token_in_id` != `token_out_id`
+/// Compute SwapResult after an exchange given `amount_in` of the `token_in_id`.
+/// panics if token ids are out of bounds.
+/// NOTICE: it does not check if `token_in_id` != `token_out_id`.
+/// Returns (amount_out, fee_amount)
 pub fn swap_to(
     token_in_idx: usize,
     token_in_amount: u128,
@@ -216,12 +199,11 @@ pub fn swap_to(
     current_reserves: &Vec<u128>,
     fees: &Fees,
     amp_coef: u128,
-    admin_fee: bool, // flag if admin fee should be accounted
-) -> Result<SwapResult, MathError> {
+) -> Result<(u128, u128), MathError> {
     let y = compute_y(
         token_in_amount
             .checked_add(current_reserves[token_in_idx])
-            .ok_or(MathError::AddOverflow(1))?,
+            .ok_or(MathError::AddOverflow(9))?,
         current_reserves,
         token_in_idx,
         token_out_idx,
@@ -231,43 +213,20 @@ pub fn swap_to(
     // https://github.com/curvefi/curve-contract/blob/b0bbf77f8f93c9c5f4e415bce9cd71f0cdee960e/contracts/pool-templates/base/SwapTemplateBase.vy#L466
     let dy = current_reserves[token_out_idx]
         .checked_sub(y)
-        .ok_or(MathError::SubUnderflow(1))?
+        .ok_or(MathError::SubUnderflow(7))?
         .checked_sub(1)
-        .ok_or(MathError::SubUnderflow(2))?;
+        .ok_or(MathError::SubUnderflow(8))?;
     // fees are applied to "token_out" amount
-    let trade_fee = fees.trade_fee_from_gross(dy)?;
-    let amount_swapped = dy
-        .checked_sub(trade_fee)
-        .ok_or(MathError::SubUnderflow(3))?;
+    let fee = fees.trade_fee_from_gross(dy)?;
+    let amount_swapped = dy.checked_sub(fee).ok_or(MathError::SubUnderflow(9))?;
 
-    let mut new_destination_amount = current_reserves[token_out_idx]
-        .checked_sub(amount_swapped)
-        .ok_or(MathError::SubUnderflow(4))?;
-    let optional_admin_fee = if admin_fee {
-        let admin_fee_computed = fees.admin_trade_fee(trade_fee)?;
-        new_destination_amount = new_destination_amount
-            .checked_sub(admin_fee_computed)
-            .ok_or(MathError::SubUnderflow(5))?;
-        admin_fee_computed
-    } else {
-        0
-    };
-    let new_source_amount = current_reserves[token_in_idx]
-        .checked_add(token_in_amount)
-        .ok_or(MathError::AddOverflow(1))?;
-
-    Ok(SwapResult {
-        new_source_amount,
-        new_destination_amount,
-        amount_swapped,
-        admin_fee: optional_admin_fee,
-        fee: trade_fee,
-    })
+    Ok((amount_swapped, fee))
 }
 
 /// Compute SwapResult after an exchange given `amount_out` of the `token_out_id`
 /// panics if token ids are out of bounds
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`
+/// /// Returns (amount_in, fee_amount)
 pub fn swap_from(
     token_out_idx: usize,
     token_out_amount: u128, // Net amount (w/o fee)
@@ -275,18 +234,17 @@ pub fn swap_from(
     current_reserves: &Vec<u128>,
     fees: &Fees,
     amp_coef: u128,
-    admin_fee: bool,
-) -> Result<SwapResult, MathError> {
+) -> Result<(u128, u128), MathError> {
     // fees are applied to "token_out" amount
-    let trade_fee = fees.trade_fee_from_net(token_out_amount)?;
+    let fee = fees.trade_fee_from_net(token_out_amount)?;
     let token_out_amount_plus_fee = token_out_amount
-        .checked_add(trade_fee)
-        .ok_or(MathError::AddOverflow(1))?;
+        .checked_add(fee)
+        .ok_or(MathError::AddOverflow(11))?;
 
     let y = compute_y(
         current_reserves[token_out_idx]
             .checked_sub(token_out_amount_plus_fee)
-            .ok_or(MathError::SubUnderflow(1))?,
+            .ok_or(MathError::SubUnderflow(12))?,
         current_reserves,
         token_out_idx,
         token_in_idx,
@@ -296,33 +254,11 @@ pub fn swap_from(
     // https://github.com/curvefi/curve-contract/blob/b0bbf77f8f93c9c5f4e415bce9cd71f0cdee960e/contracts/pool-templates/base/SwapTemplateBase.vy#L466
     let dy: u128 = y
         .checked_sub(current_reserves[token_in_idx])
-        .ok_or(MathError::SubUnderflow(2))?
+        .ok_or(MathError::SubUnderflow(13))?
         .checked_add(1)
-        .ok_or(MathError::AddOverflow(1))?;
+        .ok_or(MathError::AddOverflow(12))?;
 
-    let mut new_destination_amount = current_reserves[token_out_idx]
-        .checked_sub(token_out_amount)
-        .ok_or(MathError::SubUnderflow(4))?;
-    let optional_admin_fee = if admin_fee {
-        let admin_fee_computed = fees.admin_trade_fee(trade_fee)?;
-        new_destination_amount = new_destination_amount
-            .checked_sub(admin_fee_computed)
-            .ok_or(MathError::SubUnderflow(5))?;
-        admin_fee_computed
-    } else {
-        0
-    };
-    let new_source_amount = current_reserves[token_in_idx]
-        .checked_add(dy)
-        .ok_or(MathError::AddOverflow(1))?;
-
-    Ok(SwapResult {
-        new_source_amount,
-        new_destination_amount,
-        amount_swapped: dy,
-        admin_fee: optional_admin_fee,
-        fee: trade_fee,
-    })
+    Ok((dy, fee))
 }
 
 /// Compute the amount of LP tokens to mint after a deposit
@@ -337,7 +273,7 @@ pub fn compute_lp_amount_for_deposit(
     if pool_token_supply == 0 {
         for &amount in deposit_amounts {
             if amount == 0 {
-                return Err(MathError::DivByZero(42));
+                return Err(MathError::DivByZero(8));
             }
         }
         Ok((
@@ -354,7 +290,7 @@ pub fn compute_lp_amount_for_deposit(
         for (index, value) in deposit_amounts.iter().enumerate() {
             new_reserves[index] = old_reserves[index]
                 .checked_add(*value)
-                .ok_or(MathError::AddOverflow(1))?;
+                .ok_or(MathError::AddOverflow(14))?;
         }
         // Invariant after change
         let d_1 = compute_d(&new_reserves, amp_coef)?;
@@ -363,41 +299,41 @@ pub fn compute_lp_amount_for_deposit(
             for i in 0..new_reserves.len() {
                 let ideal_reserve: u128 = d_1
                     .checked_mul(old_reserves[i].into())
-                    .ok_or(MathError::MulOverflow(1))?
+                    .ok_or(MathError::MulOverflow(17))?
                     .checked_div(d_0)
-                    .ok_or(MathError::DivByZero(1))?
+                    .ok_or(MathError::DivByZero(9))?
                     .try_into()
-                    .map_err(|_| MathError::CastOverflow(1))?;
+                    .map_err(|_| MathError::CastOverflow(2))?;
                 let difference = if ideal_reserve > new_reserves[i] {
                     ideal_reserve
                         .checked_sub(new_reserves[i])
-                        .ok_or(MathError::SubUnderflow(1))?
+                        .ok_or(MathError::SubUnderflow(16))?
                 } else {
                     new_reserves[i]
                         .checked_sub(ideal_reserve)
-                        .ok_or(MathError::SubUnderflow(2))?
+                        .ok_or(MathError::SubUnderflow(17))?
                 };
                 let fee = _fees.normalized_trade_fee(n_coins as u32, difference)?;
                 new_reserves[i] = new_reserves[i]
                     .checked_sub(fee)
-                    .ok_or(MathError::SubUnderflow(3))?;
+                    .ok_or(MathError::SubUnderflow(18))?;
             }
             let d_2: U256 = compute_d(&new_reserves, amp_coef)?;
             let mint_shares: u128 = U256::from(pool_token_supply)
-                .checked_mul(d_2.checked_sub(d_0).ok_or(MathError::SubUnderflow(4))?)
-                .ok_or(MathError::MulOverflow(2))?
+                .checked_mul(d_2.checked_sub(d_0).ok_or(MathError::SubUnderflow(19))?)
+                .ok_or(MathError::MulOverflow(18))?
                 .checked_div(d_0)
-                .ok_or(MathError::DivByZero(2))?
+                .ok_or(MathError::DivByZero(10))?
                 .try_into()
-                .map_err(|_| MathError::CastOverflow(1))?;
+                .map_err(|_| MathError::CastOverflow(3))?;
 
             let diff_shares: u128 = U256::from(pool_token_supply)
-                .checked_mul(d_1.checked_sub(d_0).ok_or(MathError::SubUnderflow(5))?)
-                .ok_or(MathError::MulOverflow(3))?
+                .checked_mul(d_1.checked_sub(d_0).ok_or(MathError::SubUnderflow(20))?)
+                .ok_or(MathError::MulOverflow(19))?
                 .checked_div(d_0)
-                .ok_or(MathError::DivByZero(3))?
+                .ok_or(MathError::DivByZero(11))?
                 .try_into()
-                .map_err(|_| MathError::CastOverflow(2))?;
+                .map_err(|_| MathError::CastOverflow(4))?;
             // d1 > d2 > d0,
             // (d2-d0) => mint_shares (charged fee),
             // (d1-d0) => diff_shares (without fee),
@@ -407,17 +343,17 @@ pub fn compute_lp_amount_for_deposit(
                 mint_shares,
                 diff_shares
                     .checked_sub(mint_shares)
-                    .ok_or(MathError::SubUnderflow(6))?,
+                    .ok_or(MathError::SubUnderflow(21))?,
             ))
         } else {
             // Calc without fees
             let mint_shares: u128 = U256::from(pool_token_supply)
-                .checked_mul(d_1.checked_sub(d_0).ok_or(MathError::SubUnderflow(7))?)
-                .ok_or(MathError::MulOverflow(4))?
+                .checked_mul(d_1.checked_sub(d_0).ok_or(MathError::SubUnderflow(22))?)
+                .ok_or(MathError::MulOverflow(20))?
                 .checked_div(d_0)
-                .ok_or(MathError::DivByZero(4))?
+                .ok_or(MathError::DivByZero(12))?
                 .try_into()
-                .map_err(|_| MathError::CastOverflow(3))?;
+                .map_err(|_| MathError::CastOverflow(5))?;
             // d1 > d0,
             // (d1-d0) => mint_shares
             Ok((mint_shares, 0))
@@ -439,15 +375,15 @@ pub fn compute_deposit_amounts_for_lp(
         amounts.push(
             U256::from(old_reserves[i])
                 .checked_mul(lp_amount.into())
-                .ok_or(MathError::MulOverflow(1))?
+                .ok_or(MathError::MulOverflow(21))?
                 .checked_div(pool_token_supply.into())
-                .ok_or(MathError::DivByZero(1))?
+                .ok_or(MathError::DivByZero(13))?
                 .try_into()
-                .map_err(|_| MathError::CastOverflow(1))?,
+                .map_err(|_| MathError::CastOverflow(6))?,
         );
         new_reserves[i] = new_reserves[i]
             .checked_add(*amounts.last().unwrap())
-            .ok_or(MathError::SubUnderflow(1))?;
+            .ok_or(MathError::SubUnderflow(23))?;
     }
     Ok((amounts, new_reserves))
 }
@@ -471,7 +407,7 @@ pub fn compute_lp_amount_for_withdraw(
     for (index, value) in withdraw_amounts.iter().enumerate() {
         new_reserves[index] = old_reserves[index]
             .checked_sub(*value)
-            .ok_or(MathError::SubUnderflow(1))?;
+            .ok_or(MathError::SubUnderflow(24))?;
     }
     let d_1 = compute_d(&new_reserves, amp_coef)?;
 
@@ -480,24 +416,24 @@ pub fn compute_lp_amount_for_withdraw(
         for i in 0..new_reserves.len() {
             let ideal_u128 = d_1
                 .checked_mul(old_reserves[i].into())
-                .ok_or(MathError::MulOverflow(1))?
+                .ok_or(MathError::MulOverflow(22))?
                 .checked_div(d_0)
-                .ok_or(MathError::DivByZero(1))?
+                .ok_or(MathError::DivByZero(14))?
                 .as_u128();
             let difference = if ideal_u128 > new_reserves[i] {
                 ideal_u128
                     .checked_sub(new_reserves[i])
-                    .ok_or(MathError::SubUnderflow(2))?
+                    .ok_or(MathError::SubUnderflow(25))?
             } else {
                 new_reserves[i]
                     .checked_sub(ideal_u128)
-                    .ok_or(MathError::SubUnderflow(3))?
+                    .ok_or(MathError::SubUnderflow(26))?
             };
             let fee = _fees.normalized_trade_fee(n_coins as u32, difference)?;
             // new_u128 is for calculation D2, the one with fee charged
             new_reserves[i] = new_reserves[i]
                 .checked_sub(fee)
-                .ok_or(MathError::SubUnderflow(4))?;
+                .ok_or(MathError::SubUnderflow(27))?;
         }
         let d_2 = compute_d(&new_reserves, amp_coef)?;
         // d0 > d1 > d2,
@@ -507,30 +443,30 @@ pub fn compute_lp_amount_for_withdraw(
         // burn_shares = diff_shares + fee part
 
         let burn_shares = U256::from(pool_token_supply)
-            .checked_mul(d_0.checked_sub(d_2).ok_or(MathError::SubUnderflow(5))?)
-            .ok_or(MathError::MulOverflow(4))?
+            .checked_mul(d_0.checked_sub(d_2).ok_or(MathError::SubUnderflow(28))?)
+            .ok_or(MathError::MulOverflow(23))?
             .checked_div(d_0)
-            .ok_or(MathError::DivByZero(3))?
+            .ok_or(MathError::DivByZero(15))?
             .as_u128();
         let diff_shares = U256::from(pool_token_supply)
-            .checked_mul(d_0.checked_sub(d_1).ok_or(MathError::SubUnderflow(6))?)
-            .ok_or(MathError::MulOverflow(5))?
+            .checked_mul(d_0.checked_sub(d_1).ok_or(MathError::SubUnderflow(29))?)
+            .ok_or(MathError::MulOverflow(24))?
             .checked_div(d_0)
-            .ok_or(MathError::DivByZero(4))?
+            .ok_or(MathError::DivByZero(16))?
             .as_u128();
 
         Ok((
             burn_shares,
             burn_shares
                 .checked_sub(diff_shares)
-                .ok_or(MathError::SubUnderflow(7))?,
+                .ok_or(MathError::SubUnderflow(30))?,
         ))
     } else {
         let burn_shares = U256::from(pool_token_supply)
-            .checked_mul(d_0.checked_sub(d_1).ok_or(MathError::SubUnderflow(5))?)
-            .ok_or(MathError::MulOverflow(4))?
+            .checked_mul(d_0.checked_sub(d_1).ok_or(MathError::SubUnderflow(31))?)
+            .ok_or(MathError::MulOverflow(25))?
             .checked_div(d_0)
-            .ok_or(MathError::DivByZero(3))?
+            .ok_or(MathError::DivByZero(17))?
             .as_u128();
         Ok((burn_shares, 0))
     }
@@ -550,15 +486,15 @@ pub fn compute_withdraw_amounts_for_lp(
         amounts.push(
             U256::from(old_reserves[i])
                 .checked_mul(lp_amount.into())
-                .ok_or(MathError::MulOverflow(1))?
+                .ok_or(MathError::MulOverflow(26))?
                 .checked_div(pool_token_supply.into())
-                .ok_or(MathError::DivByZero(1))?
+                .ok_or(MathError::DivByZero(18))?
                 .try_into()
-                .map_err(|_| MathError::CastOverflow(1))?,
+                .map_err(|_| MathError::CastOverflow(7))?,
         );
         new_reserves[i] = new_reserves[i]
             .checked_sub(*amounts.last().unwrap())
-            .ok_or(MathError::SubUnderflow(1))?;
+            .ok_or(MathError::SubUnderflow(32))?;
     }
     Ok((amounts, new_reserves))
 }
@@ -655,7 +591,7 @@ mod tests {
         let token_in = 10000000000;
         // amounts from https://github.com/ref-finance/ref-contracts/blob/be5c0e33465c13a05dab6e5e9ff9f8af414e16a7/ref-exchange/src/stable_swap/mod.rs#L744
         let expect_token_out = 9999495232;
-        let swap_result = swap_to(0, token_in, 1, &reserves, &fees, amp_coef, false)
+        let swap_result = swap_to(0, token_in, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
             swap_result.amount_swapped, expect_token_out,
@@ -680,7 +616,7 @@ mod tests {
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_out = 9999495232;
         let expect_token_in = 10000000000;
-        let swap_result = swap_from(0, token_out, 1, &reserves, &fees, amp_coef, true)
+        let swap_result = swap_from(0, token_out, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
             swap_result.amount_swapped, expect_token_in,
@@ -707,7 +643,7 @@ mod tests {
         let expect_token_out = 9999495232;
         let expect_fee = expect_token_out / 10;
         let expect_token_out_minus_fee = expect_token_out - expect_fee;
-        let swap_result = swap_to(0, token_in, 1, &reserves, &fees, amp_coef, false)
+        let swap_result = swap_to(0, token_in, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
             swap_result.amount_swapped, expect_token_out_minus_fee,
@@ -736,16 +672,8 @@ mod tests {
         let expect_fee: u128 = 9999495232 / 10;
         let token_out_minus_expect_fee = token_out - expect_fee;
         let expect_token_in = 10000000000;
-        let swap_result = swap_from(
-            0,
-            token_out_minus_expect_fee,
-            1,
-            &reserves,
-            &fees,
-            amp_coef,
-            true,
-        )
-        .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        let swap_result = swap_from(0, token_out_minus_expect_fee, 1, &reserves, &fees, amp_coef)
+            .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
             swap_result.amount_swapped, expect_token_in,
             "Incorrect swap ammount"
@@ -770,7 +698,7 @@ mod tests {
         let fees = Fees::new(2137, 0);
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_in: u128 = 62463425432;
-        let swap_to_result = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef, false)
+        let swap_to_result = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         let swap_from_result = swap_from(
             1,
@@ -779,7 +707,6 @@ mod tests {
             &reserves,
             &fees,
             amp_coef,
-            false,
         )
         .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
@@ -798,7 +725,7 @@ mod tests {
         let fees = Fees::new(2137, 0);
         let reserves: Vec<u128> = vec![41324213432421314231423, 91421311432432000454291];
         let token_0_out: u128 = 12344324213;
-        let swap_from_result = swap_from(0, token_0_out, 1, &reserves, &fees, amp_coef, false)
+        let swap_from_result = swap_from(0, token_0_out, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         let swap_to_result = swap_to(
             1,
@@ -807,7 +734,6 @@ mod tests {
             &reserves,
             &fees,
             amp_coef,
-            false,
         )
         .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(

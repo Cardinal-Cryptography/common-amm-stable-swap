@@ -34,7 +34,7 @@ impl Fees {
             self.trade_fee_bps,
             FEE_BPS_DENOM
                 .checked_sub(self.trade_fee_bps)
-                .ok_or(MathError::SubUnderflow(1))?,
+                .ok_or(MathError::SubUnderflow(61))?,
         )
     }
 
@@ -50,13 +50,13 @@ impl Fees {
         let adjusted_trade_fee = (self
             .trade_fee_bps
             .checked_mul(num_coins)
-            .ok_or(MathError::MulOverflow(1)))?
+            .ok_or(MathError::MulOverflow(61)))?
         .checked_div(
-            (num_coins.checked_sub(1).ok_or(MathError::SubUnderflow(1)))?
+            (num_coins.checked_sub(1).ok_or(MathError::SubUnderflow(62)))?
                 .checked_mul(4)
-                .ok_or(MathError::MulOverflow(2))?,
+                .ok_or(MathError::MulOverflow(62))?,
         )
-        .ok_or(MathError::DivByZero(1))?;
+        .ok_or(MathError::DivByZero(61))?;
         u128_ratio(amount, adjusted_trade_fee, FEE_BPS_DENOM)
     }
 }
@@ -64,7 +64,7 @@ impl Fees {
 fn u128_ratio(amount: u128, num: u32, denom: u32) -> Result<u128, MathError> {
     casted_mul(amount, num.into())
         .checked_div(denom.into())
-        .ok_or(MathError::DivByZero(1))?
+        .ok_or(MathError::DivByZero(61))?
         .try_into()
-        .map_err(|_| MathError::CastOverflow(1))
+        .map_err(|_| MathError::CastOverflow(61))
 }
