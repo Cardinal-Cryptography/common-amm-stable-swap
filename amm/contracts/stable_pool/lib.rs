@@ -283,22 +283,24 @@ pub mod stable_pool {
             if let Some(fee_to) = self.fee_to() {
                 // calc shares from admin fee
                 let c_admin_fee = self.pool.fees.admin_trade_fee(c_fee)?;
-                let mut r_c_admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
-                r_c_admin_deposit_amounts[token_out_id] = c_admin_fee;
-                let (admin_fee_lp, _) = math::compute_lp_amount_for_deposit(
-                    &r_c_admin_deposit_amounts,
-                    &self.pool.c_reserves,
-                    self.psp22.total_supply(),
-                    None, // no fees
-                    self.amp_coef()?,
-                )?;
-                // mint fee (shares) to admin
-                let events = self.psp22.mint(fee_to, admin_fee_lp)?;
-                self.emit_events(events);
-                // update reserve (token_out) accounting for admin fee
-                self.pool.c_reserves[token_out_id] = self.pool.c_reserves[token_out_id]
-                    .checked_add(c_admin_fee)
-                    .ok_or(MathError::AddOverflow(101))?;
+                if c_admin_fee > 0 {
+                    let mut c_admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
+                    c_admin_deposit_amounts[token_out_id] = c_admin_fee;
+                    let mut c_reserves = self.pool.c_reserves.clone();
+                    c_reserves[token_out_id] = c_reserves[token_out_id]
+                        .checked_sub(c_admin_fee)
+                        .ok_or(MathError::SubUnderflow(102))?;
+                    let (admin_fee_lp, _) = math::compute_lp_amount_for_deposit(
+                        &c_admin_deposit_amounts,
+                        &c_reserves,
+                        self.psp22.total_supply(),
+                        None, // no fees
+                        self.amp_coef()?,
+                    )?;
+                    // mint fee (shares) to admin
+                    let events = self.psp22.mint(fee_to, admin_fee_lp)?;
+                    self.emit_events(events);
+                }
             }
             Ok((token_out_amount, self.to_token_amount(c_fee, token_out_id)))
         }
