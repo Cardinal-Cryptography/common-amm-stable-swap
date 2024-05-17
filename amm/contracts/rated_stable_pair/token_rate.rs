@@ -12,7 +12,7 @@ use traits::MathError;
 const GET_SAZERO_RATE_SELECTOR: [u8; 4] = ink::selector_bytes!("get_azero_from_shares");
 type GetSazeroRateReturnType = u128;
 
-pub const SAZERO_DECIMALS: u8 = 18;
+pub const SAZERO_DECIMALS: u8 = 12;
 pub const AZERO_DECIMALS: u8 = 12;
 pub const ONE_SAZERO: u128 = 10u128.pow(SAZERO_DECIMALS as u32);
 pub const ONE_AZERO: u128 = 10u128.pow(AZERO_DECIMALS as u32);
