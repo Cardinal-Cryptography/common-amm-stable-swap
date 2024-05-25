@@ -326,10 +326,7 @@ pub mod rated_stable_pair {
             Ok((
                 token_out_amount,
                 rate.rated_amount_to_amount(
-                    self.to_token_amount(
-                        rate.rated_amount_to_amount(r_c_fee, token_out_id)?,
-                        token_out_id,
-                    ),
+                    self.to_token_amount(r_c_fee, token_out_id),
                     token_out_id,
                 )?,
             ))
