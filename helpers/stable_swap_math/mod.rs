@@ -1,4 +1,3 @@
-pub mod amp_coef;
 pub mod fees;
 
 use crate::math::{casted_mul, MathError};
