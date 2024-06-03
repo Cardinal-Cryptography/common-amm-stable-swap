@@ -574,7 +574,7 @@ mod tests {
         .unwrap_or_else(|err| panic!("Should compute y. Err: {err:?}"));
         assert!(
             reserve_1_after > reserve_1 + reserve_delta,
-            "Reserve destination reserve change should be greater than source reserve"
+            "Destination reserve change should be greater than source reserve"
         );
         let const_prod_y = (reserve_1 * (reserve_0 + reserve_delta)) / reserve_0;
         assert!(
@@ -591,22 +591,10 @@ mod tests {
         let token_in = 10000000000;
         // amounts from https://github.com/ref-finance/ref-contracts/blob/be5c0e33465c13a05dab6e5e9ff9f8af414e16a7/ref-exchange/src/stable_swap/mod.rs#L744
         let expect_token_out = 9999495232;
-        let swap_result = swap_to(0, token_in, 1, &reserves, &fees, amp_coef)
+        let (amount_out, fee) = swap_to(0, token_in, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
-        assert_eq!(
-            swap_result.amount_swapped, expect_token_out,
-            "Incorrect swap ammount"
-        );
-        assert_eq!(
-            swap_result.new_source_amount,
-            reserves[0] + token_in,
-            "Incorrect new source amount"
-        );
-        assert_eq!(
-            swap_result.new_destination_amount,
-            reserves[1] - expect_token_out,
-            "Incorrect new destination amount"
-        );
+        assert_eq!(amount_out, expect_token_out, "Incorrect swap ammount");
+        assert_eq!(fee, 0, "Fee should nbe 0");
     }
 
     #[test]
@@ -616,22 +604,10 @@ mod tests {
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_out = 9999495232;
         let expect_token_in = 10000000000;
-        let swap_result = swap_from(0, token_out, 1, &reserves, &fees, amp_coef)
+        let (amount_in, fee) = swap_from(0, token_out, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
-        assert_eq!(
-            swap_result.amount_swapped, expect_token_in,
-            "Incorrect swap ammount"
-        );
-        assert_eq!(
-            swap_result.new_source_amount,
-            reserves[1] + expect_token_in,
-            "Incorrect new source amount"
-        );
-        assert_eq!(
-            swap_result.new_destination_amount,
-            reserves[0] - token_out,
-            "Incorrect new destination amount"
-        );
+        assert_eq!(amount_in, expect_token_in, "Incorrect swap ammount");
+        assert_eq!(fee, 0, "Fee should nbe 0");
     }
 
     #[test]
@@ -643,24 +619,13 @@ mod tests {
         let expect_token_out = 9999495232;
         let expect_fee = expect_token_out / 10;
         let expect_token_out_minus_fee = expect_token_out - expect_fee;
-        let swap_result = swap_to(0, token_in, 1, &reserves, &fees, amp_coef)
+        let (amount_out, fee) = swap_to(0, token_in, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
         assert_eq!(
-            swap_result.amount_swapped, expect_token_out_minus_fee,
+            amount_out, expect_token_out_minus_fee,
             "Incorrect swap ammount"
         );
-        assert_eq!(swap_result.fee, expect_fee, "Incorrect total fee ammount");
-        assert_eq!(swap_result.admin_fee, 0, "Incorrect admin fee ammount");
-        assert_eq!(
-            swap_result.new_source_amount,
-            reserves[0] + token_in,
-            "Incorrect new source amount"
-        );
-        assert_eq!(
-            swap_result.new_destination_amount,
-            reserves[1] - expect_token_out_minus_fee,
-            "Incorrect new destination amount"
-        );
+        assert_eq!(fee, expect_fee, "Incorrect total fee ammount");
     }
 
     #[test]
@@ -672,24 +637,11 @@ mod tests {
         let expect_fee: u128 = 9999495232 / 10;
         let token_out_minus_expect_fee = token_out - expect_fee;
         let expect_token_in = 10000000000;
-        let swap_result = swap_from(0, token_out_minus_expect_fee, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
-        assert_eq!(
-            swap_result.amount_swapped, expect_token_in,
-            "Incorrect swap ammount"
-        );
-        assert_eq!(swap_result.fee, expect_fee, "Incorrect total fee ammount");
-        assert_eq!(swap_result.admin_fee, 0, "Incorrect admin fee ammount");
-        assert_eq!(
-            swap_result.new_source_amount,
-            reserves[0] + expect_token_in,
-            "Incorrect new source amount"
-        );
-        assert_eq!(
-            swap_result.new_destination_amount,
-            reserves[1] - token_out_minus_expect_fee,
-            "Incorrect new destination amount"
-        );
+        let (amount_in, fee) =
+            swap_from(0, token_out_minus_expect_fee, 1, &reserves, &fees, amp_coef)
+                .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        assert_eq!(amount_in, expect_token_in, "Incorrect swap ammount");
+        assert_eq!(fee, expect_fee, "Incorrect total fee ammount");
     }
 
     #[test]
@@ -697,59 +649,64 @@ mod tests {
         let amp_coef: u128 = 1000;
         let fees = Fees::new(2137, 0);
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
-        let token_0_in: u128 = 62463425432;
-        let swap_to_result = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef)
+        let token_0_in: u128 = 62463425433;
+        let (amount_out, fee_out) = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
-        let swap_from_result = swap_from(
-            1,
-            swap_to_result.amount_swapped,
-            0,
-            &reserves,
-            &fees,
-            amp_coef,
-        )
-        .unwrap_or_else(|_| panic!("Should return SwapResult"));
-        assert_eq!(
-            swap_from_result.amount_swapped, token_0_in,
-            "Incorrect swap amount"
-        );
-        assert_eq!(
-            swap_from_result.fee, swap_to_result.fee,
-            "Incorrect fee amount"
-        );
+        let (amount_in, fee_in) = swap_from(1, amount_out, 0, &reserves, &fees, amp_coef)
+            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        assert_eq!(amount_in, token_0_in, "Incorrect swap amount");
+        assert_eq!(fee_out, fee_in, "Incorrect fee amount");
     }
 
     #[test]
     fn swap_from_to_computation() {
         let amp_coef: u128 = 1000;
         let fees = Fees::new(2137, 0);
-        let reserves: Vec<u128> = vec![41324213432421314231423, 91421311432432000454291];
-        let token_0_out: u128 = 12344324213;
-        let swap_from_result = swap_from(0, token_0_out, 1, &reserves, &fees, amp_coef)
+        let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
+        let token_0_out: u128 = 62463425433;
+
+        let (amount_in, fee_in) = swap_from(0, token_0_out, 1, &reserves, &fees, amp_coef)
             .unwrap_or_else(|_| panic!("Should return SwapResult"));
-        let swap_to_result = swap_to(
-            1,
-            swap_from_result.amount_swapped,
-            0,
-            &reserves,
-            &fees,
-            amp_coef,
-        )
-        .unwrap_or_else(|_| panic!("Should return SwapResult"));
-        assert_eq!(
-            swap_to_result.amount_swapped, token_0_out,
-            "Incorrect swap amount"
-        );
-        assert_eq!(
-            swap_to_result.fee, swap_from_result.fee,
-            "Incorrect fee amount"
-        );
+        let (amount_out, fee_out) = swap_to(1, amount_in, 0, &reserves, &fees, amp_coef)
+            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        assert_eq!(amount_out, token_0_out, "Incorrect swap amount");
+        assert_eq!(fee_in, fee_out, "Incorrect fee amount");
     }
 
     #[test]
-    fn withdraw_liquidity_by_share_and_by_amounts_equality() {
+    fn swap_to_from_computation_edge_case() {
+        let amp_coef: u128 = 80;
+        let fees = Fees::new(1000, 0);
+        let reserves: Vec<u128> = vec![100000000000, 100000000000];
+        let token_0_in: u128 = 1000000;
+        let (amount_out, fee_out) = swap_to(1, token_0_in, 0, &reserves, &fees, amp_coef)
+            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        let (amount_in, fee_in) = swap_from(0, amount_out, 1, &reserves, &fees, amp_coef)
+            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        assert_eq!(amount_in, token_0_in, "Incorrect swap amount");
+        // amount_in:   (1000001, 1000000)
+        assert_eq!(fee_in, fee_out, "Incorrect fee amount");
+        // fee:         (100000, 99999)
+    }
+
+    #[test]
+    fn swap_from_to_computation_edge_case() {
+        let amp_coef: u128 = 80;
+        let fees = Fees::new(1000, 0);
+        let reserves: Vec<u128> = vec![100000000000, 100000000000];
+        let token_0_out: u128 = 1000000;
+        let (amount_in, fee_in) = swap_from(0, token_0_out, 1, &reserves, &fees, amp_coef)
+            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        let (amount_out, fee_out) = swap_to(1, amount_in, 0, &reserves, &fees, amp_coef)
+            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        assert_eq!(amount_out, token_0_out, "Incorrect swap amount");
+        assert_eq!(fee_in, fee_out, "Incorrect fee amount");
+    }
+
+    #[test]
+    fn withdraw_liquidity_by_share_and_by_amounts_equality_1() {
         let amp_coef: u128 = 85;
-        let fees = Fees::new(1000, 2000); // 10% fee
+        let fees = Fees::new(2137, 0); // 10% fee
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
@@ -764,7 +721,7 @@ mod tests {
             amp_coef,
         )
         .unwrap_or_else(|_| panic!("Should work"));
-        assert_eq!(fee_part, 0, "Fee is should be 0");
+        assert_eq!(fee_part, 0, "Fee should be 0");
         assert_eq!(
             share_by_withdraw_amounts, share,
             "Share amounts should match"
@@ -772,9 +729,9 @@ mod tests {
     }
 
     #[test]
-    fn deposit_liquidity_by_share_and_by_amounts_equality() {
+    fn deposit_liquidity_by_share_and_by_amounts_equality_1() {
         let amp_coef: u128 = 85;
-        let fees = Fees::new(1000, 2000); // 10% fee
+        let fees = Fees::new(2137, 0); // 10% fee
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
@@ -789,12 +746,64 @@ mod tests {
             amp_coef,
         )
         .unwrap_or_else(|_| panic!("Should mint liquidity"));
-        assert_eq!(fee_part, 0, "Fee is should be 0");
+        assert_eq!(fee_part, 0, "Fee should be 0");
         let reserves_a = vec![
             reserves[0] + deposit_amounts[0],
             reserves[1] + deposit_amounts[1],
         ];
         assert_eq!(share, share_by_deposit, "Deposit amounts differ.");
         assert_eq!(reserves_a, reserves_b, "Reserves should match");
+    }
+
+    #[test]
+    fn withdraw_liquidity_by_share_and_by_amounts_equality_2() {
+        let amp_coef: u128 = 85;
+        let fees = Fees::new(2137, 0); // 10% fee
+        let reserves: Vec<u128> = Vec::from([12341234123412341234, 5343245543253432435]);
+        let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
+        let share = token_supply / 20; // 5%
+        let (withdraw_amounts_by_share, _) =
+            compute_withdraw_amounts_for_lp(share, &reserves, token_supply)
+                .unwrap_or_else(|_| panic!("Should work"));
+        let (share_by_withdraw_amounts, fee_part) = compute_lp_amount_for_withdraw(
+            &withdraw_amounts_by_share,
+            &reserves,
+            token_supply,
+            Some(&fees),
+            amp_coef,
+        )
+        .unwrap_or_else(|_| panic!("Should work"));
+        assert_eq!(fee_part, 0, "Fee should be 0");
+        assert_eq!(
+            share_by_withdraw_amounts, share,
+            "Share amounts should match"
+        );
+    }
+
+    #[test]
+    fn deposit_liquidity_by_share_and_by_amounts_equality_2() {
+        let amp_coef: u128 = 85;
+        let fees = Fees::new(2137, 0);
+        let reserves: Vec<u128> = Vec::from([12341234123412341234, 5343245543253432435]);
+        let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
+        let share = token_supply / 20; // 5%
+        let (deposit_amounts, reserves_b) =
+            compute_deposit_amounts_for_lp(share, &reserves, token_supply)
+                .unwrap_or_else(|_| panic!("Should mint liquidity"));
+        let (share_by_deposit, fee_part) = compute_lp_amount_for_deposit(
+            &deposit_amounts,
+            &reserves,
+            token_supply,
+            Some(&fees),
+            amp_coef,
+        )
+        .unwrap_or_else(|_| panic!("Should mint liquidity"));
+        assert_eq!(fee_part, 0, "Fee should be 0");
+        let reserves_a = vec![
+            reserves[0] + deposit_amounts[0],
+            reserves[1] + deposit_amounts[1],
+        ];
+        assert_eq!(reserves_a, reserves_b, "Reserves should match");
+        assert_eq!(share, share_by_deposit, "Deposit amounts differ.");
     }
 }
