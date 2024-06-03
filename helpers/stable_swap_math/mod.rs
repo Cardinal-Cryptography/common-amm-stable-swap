@@ -2,7 +2,7 @@ pub mod amp_coef;
 pub mod fees;
 
 use crate::math::{casted_mul, MathError};
-use ink::prelude::{vec, vec::Vec};
+use ink::prelude::vec::Vec;
 use primitive_types::U256;
 
 use fees::Fees;
@@ -271,10 +271,8 @@ pub fn compute_lp_amount_for_deposit(
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
     if pool_token_supply == 0 {
-        for &amount in deposit_amounts {
-            if amount == 0 {
-                return Err(MathError::DivByZero(8));
-            }
+        if deposit_amounts.contains(&0) {
+            return Err(MathError::DivByZero(8));
         }
         Ok((
             compute_d(deposit_amounts, amp_coef)?
@@ -286,12 +284,15 @@ pub fn compute_lp_amount_for_deposit(
         // Initial invariant
         let d_0 = compute_d(old_reserves, amp_coef)?;
         let n_coins = old_reserves.len();
-        let mut new_reserves = vec![0_u128; n_coins];
-        for (index, value) in deposit_amounts.iter().enumerate() {
-            new_reserves[index] = old_reserves[index]
-                .checked_add(*value)
-                .ok_or(MathError::AddOverflow(14))?;
-        }
+        let mut new_reserves = old_reserves
+            .iter()
+            .zip(deposit_amounts.iter())
+            .map(|(reserve, &amount)| {
+                reserve
+                    .checked_add(amount)
+                    .ok_or(MathError::AddOverflow(14))
+            })
+            .collect::<Result<Vec<u128>, MathError>>()?;
         // Invariant after change
         let d_1 = compute_d(&new_reserves, amp_coef)?;
         if let Some(_fees) = fees {
@@ -368,10 +369,9 @@ pub fn compute_deposit_amounts_for_lp(
     old_reserves: &Vec<u128>,
     pool_token_supply: u128,
 ) -> Result<(Vec<u128>, Vec<u128>), MathError> {
-    let n_coins = old_reserves.len();
     let mut amounts = Vec::new();
-    let mut new_reserves = old_reserves.clone();
-    for i in 0..n_coins {
+    let mut new_reserves = Vec::new();
+    for i in 0..old_reserves.len() {
         amounts.push(
             U256::from(old_reserves[i])
                 .checked_mul(lp_amount.into())
@@ -381,9 +381,11 @@ pub fn compute_deposit_amounts_for_lp(
                 .try_into()
                 .map_err(|_| MathError::CastOverflow(6))?,
         );
-        new_reserves[i] = new_reserves[i]
-            .checked_add(*amounts.last().unwrap())
-            .ok_or(MathError::SubUnderflow(23))?;
+        new_reserves.push(
+            old_reserves[i]
+                .checked_add(*amounts.last().unwrap())
+                .ok_or(MathError::SubUnderflow(23))?,
+        );
     }
     Ok((amounts, new_reserves))
 }
@@ -403,12 +405,15 @@ pub fn compute_lp_amount_for_withdraw(
     let d_0 = compute_d(old_reserves, amp_coef)?;
 
     // real invariant after withdraw, D1
-    let mut new_reserves = vec![0_u128; n_coins];
-    for (index, value) in withdraw_amounts.iter().enumerate() {
-        new_reserves[index] = old_reserves[index]
-            .checked_sub(*value)
-            .ok_or(MathError::SubUnderflow(24))?;
-    }
+    let mut new_reserves = old_reserves
+        .iter()
+        .zip(withdraw_amounts.iter())
+        .map(|(reserve, &amount)| {
+            reserve
+                .checked_sub(amount)
+                .ok_or(MathError::AddOverflow(14))
+        })
+        .collect::<Result<Vec<u128>, MathError>>()?;
     let d_1 = compute_d(&new_reserves, amp_coef)?;
 
     // Recalculate the invariant accounting for fees
@@ -479,10 +484,9 @@ pub fn compute_withdraw_amounts_for_lp(
     old_reserves: &Vec<u128>,
     pool_token_supply: u128,
 ) -> Result<(Vec<u128>, Vec<u128>), MathError> {
-    let n_coins = old_reserves.len();
     let mut amounts = Vec::new();
-    let mut new_reserves = old_reserves.clone();
-    for i in 0..n_coins {
+    let mut new_reserves = Vec::new();
+    for i in 0..old_reserves.len() {
         amounts.push(
             U256::from(old_reserves[i])
                 .checked_mul(lp_amount.into())
@@ -492,9 +496,11 @@ pub fn compute_withdraw_amounts_for_lp(
                 .try_into()
                 .map_err(|_| MathError::CastOverflow(7))?,
         );
-        new_reserves[i] = new_reserves[i]
-            .checked_sub(*amounts.last().unwrap())
-            .ok_or(MathError::SubUnderflow(32))?;
+        new_reserves.push(
+            old_reserves[i]
+                .checked_sub(*amounts.last().unwrap())
+                .ok_or(MathError::SubUnderflow(32))?,
+        );
     }
     Ok((amounts, new_reserves))
 }
@@ -574,7 +580,7 @@ mod tests {
         .unwrap_or_else(|err| panic!("Should compute y. Err: {err:?}"));
         assert!(
             reserve_1_after > reserve_1 + reserve_delta,
-            "Destination reserve change should be greater than source reserve"
+            "Destination reserve change should be greater than in const sum swap"
         );
         let const_prod_y = (reserve_1 * (reserve_0 + reserve_delta)) / reserve_0;
         assert!(

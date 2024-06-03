@@ -120,27 +120,27 @@ pub mod stable_pool {
             let mut unique_tokens = tokens.clone();
             unique_tokens.sort();
             unique_tokens.dedup();
+            let token_count = tokens.len();
             ensure!(
-                unique_tokens.len() == tokens.len(),
+                unique_tokens.len() == token_count,
                 StablePoolError::IdenticalTokenId
             );
             ensure!(
-                tokens.len() == tokens_decimals.len(),
+                token_count == tokens_decimals.len(),
                 StablePoolError::IncorrectTokenCount
             );
-            let c_reserves = vec![0; tokens.len()];
             let max_decimal = tokens_decimals.iter().max().unwrap_or(&0);
-            let mut precisions = vec![1; tokens.len()];
-            for (i, &decimal) in tokens_decimals.iter().enumerate() {
-                precisions[i] = 10u128.pow(max_decimal.checked_sub(decimal).unwrap().into());
-            }
+            let precisions = tokens_decimals
+                .iter()
+                .map(|&decimal| 10u128.pow(max_decimal.checked_sub(decimal).unwrap().into()))
+                .collect();
             Ok(Self {
                 owner,
                 pool: StablePoolData {
                     factory: factory.into(),
                     tokens,
+                    c_reserves: vec![0; token_count],
                     precisions,
-                    c_reserves,
                     amp_coef: AmplificationCoefficient::new(init_amp_coef)?,
                     fees: Fees::new(TRADE_FEE_BPS, ADMIN_FEE_BPS),
                 },
@@ -169,7 +169,7 @@ pub mod stable_pool {
             }
         }
 
-        /// A helper funciton for getting PSP22 contract ref
+        #[inline]
         fn token_by_address(&self, address: AccountId) -> contract_ref!(PSP22) {
             address.into()
         }
@@ -193,20 +193,20 @@ pub mod stable_pool {
 
         /// Converts provided tokens `amounts` to comparable amounts
         fn to_token_amounts(&self, amounts: &[u128]) -> Vec<u128> {
-            let mut token_amounts: Vec<u128> = Vec::new();
-            for (id, &amount) in amounts.iter().enumerate() {
-                token_amounts.push(self.to_token_amount(amount, id));
-            }
-            token_amounts
+            amounts
+                .iter()
+                .enumerate()
+                .map(|(id, &amount)| self.to_token_amount(amount, id))
+                .collect()
         }
 
         /// Converts provided comparable `amounts` to tokens amounts
         fn to_comparable_amounts(&self, amounts: &[u128]) -> Result<Vec<u128>, MathError> {
-            let mut comparable_amounts: Vec<u128> = Vec::new();
-            for (id, &amount) in amounts.iter().enumerate() {
-                comparable_amounts.push(self.to_comparable_amount(amount, id)?);
-            }
-            Ok(comparable_amounts)
+            amounts
+                .iter()
+                .enumerate()
+                .map(|(id, &amount)| self.to_comparable_amount(amount, id))
+                .collect()
         }
 
         fn ensure_onwer(&self) -> Result<(), StablePoolError> {
