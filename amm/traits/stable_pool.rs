@@ -18,7 +18,7 @@ pub trait StablePoolView {
 
     /// Returns current value of amplification coefficient.
     #[ink(message)]
-    fn amp_coef(&self) -> Result<u128, StablePoolError>;
+    fn amp_coef(&self) -> u128;
 
     /// Calculate swap amount of token_out
     /// given token_in amount
@@ -26,7 +26,7 @@ pub trait StablePoolView {
     /// fee is applied to token_out
     #[ink(message)]
     fn get_swap_amount_out(
-        &self,
+        &mut self,
         token_in: AccountId,
         token_out: AccountId,
         token_in_amount: u128,
@@ -38,7 +38,7 @@ pub trait StablePoolView {
     /// fee is applied to token_out
     #[ink(message)]
     fn get_swap_amount_in(
-        &self,
+        &mut self,
         token_in: AccountId,
         token_out: AccountId,
         token_out_amount: u128,
@@ -49,7 +49,7 @@ pub trait StablePoolView {
     /// Returns (lp_amount, fee)
     #[ink(message)]
     fn get_mint_liquidity_for_amounts(
-        &self,
+        &mut self,
         amounts: Vec<u128>,
     ) -> Result<(u128, u128), StablePoolError>;
 
@@ -57,15 +57,17 @@ pub trait StablePoolView {
     /// to mint `liquidity` amount of lp tokens
     /// Returns required deposit amounts
     #[ink(message)]
-    fn get_amounts_for_liquidity_mint(&self, liquidity: u128)
-        -> Result<Vec<u128>, StablePoolError>;
+    fn get_amounts_for_liquidity_mint(
+        &mut self,
+        liquidity: u128,
+    ) -> Result<Vec<u128>, StablePoolError>;
 
     /// Calculate how many lp tokens will be burned
     /// given withdraw `amounts`.
     /// Returns (lp_amount, fee)
     #[ink(message)]
     fn get_burn_liquidity_for_amounts(
-        &self,
+        &mut self,
         amounts: Vec<u128>,
     ) -> Result<(u128, u128), StablePoolError>;
 
@@ -73,8 +75,10 @@ pub trait StablePoolView {
     /// burning `liquidity` amount of lp tokens
     /// Returns withdraw amounts
     #[ink(message)]
-    fn get_amounts_for_liquidity_burn(&self, liquidity: u128)
-        -> Result<Vec<u128>, StablePoolError>;
+    fn get_amounts_for_liquidity_burn(
+        &mut self,
+        liquidity: u128,
+    ) -> Result<Vec<u128>, StablePoolError>;
 }
 
 #[ink::trait_definition]
@@ -121,31 +125,11 @@ pub trait StablePool {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
 
-    /// Swaps the excess (balance - reserve) of token_in to token_out.
-    /// Swapped tokens are transferred to the `to` account.
-    /// Returns an error if swapped token_out amount is less than
-    /// `min_token_out_amount`.
-    /// Returns <(token_out_amount, fee_amount),_>
-    #[ink(message)]
-    fn swap_excess(
-        &mut self,
-        token_in_id: AccountId,
-        token_out_id: AccountId,
-        min_token_out_amount: u128,
-        to: AccountId,
-    ) -> Result<(u128, u128), StablePoolError>;
-
-    /// Intializes amp_coef gradual change to `target_amp_coef` over `ramp_duration` milisecs
-    /// @dev This method should be resticted to owner/admin
-    #[ink(message)]
-    fn ramp_amp_coef(
-        &mut self,
-        target_amp_coef: u128,
-        ramp_duration: u64,
-    ) -> Result<(), StablePoolError>;
-
     #[ink(message)]
     fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError>;
+
+    #[ink(message)]
+    fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -158,11 +142,13 @@ pub enum StablePoolError {
     InvalidTokenId(AccountId),
     IdenticalTokenId,
     IncorrectAmountsCount,
+    InvalidAmpCoef,
     InsufficientLiquidityMinted,
     InsufficientLiquidityBurned,
     InsufficientOutputAmount,
     InsufficientInputAmount,
     IncorrectTokenCount,
+    TooLargeTokenDecimal,
     OnlyOwner,
 }
 

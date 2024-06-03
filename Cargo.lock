@@ -806,18 +806,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rated_stable_pair_contract"
-version = "0.1.0"
-dependencies = [
- "amm-helpers",
- "ink",
- "parity-scale-codec",
- "psp22",
- "scale-info",
- "traits",
-]
-
-[[package]]
 name = "regex"
 version = "1.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

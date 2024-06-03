@@ -41,6 +41,12 @@ fn setup_test_contracts_2pool(
         );
     }
 
+    let fee_receiver = if enable_admin_fee {
+        Some(bob())
+    } else {
+        None
+    };
+
     let wazero = wazero::setup(session);
     let ice = psp22_utils::setup_with_amounts(session, ICE.to_string(), ICE_DEC, INIT_SUPPLY, BOB);
     let wood =
@@ -50,8 +56,8 @@ fn setup_test_contracts_2pool(
         vec![ice.into(), wood.into()],
         vec![ICE_DEC, WOOD_DEC],
         100, // A = 100
-        factory.into(),
         BOB,
+        fee_receiver,
     );
 
     let router = router::setup(session, factory.into(), wazero.into());
@@ -124,9 +130,9 @@ fn benchmark_2pool_burn_liquidity_imbalanced(&mut session: Session) {
             &mut session,
             stable_swap.into(),
             BOB,
-            INIT_SUPPLY * ONE_ICE.max(ONE_WOOD) * 2,
+            u128::MAX,
             vec![
-                INIT_SUPPLY * ONE_ICE / (RUNS as u128),
+                ((INIT_SUPPLY - 1) * ONE_ICE ) / (RUNS as u128),
                 (INIT_SUPPLY - ((i as u128) * imbalance)) * ONE_WOOD / (RUNS as u128),
             ],
             bob(),
@@ -184,6 +190,7 @@ fn benchmark_2pool_swap(&mut session: Session) {
     println!("\x1b[0;33mProofSize   : \x1b[0;33m{av_ps:?}");
     println!("\x1b[0;0m");
 }
+
 
 #[drink::test]
 #[cfg_attr(not(feature = "benchmark"), ignore)]

@@ -13,7 +13,6 @@ declare -a CONTRACTS=(
     "router_contract"
     "wrapped_azero"
     "psp22"
-    "rated_stable_pair_contract"
     "sazero_rate_mock_contract"
 )
 

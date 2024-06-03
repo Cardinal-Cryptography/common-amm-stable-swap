@@ -2,11 +2,10 @@ use crate::factory_contract;
 use crate::pair_contract;
 use crate::pair_contract::Pair;
 use crate::router_contract;
-use crate::rated_stable_pair_contract;
+use crate::stable_pool_contract;
 use crate::sazero_rate_mock_contract;
 use crate::utils::*;
 
-use factory_contract::Factory as _;
 use router_contract::Router as _;
 
 use drink::frame_support::sp_runtime::traits::IntegerSquareRoot;
@@ -30,13 +29,14 @@ fn setup_rated_swap(
     sazero: AccountId,
     wazero: AccountId,
     init_amp_coef: u128,
-    factory: AccountId,
+    rate_expiration_duration_ms: u64,
     caller: drink::AccountId32,
-) -> rated_stable_pair_contract::Instance {
+    fee_receiver: Option<AccountId>,
+) -> stable_pool_contract::Instance {
     //upload and deploy rate mock
     session
-        .upload_code(rated_stable_pair_contract::upload())
-        .expect("Upload rated_stable_pair_contract code");
+        .upload_code(stable_pool_contract::upload())
+        .expect("Upload stable_stable_pair_contract code");
     session
         .upload_code(sazero_rate_mock_contract::upload())
         .expect("Upload sazero_rate_mock_contract code");
@@ -50,16 +50,14 @@ fn setup_rated_swap(
         .result
         .to_account_id()
         .into();
-
-    let instance = rated_stable_pair_contract::Instance::new(
-        sazero,
-        wazero,
-        SAZERO_DEC,
-        WAZERO_DEC,
-        rate_mock_address,
+    let instance = stable_pool_contract::Instance::new_rated(
+        vec![sazero, wazero],
+        vec![SAZERO_DEC, WAZERO_DEC],
+        vec![Some(rate_mock_address), None],
+        rate_expiration_duration_ms,
         init_amp_coef,
-        factory,
         caller.to_account_id(),
+        fee_receiver,
     );
 
     session
@@ -75,14 +73,6 @@ fn setup_all(
     enable_admin_fee: bool,
 ) -> (AccountId, AccountId, AccountId) {
     upload_all(session);
-    let fee_to_setter = bob();
-    let factory = factory::setup(session, fee_to_setter);
-    if enable_admin_fee {
-        let _ = session.set_actor(BOB);
-        _ = session.execute(
-            factory_contract::Instance::from(factory).set_fee_to(AccountId::from([42u8; 32])),
-        );
-    }
 
     let wazero = psp22_utils::setup_with_amounts(
         session,
@@ -98,27 +88,28 @@ fn setup_all(
         INIT_SUPPLY,
         BOB,
     );
-    let rated_swap_contract = setup_rated_swap(
+    let stable_pool_contract = setup_rated_swap(
         session,
         sazero.into(),
         wazero.into(),
         AMP_COEF,
-        factory.into(),
+        10000, //10 seconds rate cache expiration
         BOB,
+        Some(bob()),
     );
 
     for token in [sazero, wazero] {
         psp22_utils::increase_allowance(
             session,
             token.into(),
-            rated_swap_contract.into(),
+            stable_pool_contract.into(),
             u128::MAX,
             BOB,
         )
         .unwrap();
     }
 
-    (rated_swap_contract.into(), sazero.into(), wazero.into())
+    (stable_pool_contract.into(), sazero.into(), wazero.into())
 }
 
 #[drink::test]
@@ -137,22 +128,25 @@ fn rated_test_1(mut session: Session) {
         bob(),
     );
     let amount = 10 * ONE_SAZERO;
-    psp22_utils::transfer(
+
+    psp22_utils::increase_allowance(
         &mut session,
         sazero.into(),
         rated_swap.into(),
-        amount,
+        u128::MAX,
         BOB,
     )
     .unwrap();
+
     set_timestamp(&mut session, now + 10000 * one_minute);
-    let res = stable_swap::swap_excess(
+    let res = stable_swap::swap(
         &mut session,
         rated_swap.into(),
         BOB,
         sazero.into(),
         wazero.into(),
-        1,                     // min_token_out
+        amount,  
+        1,                   // min_token_out
         bob(),
     ).result;
     let reserves = stable_swap::reserves(
