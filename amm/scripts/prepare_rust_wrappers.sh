@@ -11,6 +11,10 @@ declare -a CONTRACTS=(
     "pair_contract" 
     "stable_pool_contract" 
     "router_contract"
+    "wrapped_azero"
+    "psp22"
+    "rated_stable_pair_contract"
+    "sazero_rate_mock_contract"
 )
 
 function wrap_contracts() {
