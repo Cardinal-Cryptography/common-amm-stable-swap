@@ -119,6 +119,14 @@ pub mod stable_pool {
         psp22: PSP22Data,
     }
 
+    fn validate_amp_coef(amp_coef: u128) -> Result<(), StablePoolError> {
+        ensure!(
+            amp_coef >= MIN_AMP && amp_coef <= MAX_AMP,
+            StablePoolError::InvalidAmpCoef
+        );
+        Ok(())
+    }
+
     impl StablePoolContract {
         pub fn new_pool(
             tokens: Vec<AccountId>,
@@ -128,10 +136,7 @@ pub mod stable_pool {
             owner: AccountId,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
-            ensure!(
-                amp_coef >= MIN_AMP && amp_coef <= MAX_AMP,
-                StablePoolError::InvalidAmpCoef
-            );
+            validate_amp_coef(amp_coef)?;
             let mut unique_tokens = tokens.clone();
             unique_tokens.sort();
             unique_tokens.dedup();
@@ -572,6 +577,17 @@ pub mod stable_pool {
             Ok((shares_to_burn, fee_part))
         }
 
+
+        #[ink(message)]
+        fn force_update_rate(
+            &mut self,
+        ) {
+            let current_time = self.env().block_timestamp();
+            for rate in self.pool.token_rates.iter_mut() {
+                rate.update_rate_no_cache(current_time);
+            }
+        }
+
         #[ink(message)]
         fn swap(
             &mut self,
@@ -632,6 +648,17 @@ pub mod stable_pool {
         ) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
             self.pool.fee_receiver = fee_receiver;
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn set_amp_coef(
+            &mut self,
+            amp_coef: u128,
+        ) -> Result<(), StablePoolError> {
+            self.ensure_onwer()?;
+            validate_amp_coef(amp_coef)?;
+            self.pool.amp_coef = amp_coef;
             Ok(())
         }
     }

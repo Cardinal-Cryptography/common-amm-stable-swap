@@ -129,6 +129,12 @@ pub trait StablePool {
 
     #[ink(message)]
     fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;
+
+    #[ink(message)]
+    fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError>;
+
+    #[ink(message)]
+    fn force_update_rate(&mut self);
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]

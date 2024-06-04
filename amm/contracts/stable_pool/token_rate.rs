@@ -48,6 +48,13 @@ impl TokenRate {
             _ => {}
         }
     }
+
+    pub fn update_rate_no_cache(&mut self, current_time: u64) {
+        match self {
+            Self::External(external) => external.update_rate_no_cache(current_time),
+            _ => {}
+        }
+    }
 }
 
 impl ExternalTokenRate {
@@ -73,6 +80,10 @@ impl ExternalTokenRate {
         if self.is_outdated(current_time) {
             self.update(current_time);
         }
+    }
+
+    pub fn update_rate_no_cache(&mut self, current_time: u64) {
+        self.update(current_time);
     }
 
     fn query_rate(token_rate_contract: AccountId) -> u128 {
