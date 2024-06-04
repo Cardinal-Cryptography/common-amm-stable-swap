@@ -270,7 +270,7 @@ pub mod stable_swap {
     > {
         let _ = session.set_actor(caller);
         session
-            .execute(stable_pool_contract::Instance::from(stable_pool).swap(
+            .execute(stable_pool_contract::Instance::from(stable_pool).swap_exact_in(
                 token_in,
                 token_out,
                 token_in_amount,

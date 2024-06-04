@@ -87,7 +87,7 @@ pub trait StablePool {
     /// for this contract.
     /// Returns an error if the minted LP tokens amount is less
     /// than `min_share_amount`.
-    /// Returns <(minted_shares, fee_part),_>
+    /// Returns (minted_shares, fee_part)
     #[ink(message)]
     fn add_liquidity(
         &mut self,
@@ -98,7 +98,7 @@ pub trait StablePool {
 
     /// Burns LP tokens and withdraws underlying tokens to `to` account
     /// in imbalanced `amounts`.
-    /// Returns <(burned_share_amount, fee_part),_>
+    /// Returns (burned_share_amount, fee_part)
     #[ink(message)]
     fn remove_liquidity(
         &mut self,
@@ -113,14 +113,31 @@ pub trait StablePool {
     /// for this contract.
     /// Returns an error if swapped token_out amount is less than
     /// `min_token_out_amount`.
-    /// Returns <(token_out_amount, fee_amount),_>
+    /// Returns (token_out_amount, fee_amount)
     #[ink(message)]
-    fn swap(
+    fn swap_exact_in(
         &mut self,
         token_in: AccountId,
         token_out: AccountId,
         token_in_amount: u128,
         min_token_out_amount: u128,
+        to: AccountId,
+    ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Swaps token_in to token_out.
+    /// Swapped tokens are transferred to the `to` account.
+    /// caller account must allow enough spending allowance of token_out
+    /// for this contract.
+    /// Returns an error if to get token_out_amount of token_out it is required
+    /// to spend more than `max_token_in_amount` of token_in.
+    /// Returns (token_in_amount, fee_amount)
+    #[ink(message)]
+    fn swap_exact_out(
+        &mut self,
+        token_in: AccountId,
+        token_out: AccountId,
+        token_out_amount: u128,
+        max_token_in_amount: u128,
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
 
@@ -150,6 +167,7 @@ pub enum StablePoolError {
     InsufficientLiquidityMinted,
     InsufficientLiquidityBurned,
     InsufficientOutputAmount,
+    TooLargeInputAmount,
     InsufficientInputAmount,
     IncorrectTokenCount,
     TooLargeTokenDecimal,

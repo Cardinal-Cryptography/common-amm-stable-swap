@@ -49,40 +49,6 @@ impl From<Instance> for ink_primitives::AccountId {
 impl ink_wrapper_types::EventSource for Instance {
     type Event = event::Event;
 }
-pub trait PSP22Metadata {
-    fn token_name(
-        &self,
-    ) -> ink_wrapper_types::ReadCall<Result<Option<String>, ink_wrapper_types::InkLangError>>;
-    fn token_symbol(
-        &self,
-    ) -> ink_wrapper_types::ReadCall<Result<Option<String>, ink_wrapper_types::InkLangError>>;
-    fn token_decimals(
-        &self,
-    ) -> ink_wrapper_types::ReadCall<Result<u8, ink_wrapper_types::InkLangError>>;
-}
-impl PSP22Metadata for Instance {
-    #[allow(dead_code, clippy::too_many_arguments)]
-    fn token_name(
-        &self,
-    ) -> ink_wrapper_types::ReadCall<Result<Option<String>, ink_wrapper_types::InkLangError>> {
-        let data = vec![61u8, 38u8, 27u8, 212u8];
-        ink_wrapper_types::ReadCall::new(self.account_id, data)
-    }
-    #[allow(dead_code, clippy::too_many_arguments)]
-    fn token_symbol(
-        &self,
-    ) -> ink_wrapper_types::ReadCall<Result<Option<String>, ink_wrapper_types::InkLangError>> {
-        let data = vec![52u8, 32u8, 91u8, 229u8];
-        ink_wrapper_types::ReadCall::new(self.account_id, data)
-    }
-    #[allow(dead_code, clippy::too_many_arguments)]
-    fn token_decimals(
-        &self,
-    ) -> ink_wrapper_types::ReadCall<Result<u8, ink_wrapper_types::InkLangError>> {
-        let data = vec![114u8, 113u8, 183u8, 130u8];
-        ink_wrapper_types::ReadCall::new(self.account_id, data)
-    }
-}
 pub trait PSP22 {
     fn total_supply(
         &self,
@@ -239,6 +205,40 @@ impl PSP22 for Instance {
             data
         };
         ink_wrapper_types::ExecCall::new(self.account_id, data)
+    }
+}
+pub trait PSP22Metadata {
+    fn token_name(
+        &self,
+    ) -> ink_wrapper_types::ReadCall<Result<Option<String>, ink_wrapper_types::InkLangError>>;
+    fn token_symbol(
+        &self,
+    ) -> ink_wrapper_types::ReadCall<Result<Option<String>, ink_wrapper_types::InkLangError>>;
+    fn token_decimals(
+        &self,
+    ) -> ink_wrapper_types::ReadCall<Result<u8, ink_wrapper_types::InkLangError>>;
+}
+impl PSP22Metadata for Instance {
+    #[allow(dead_code, clippy::too_many_arguments)]
+    fn token_name(
+        &self,
+    ) -> ink_wrapper_types::ReadCall<Result<Option<String>, ink_wrapper_types::InkLangError>> {
+        let data = vec![61u8, 38u8, 27u8, 212u8];
+        ink_wrapper_types::ReadCall::new(self.account_id, data)
+    }
+    #[allow(dead_code, clippy::too_many_arguments)]
+    fn token_symbol(
+        &self,
+    ) -> ink_wrapper_types::ReadCall<Result<Option<String>, ink_wrapper_types::InkLangError>> {
+        let data = vec![52u8, 32u8, 91u8, 229u8];
+        ink_wrapper_types::ReadCall::new(self.account_id, data)
+    }
+    #[allow(dead_code, clippy::too_many_arguments)]
+    fn token_decimals(
+        &self,
+    ) -> ink_wrapper_types::ReadCall<Result<u8, ink_wrapper_types::InkLangError>> {
+        let data = vec![114u8, 113u8, 183u8, 130u8];
+        ink_wrapper_types::ReadCall::new(self.account_id, data)
     }
 }
 #[allow(dead_code)]

@@ -9,6 +9,22 @@ use fees::Fees;
 /// Max number of iterations for curve computation using Newton–Raphson method
 pub const MAX_ITERATIONS: u8 = 255;
 
+pub fn mult_by_rate(amount: u128, rate: u128, precision: u128) -> Result<u128, MathError> {
+    Ok(casted_mul(amount, rate)
+        .checked_div(U256::from(precision))
+        .unwrap()
+        .try_into()
+        .map_err(|_| MathError::CastOverflow(121))?)
+}
+
+pub fn div_by_rate(rated_amount: u128, rate: u128, precision: u128) -> Result<u128, MathError> {
+    Ok(casted_mul(rated_amount, precision)
+        .checked_div(U256::from(rate))
+        .unwrap()
+        .try_into()
+        .map_err(|_| MathError::CastOverflow(122))?)
+}
+
 /// Computes stable swap invariant (D)
 pub fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
     // SUM{x_i}

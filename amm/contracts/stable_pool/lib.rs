@@ -19,7 +19,7 @@ pub mod stable_pool {
     use crate::token_rate::TokenRate;
     use amm_helpers::{
         ensure,
-        stable_swap_math::{self as math, fees::Fees},
+        stable_swap_math::{self as math, div_by_rate, fees::Fees, mult_by_rate},
     };
     use ink::contract_ref;
     use ink::prelude::{
@@ -275,12 +275,7 @@ pub mod stable_pool {
             if rate == TARGET_PRECISION {
                 return Ok(c_amount);
             }
-
-            Ok(c_amount
-                .checked_mul(rate)
-                .ok_or(MathError::MulOverflow(102))?
-                // Unwrap is safe since TARGET_PRECISION > 0
-                .checked_div(TARGET_PRECISION).unwrap())
+            Ok(mult_by_rate(c_amount, rate, TARGET_PRECISION)?)
         }
 
         fn amount_to_r_amount(&self, amount: u128, token_id: usize) -> Result<u128, MathError> {
@@ -299,11 +294,7 @@ pub mod stable_pool {
             if rate == TARGET_PRECISION {
                 return Ok(r_amount);
             }
-            Ok(r_amount
-                .checked_mul(TARGET_PRECISION)
-                .ok_or(MathError::MulOverflow(103))?
-                .checked_div(rate)
-                .ok_or(MathError::DivByZero(103))?)
+            Ok(div_by_rate(r_amount, rate, TARGET_PRECISION)?)
         }
 
         fn r_amount_to_amount(&self, r_amount: u128, token_id: usize) -> Result<u128, MathError> {
@@ -375,6 +366,53 @@ pub mod stable_pool {
                 .collect()
         }
 
+        fn mint_admin_fee(&mut self, r_fee: u128, token_id: usize) -> Result<(), StablePoolError> {
+            if let Some(fee_to) = self.fee_to() {
+                let r_admin_fee = self.pool.fees.admin_trade_fee(r_fee)?;
+                if r_admin_fee > 0 {
+                    let mut r_admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
+                    r_admin_deposit_amounts[token_id] = r_admin_fee;
+                    let mut r_reserves = self.get_r_reserves()?;
+                    r_reserves[token_id] = r_reserves[token_id]
+                        .checked_sub(r_admin_fee)
+                        .ok_or(MathError::SubUnderflow(102))?;
+                    let (admin_fee_lp, _) = math::compute_lp_amount_for_deposit(
+                        &r_admin_deposit_amounts,
+                        &r_reserves,
+                        self.psp22.total_supply(),
+                        None, // no fees
+                        self.amp_coef(),
+                    )?;
+                    // mint fee (shares) to admin
+                    let events = self.psp22.mint(fee_to, admin_fee_lp)?;
+                    self.emit_events(events);
+                }
+            }
+            Ok(())
+        }
+
+        fn decrease_reserve(
+            &mut self,
+            token_id: usize,
+            c_amount: u128,
+        ) -> Result<(), StablePoolError> {
+            self.pool.c_reserves[token_id] = self.pool.c_reserves[token_id]
+                .checked_sub(c_amount)
+                .ok_or(MathError::SubUnderflow(101))?;
+            Ok(())
+        }
+
+        fn increase_reserve(
+            &mut self,
+            token_id: usize,
+            c_amount: u128,
+        ) -> Result<(), StablePoolError> {
+            self.pool.c_reserves[token_id] = self.pool.c_reserves[token_id]
+                .checked_add(c_amount)
+                .ok_or(MathError::AddOverflow(101))?;
+            Ok(())
+        }
+
         /// This method is for internal use only
         /// - calculates token_out amount
         /// - calculates swap fee
@@ -382,7 +420,7 @@ pub mod stable_pool {
         /// - updates reserves
         /// It assumes that rates have been updated.
         /// Returns (token_out_amount, swap_fee)
-        fn _swap(
+        fn _swap_to(
             &mut self,
             token_in_id: usize,
             token_out_id: usize,
@@ -406,44 +444,67 @@ pub mod stable_pool {
             )?;
             let token_out_c_amount = self.r_amount_to_c_amount(token_out_r_amount, token_out_id)?;
             let token_out_amount = self.c_amount_to_amount(token_out_c_amount, token_out_id);
+
             // Check if swapped amount is not less than min_token_out_amount
             if token_out_amount < min_token_out_amount {
                 return Err(StablePoolError::InsufficientOutputAmount);
             };
             // update reserves
-            self.pool.c_reserves[token_in_id] = self.pool.c_reserves[token_in_id]
-                .checked_add(token_in_c_amount)
-                .ok_or(MathError::AddOverflow(101))?;
-            self.pool.c_reserves[token_out_id] = self.pool.c_reserves[token_out_id]
-                .checked_sub(token_out_c_amount)
-                .ok_or(MathError::SubUnderflow(101))?;
+            self.increase_reserve(token_in_id, token_in_c_amount)?;
+            self.decrease_reserve(token_out_id, token_out_c_amount)?;
 
-            // distribute admin fee
-            if let Some(fee_to) = self.fee_to() {
-                let r_admin_fee = self.pool.fees.admin_trade_fee(r_fee)?;
-                if r_admin_fee > 0 {
-                    let mut r_admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
-                    r_admin_deposit_amounts[token_out_id] = r_admin_fee;
-                    let mut r_reserves = self.get_r_reserves()?;
-                    r_reserves[token_out_id] = r_reserves[token_out_id]
-                        .checked_sub(r_admin_fee)
-                        .ok_or(MathError::SubUnderflow(102))?;
-                    let (admin_fee_lp, _) = math::compute_lp_amount_for_deposit(
-                        &r_admin_deposit_amounts,
-                        &r_reserves,
-                        self.psp22.total_supply(),
-                        None, // no fees
-                        self.amp_coef(),
-                    )?;
-                    // mint fee (shares) to admin
-                    let events = self.psp22.mint(fee_to, admin_fee_lp)?;
-                    self.emit_events(events);
-                }
+            // mint admin fee
+            self.mint_admin_fee(r_fee, token_out_id)?;
+            let fee = self.r_amount_to_amount(r_fee, token_out_id)?;
+            Ok((token_out_amount, fee))
+        }
+
+        /// This method is for internal use only
+        /// - calculates token_in amount
+        /// - calculates swap fee
+        /// - mints admin fee
+        /// - updates reserves
+        /// It assumes that rates have been updated.
+        /// Returns (token_in_amount, swap_fee)
+        fn _swap_from(
+            &mut self,
+            token_in_id: usize,
+            token_out_id: usize,
+            token_out_amount: u128,
+            max_token_in_amount: u128,
+        ) -> Result<(u128, u128), StablePoolError> {
+            if token_out_amount == 0 {
+                return Err(StablePoolError::InsufficientOutputAmount);
             }
-            Ok((
-                token_out_amount,
-                self.r_amount_to_amount(r_fee, token_out_id)?,
-            ))
+            // convert token_in_amount to comparable amount
+            let token_out_c_amount = self.amount_to_c_amount(token_out_amount, token_out_id)?;
+            let token_out_r_amount = self.c_amount_to_r_amount(token_out_c_amount, token_out_id)?;
+            // calc amount_out and fees
+            let (token_in_r_amount, r_fee) = math::swap_from(
+                token_in_id as usize,
+                token_out_r_amount,
+                token_out_id as usize,
+                &self.get_r_reserves()?,
+                &self.pool.fees,
+                self.amp_coef(),
+            )?;
+            let token_in_c_amount = self.r_amount_to_c_amount(token_in_r_amount, token_in_id)?;
+            let token_in_amount = self.c_amount_to_amount(token_in_c_amount, token_in_id);
+
+            // Check if in token_in_amount is as constrained by the user
+            if token_in_amount > max_token_in_amount {
+                return Err(StablePoolError::TooLargeInputAmount);
+            };
+            // update reserves
+            self.increase_reserve(token_in_id, token_in_c_amount)?;
+            self.decrease_reserve(token_out_id, token_out_c_amount)?;
+
+            // mint admin fee
+            self.mint_admin_fee(r_fee, token_out_id)?;
+
+            // note that fee is applied to token_out (same as in _swap_to)
+            let fee = self.r_amount_to_amount(r_fee, token_out_id)?;
+            Ok((token_out_amount, fee))
         }
     }
 
@@ -577,11 +638,8 @@ pub mod stable_pool {
             Ok((shares_to_burn, fee_part))
         }
 
-
         #[ink(message)]
-        fn force_update_rate(
-            &mut self,
-        ) {
+        fn force_update_rate(&mut self) {
             let current_time = self.env().block_timestamp();
             for rate in self.pool.token_rates.iter_mut() {
                 rate.update_rate_no_cache(current_time);
@@ -589,7 +647,7 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn swap(
+        fn swap_exact_in(
             &mut self,
             token_in: AccountId,
             token_out: AccountId,
@@ -612,7 +670,7 @@ pub mod stable_pool {
             )?;
 
             // calculate amount out, mint admin fee and update reserves
-            let (token_out_amount, swap_fee) = self._swap(
+            let (token_out_amount, swap_fee) = self._swap_to(
                 token_in_id,
                 token_out_id,
                 token_in_amount,
@@ -635,6 +693,52 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
+        fn swap_exact_out(
+            &mut self,
+            token_in: AccountId,
+            token_out: AccountId,
+            token_out_amount: u128,
+            max_token_in_amount: u128,
+            to: AccountId,
+        ) -> Result<(u128, u128), StablePoolError> {
+            // Make sure rates are up to date before we attempt any calculations
+            self.update_rates();
+
+            //check token ids
+            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+
+            // calculate amount out, mint admin fee and update reserves
+            let (token_in_amount, swap_fee) = self._swap_from(
+                token_in_id,
+                token_out_id,
+                token_out_amount,
+                max_token_in_amount,
+            )?;
+
+            // transfer token_in
+            self.token_by_address(token_in).transfer_from(
+                self.env().caller(),
+                self.env().account_id(),
+                token_in_amount,
+                vec![],
+            )?;
+
+            // transfer token_out
+            self.token_by_address(token_out)
+                .transfer(to, token_out_amount, vec![])?;
+
+            self.env().emit_event(Swap {
+                sender: self.env().caller(),
+                token_in,
+                amount_in: token_in_amount,
+                token_out,
+                amount_out: token_out_amount,
+                to,
+            });
+            Ok((token_in_amount, swap_fee))
+        }
+
+        #[ink(message)]
         fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
             self.owner = new_owner;
@@ -652,10 +756,7 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_amp_coef(
-            &mut self,
-            amp_coef: u128,
-        ) -> Result<(), StablePoolError> {
+        fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
             validate_amp_coef(amp_coef)?;
             self.pool.amp_coef = amp_coef;
