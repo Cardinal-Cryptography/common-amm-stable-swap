@@ -2,7 +2,7 @@
 
 #[ink::contract]
 mod sazero_rate_mock {
-    use amm_helpers::constants::stable_pool::TARGET_PRECISION;
+    use amm_helpers::constants::stable_pool::RATE_PRECISION;
     #[ink(storage)]
     pub struct SazeroMockContract {
         initial_ts: u64,
@@ -24,7 +24,7 @@ mod sazero_rate_mock {
             // mock increasing rate (0.01% every 1 minute)
             let now = self.env().block_timestamp();
             let time_d = (now - self.initial_ts) as u128; // ms elapsed
-            let current_one_share_price = TARGET_PRECISION + TARGET_PRECISION * time_d / 600000000;
+            let current_one_share_price = RATE_PRECISION + RATE_PRECISION * time_d / 600000000;
             current_one_share_price
         }
     }
@@ -39,7 +39,7 @@ mod sazero_rate_mock {
             let minute: u64 = 60 * 1000;
             let mut rate_contract = SazeroMockContract::new();
             set_block_timestamp::<DefaultEnvironment>(minute * 10000); // after 10000 minutes should be doubled
-            assert_eq!(rate_contract.get_rate(), super::TARGET_PRECISION * 2);
+            assert_eq!(rate_contract.get_rate(), super::RATE_PRECISION * 2);
         }
     }
 }

@@ -1,6 +1,6 @@
 pub mod fees;
 
-use crate::math::{casted_mul, MathError};
+use crate::{constants::stable_pool::RATE_PRECISION, math::{casted_mul, MathError}};
 use ink::prelude::vec::Vec;
 use primitive_types::U256;
 
@@ -9,21 +9,39 @@ use fees::Fees;
 /// Max number of iterations for curve computation using Newton–Raphson method
 pub const MAX_ITERATIONS: u8 = 255;
 
-pub fn mult_by_rate(amount: u128, rate: u128, precision: u128) -> Result<u128, MathError> {
-    Ok(casted_mul(amount, rate)
-        .checked_div(U256::from(precision))
+
+pub fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
+    Ok(casted_mul(amount, scaled_rate)
+        .checked_div(U256::from(RATE_PRECISION))
+        .unwrap()
+        .try_into()
+        .map_err(|_| MathError::CastOverflow(120))?)
+}
+
+pub fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>, MathError> {
+    amounts
+        .iter()
+        .zip(scaled_rates.iter())
+        .map(|(amount, &rate)| amount_to_rated(*amount, rate))
+        .collect()
+}
+
+pub fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
+    Ok(casted_mul(amount, RATE_PRECISION)
+        .checked_div(U256::from(scaled_rate))
         .unwrap()
         .try_into()
         .map_err(|_| MathError::CastOverflow(121))?)
 }
 
-pub fn div_by_rate(rated_amount: u128, rate: u128, precision: u128) -> Result<u128, MathError> {
-    Ok(casted_mul(rated_amount, precision)
-        .checked_div(U256::from(rate))
-        .unwrap()
-        .try_into()
-        .map_err(|_| MathError::CastOverflow(122))?)
+pub fn amounts_from_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>, MathError> {
+    amounts
+        .iter()
+        .zip(scaled_rates.iter())
+        .map(|(amount, &rate)| amount_from_rated(*amount, rate))
+        .collect()
 }
+
 
 /// Computes stable swap invariant (D)
 pub fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
@@ -238,6 +256,31 @@ pub fn swap_to(
     Ok((amount_swapped, fee))
 }
 
+pub fn rated_swap_to(
+    rates: &[u128],
+    token_in_idx: usize,
+    token_in_amount: u128,
+    token_out_idx: usize,
+    current_reserves: &Vec<u128>,
+    fees: &Fees,
+    amp_coef: u128,
+) -> Result<(u128, u128), MathError> {
+    let r_token_in_amount = amount_to_rated(token_in_amount, rates[token_in_idx])?;
+
+    let (r_amount_swapped, r_fee) = swap_to(
+        token_in_idx,
+        r_token_in_amount,
+        token_out_idx,
+        current_reserves,
+        fees,
+        amp_coef,
+    )?;
+
+    let amount_swapped = amount_from_rated(r_amount_swapped, rates[token_out_idx])?;
+    let fee = amount_from_rated(r_fee, rates[token_out_idx])?;
+    Ok((amount_swapped, fee))
+}
+
 /// Compute SwapResult after an exchange given `amount_out` of the `token_out_id`
 /// panics if token ids are out of bounds
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`
@@ -273,6 +316,31 @@ pub fn swap_from(
         .checked_add(1)
         .ok_or(MathError::AddOverflow(12))?;
 
+    Ok((dy, fee))
+}
+
+pub fn rated_swap_from(
+    rates: &[u128],
+    token_out_idx: usize,
+    token_out_amount: u128,
+    token_in_idx: usize,
+    current_reserves: &Vec<u128>,
+    fees: &Fees,
+    amp_coef: u128,
+) -> Result<(u128, u128), MathError> {
+    let r_token_out_amount = amount_to_rated(token_out_amount, rates[token_out_idx])?;
+
+    let (r_dy, r_fee) = swap_from(
+        token_out_idx,
+        r_token_out_amount,
+        token_in_idx,
+        current_reserves,
+        fees,
+        amp_coef,
+    )?;
+
+    let dy = amount_from_rated(r_dy, rates[token_in_idx])?;
+    let fee = amount_from_rated(r_fee, rates[token_out_idx])?;
     Ok((dy, fee))
 }
 
@@ -376,6 +444,29 @@ pub fn compute_lp_amount_for_deposit(
         }
     }
 }
+
+
+pub fn rated_compute_lp_amount_for_deposit(
+    rates: &[u128],
+    deposit_amounts: &Vec<u128>,
+    old_reserves: &Vec<u128>,
+    pool_token_supply: u128,
+    fees: Option<&Fees>,
+    amp_coef: u128,
+) -> Result<(u128, u128), MathError> {
+    let r_deposit_amounts = amounts_to_rated(deposit_amounts, rates)?;
+    let r_old_reserves = amounts_to_rated(old_reserves, rates)?;
+
+    compute_lp_amount_for_deposit(
+        &r_deposit_amounts,
+        &r_old_reserves,
+        pool_token_supply,
+        fees,
+        amp_coef,
+    )
+}
+
+
 
 /// Compute the ideal amounts of deposits for lp mint
 /// return <deposit_amounts, new_reserves>
@@ -490,6 +581,27 @@ pub fn compute_lp_amount_for_withdraw(
             .as_u128();
         Ok((burn_shares, 0))
     }
+}
+
+
+pub fn rated_compute_lp_amount_for_withdraw(
+    rates: &[u128],
+    withdraw_amounts: &[u128],
+    old_reserves: &Vec<u128>,
+    pool_token_supply: u128,
+    fees: Option<&Fees>,
+    amp_coef: u128,
+) -> Result<(u128, u128), MathError> {
+    let r_withdraw_amounts = amounts_to_rated(withdraw_amounts, rates)?;
+    let r_old_reserves = amounts_to_rated(old_reserves, rates)?;
+
+    compute_lp_amount_for_withdraw(
+        &r_withdraw_amounts,
+        &r_old_reserves,
+        pool_token_supply,
+        fees,
+        amp_coef,
+    )
 }
 
 /// compute amounts to withdraw for lp tokens (no fee)
