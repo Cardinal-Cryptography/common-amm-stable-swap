@@ -126,7 +126,7 @@ fn benchmark_2pool_burn_liquidity_imbalanced(&mut session: Session) {
         bob(),
     );
     for i in 0..RUNS {
-        let res = stable_swap::remove_liquidity(
+        let res = stable_swap::remove_liquidity_by_amounts(
             &mut session,
             stable_swap.into(),
             BOB,

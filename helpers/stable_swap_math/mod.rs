@@ -498,9 +498,8 @@ pub fn compute_withdraw_amounts_for_lp(
     lp_amount: u128,
     old_reserves: &Vec<u128>,
     pool_token_supply: u128,
-) -> Result<(Vec<u128>, Vec<u128>), MathError> {
+) -> Result<Vec<u128>, MathError> {
     let mut amounts = Vec::new();
-    let mut new_reserves = Vec::new();
     for i in 0..old_reserves.len() {
         amounts.push(
             U256::from(old_reserves[i])
@@ -511,13 +510,8 @@ pub fn compute_withdraw_amounts_for_lp(
                 .try_into()
                 .map_err(|_| MathError::CastOverflow(7))?,
         );
-        new_reserves.push(
-            old_reserves[i]
-                .checked_sub(*amounts.last().unwrap())
-                .ok_or(MathError::SubUnderflow(32))?,
-        );
     }
-    Ok((amounts, new_reserves))
+    Ok(amounts)
 }
 
 #[cfg(test)]
@@ -731,7 +725,7 @@ mod tests {
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
-        let (withdraw_amounts_by_share, _) =
+        let withdraw_amounts_by_share =
             compute_withdraw_amounts_for_lp(share, &reserves, token_supply)
                 .unwrap_or_else(|_| panic!("Should work"));
         let (share_by_withdraw_amounts, fee_part) = compute_lp_amount_for_withdraw(
@@ -783,7 +777,7 @@ mod tests {
         let reserves: Vec<u128> = Vec::from([12341234123412341234, 5343245543253432435]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
-        let (withdraw_amounts_by_share, _) =
+        let withdraw_amounts_by_share =
             compute_withdraw_amounts_for_lp(share, &reserves, token_supply)
                 .unwrap_or_else(|_| panic!("Should work"));
         let (share_by_withdraw_amounts, fee_part) = compute_lp_amount_for_withdraw(

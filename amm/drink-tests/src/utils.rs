@@ -236,7 +236,7 @@ pub mod stable_swap {
             .unwrap()
     }
 
-    pub fn remove_liquidity(
+    pub fn remove_liquidity_by_amounts(
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,
         caller: drink::AccountId32,
@@ -247,7 +247,7 @@ pub mod stable_swap {
         let _ = session.set_actor(caller);
         session
             .execute(
-                stable_pool_contract::Instance::from(stable_pool).remove_liquidity(
+                stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_amounts(
                     max_share_amount,
                     amounts,
                     to,

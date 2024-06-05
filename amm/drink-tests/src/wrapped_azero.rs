@@ -49,6 +49,41 @@ impl From<Instance> for ink_primitives::AccountId {
 impl ink_wrapper_types::EventSource for Instance {
     type Event = event::Event;
 }
+pub trait WrappedAZERO {
+    fn deposit(
+        &self,
+    ) -> ink_wrapper_types::ExecCallNeedsValue<
+        Result<Result<(), PSP22Error>, ink_wrapper_types::InkLangError>,
+    >;
+    fn withdraw(
+        &self,
+        value: u128,
+    ) -> ink_wrapper_types::ExecCall<Result<Result<(), PSP22Error>, ink_wrapper_types::InkLangError>>;
+}
+impl WrappedAZERO for Instance {
+    #[allow(dead_code, clippy::too_many_arguments)]
+    fn deposit(
+        &self,
+    ) -> ink_wrapper_types::ExecCallNeedsValue<
+        Result<Result<(), PSP22Error>, ink_wrapper_types::InkLangError>,
+    > {
+        let data = vec![245u8, 241u8, 137u8, 216u8];
+        ink_wrapper_types::ExecCallNeedsValue::new(self.account_id, data)
+    }
+    #[allow(dead_code, clippy::too_many_arguments)]
+    fn withdraw(
+        &self,
+        value: u128,
+    ) -> ink_wrapper_types::ExecCall<Result<Result<(), PSP22Error>, ink_wrapper_types::InkLangError>>
+    {
+        let data = {
+            let mut data = vec![93u8, 143u8, 74u8, 56u8];
+            value.encode_to(&mut data);
+            data
+        };
+        ink_wrapper_types::ExecCall::new(self.account_id, data)
+    }
+}
 pub trait PSP22 {
     fn total_supply(
         &self,
@@ -202,41 +237,6 @@ impl PSP22 for Instance {
             let mut data = vec![254u8, 203u8, 87u8, 213u8];
             spender.encode_to(&mut data);
             delta_value.encode_to(&mut data);
-            data
-        };
-        ink_wrapper_types::ExecCall::new(self.account_id, data)
-    }
-}
-pub trait WrappedAZERO {
-    fn deposit(
-        &self,
-    ) -> ink_wrapper_types::ExecCallNeedsValue<
-        Result<Result<(), PSP22Error>, ink_wrapper_types::InkLangError>,
-    >;
-    fn withdraw(
-        &self,
-        value: u128,
-    ) -> ink_wrapper_types::ExecCall<Result<Result<(), PSP22Error>, ink_wrapper_types::InkLangError>>;
-}
-impl WrappedAZERO for Instance {
-    #[allow(dead_code, clippy::too_many_arguments)]
-    fn deposit(
-        &self,
-    ) -> ink_wrapper_types::ExecCallNeedsValue<
-        Result<Result<(), PSP22Error>, ink_wrapper_types::InkLangError>,
-    > {
-        let data = vec![245u8, 241u8, 137u8, 216u8];
-        ink_wrapper_types::ExecCallNeedsValue::new(self.account_id, data)
-    }
-    #[allow(dead_code, clippy::too_many_arguments)]
-    fn withdraw(
-        &self,
-        value: u128,
-    ) -> ink_wrapper_types::ExecCall<Result<Result<(), PSP22Error>, ink_wrapper_types::InkLangError>>
-    {
-        let data = {
-            let mut data = vec![93u8, 143u8, 74u8, 56u8];
-            value.encode_to(&mut data);
             data
         };
         ink_wrapper_types::ExecCall::new(self.account_id, data)

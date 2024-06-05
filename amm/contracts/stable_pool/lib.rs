@@ -572,7 +572,34 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn remove_liquidity(
+        fn remove_liquidity_by_shares(
+            &mut self,
+            shares: u128,
+            min_amounts: Vec<u128>,
+            to: AccountId,
+        ) -> Result<Vec<u128>, StablePoolError> {
+            self.update_rates();
+            let r_amounts = math::compute_withdraw_amounts_for_lp(
+                shares,
+                &self.get_r_reserves()?,
+                self.psp22.total_supply(),
+            )?;
+            let amounts = self.r_amounts_to_amounts(&r_amounts);
+
+            // Check if enough tokens are withdrawn
+            ensure!(
+                amounts.iter().zip(min_amounts.iter()).all(|(amount, min_amount)| amount >= min_amount),
+                StablePoolError::InsufficientOutputAmount
+            );
+
+            // Burn liquidity
+            let events = self.psp22.burn(self.env().caller(), shares)?;
+            self.emit_events(events);
+            todo!()
+        }
+
+        #[ink(message)]
+        fn remove_liquidity_by_amounts(
             &mut self,
             max_share_amount: u128,
             amounts: Vec<u128>,
@@ -883,7 +910,7 @@ pub mod stable_pool {
                 &self.get_r_reserves()?,
                 self.psp22.total_supply(),
             ) {
-                Ok((amounts, _)) => Ok(self.r_amounts_to_amounts(&amounts)),
+                Ok(amounts) => Ok(self.r_amounts_to_amounts(&amounts)),
                 Err(err) => Err(StablePoolError::MathError(err)),
             }
         }

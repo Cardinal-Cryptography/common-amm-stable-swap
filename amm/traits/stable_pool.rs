@@ -100,12 +100,23 @@ pub trait StablePool {
     /// in imbalanced `amounts`.
     /// Returns (burned_share_amount, fee_part)
     #[ink(message)]
-    fn remove_liquidity(
+    fn remove_liquidity_by_amounts(
         &mut self,
         max_share_amount: u128,
         amounts: Vec<u128>,
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
+
+    /// Burns LP tokens and withdraws underlying tokens in balanced amounts to `to` account.
+    /// Fails if any of the amounts received is less than in `min_amounts`.
+    /// Returns ([amounts_by_tokens], fee_part)
+    #[ink(message)]
+    fn remove_liquidity_by_shares(
+        &mut self,
+        shares: u128,
+        min_amounts: Vec<u128>,
+        to: AccountId,
+    ) -> Result<Vec<u128>, StablePoolError>;
 
     /// Swaps token_in to token_out.
     /// Swapped tokens are transferred to the `to` account.

@@ -23,7 +23,7 @@ pub mod stable_pool {
     // amount * 0.06% * 20% (part of the TRADE_FEE)
     pub const ADMIN_FEE_BPS: u32 = 2_000;
 
-    pub const TARGET_DECIMALS: u8 = 18;
+    pub const TARGET_DECIMALS: u8 = 24;
     pub const TARGET_PRECISION: u128 = 10u128.pow(TARGET_DECIMALS as u32);
 
     /// Min amplification coefficient.
