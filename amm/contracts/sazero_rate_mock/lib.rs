@@ -2,10 +2,7 @@
 
 #[ink::contract]
 mod sazero_rate_mock {
-
-    pub const TARGET_DECIMALS: u8 = 24;
-    pub const TARGET_PRECISION: u128 = 10u128.pow(TARGET_DECIMALS as u32);
-
+    use amm_helpers::constants::stable_pool::TARGET_PRECISION;
     #[ink(storage)]
     pub struct SazeroMockContract {
         initial_ts: u64,

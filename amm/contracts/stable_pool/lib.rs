@@ -3,21 +3,11 @@ mod token_rate;
 
 #[ink::contract]
 pub mod stable_pool {
-    // amount * 0.06%
-    pub const TRADE_FEE_BPS: u32 = 6;
-    // amount * 0.06% * 20% (part of the TRADE_FEE)
-    pub const ADMIN_FEE_BPS: u32 = 2_000;
-
-    pub const TARGET_DECIMALS: u8 = 24;
-    pub const TARGET_PRECISION: u128 = 10u128.pow(TARGET_DECIMALS as u32);
-
-    /// Min amplification coefficient.
-    pub const MIN_AMP: u128 = 1;
-    /// Max amplification coefficient.
-    pub const MAX_AMP: u128 = 1_000_000;
-
     use crate::token_rate::TokenRate;
     use amm_helpers::{
+        constants::stable_pool::{
+            ADMIN_FEE_BPS, MAX_AMP, MIN_AMP, TARGET_DECIMALS, TARGET_PRECISION, TRADE_FEE_BPS,
+        },
         ensure,
         stable_swap_math::{self as math, div_by_rate, fees::Fees, mult_by_rate},
     };
@@ -1010,7 +1000,7 @@ pub mod stable_pool {
             .map_err(|err| panic!("Contract instantiation error: {err:?}"))
             .unwrap();
             let amount: u128 = 1_000_000_000_000; // 1000000.000000
-            let expect_amount: u128 = amount * 10u128.pow((TARGET_DECIMALS - 6) as u32); // 1000000.000000000000000000
+            let expect_amount: u128 = amount * 10u128.pow((TARGET_DECIMALS - 6) as u32); // 1000000.000000000000
             assert_eq!(
                 stable_pool_contract.amount_to_r_amount(amount, 0),
                 Ok(expect_amount)
@@ -1021,7 +1011,7 @@ pub mod stable_pool {
                     .unwrap(),
                 amount
             );
-            let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000000000
+            let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000
             let expect_amount: u128 = amount * 10u128.pow((TARGET_DECIMALS - 12) as u32);
             assert_eq!(
                 stable_pool_contract.amount_to_r_amount(amount, 1),
@@ -1039,7 +1029,7 @@ pub mod stable_pool {
         fn amount_to_comparable_and_back_2() {
             let stable_pool_contract = StablePoolContract::new_stable(
                 vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
-                vec![0, 24],
+                vec![0, 18],
                 1,
                 AccountId::from([0u8; 32]),
                 Some(AccountId::from([0u8; 32])),
@@ -1047,7 +1037,7 @@ pub mod stable_pool {
             .map_err(|err| panic!("Contract instantiation error: {err:?}"))
             .unwrap();
             let amount: u128 = 1_000_000; // 1000000
-            let expect_amount: u128 = amount * 10u128.pow(TARGET_DECIMALS as u32); // 1000000.000000000000000000000000
+            let expect_amount: u128 = amount * 10u128.pow(TARGET_DECIMALS as u32); // 1000000.000000000000000000
             assert_eq!(
                 stable_pool_contract.amount_to_r_amount(amount, 0),
                 Ok(expect_amount)
@@ -1056,7 +1046,7 @@ pub mod stable_pool {
                 stable_pool_contract.r_amount_to_amount(expect_amount, 0),
                 Ok(amount)
             );
-            let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000000000
+            let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000
             let expect_amount: u128 = amount;
             assert_eq!(
                 stable_pool_contract.amount_to_r_amount(amount, 1),
