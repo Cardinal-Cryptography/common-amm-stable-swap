@@ -109,3 +109,7 @@ all-drink-dockerized: ## Runs the drink test in a container.
 all-drink: ## Runs the drink test.
 	@cd amm && make all-drink && cd ..
 	@cd farm && make all-drink && cd ..
+
+.PHONY: benchmark-amm
+benchmark-amm: ## Runs the drink benchmarks.
+	@cd amm && make benchmark && cd ..
