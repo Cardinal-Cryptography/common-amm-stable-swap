@@ -1,6 +1,9 @@
 pub mod fees;
 
-use crate::{constants::stable_pool::RATE_PRECISION, math::{casted_mul, MathError}};
+use crate::{
+    constants::stable_pool::RATE_PRECISION,
+    math::{casted_mul, MathError},
+};
 use ink::prelude::vec::Vec;
 use primitive_types::U256;
 
@@ -8,7 +11,6 @@ use fees::Fees;
 
 /// Max number of iterations for curve computation using Newton–Raphson method
 pub const MAX_ITERATIONS: u8 = 255;
-
 
 pub fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
     Ok(casted_mul(amount, scaled_rate)
@@ -41,7 +43,6 @@ pub fn amounts_from_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec
         .map(|(amount, &rate)| amount_from_rated(*amount, rate))
         .collect()
 }
-
 
 /// Computes stable swap invariant (D)
 pub fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
@@ -266,12 +267,13 @@ pub fn rated_swap_to(
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
     let r_token_in_amount = amount_to_rated(token_in_amount, rates[token_in_idx])?;
+    let r_current_reserves = amounts_to_rated(current_reserves, rates)?;
 
     let (r_amount_swapped, r_fee) = swap_to(
         token_in_idx,
         r_token_in_amount,
         token_out_idx,
-        current_reserves,
+        &r_current_reserves,
         fees,
         amp_coef,
     )?;
@@ -329,12 +331,12 @@ pub fn rated_swap_from(
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
     let r_token_out_amount = amount_to_rated(token_out_amount, rates[token_out_idx])?;
-
+    let r_current_reserves = amounts_to_rated(current_reserves, rates)?;
     let (r_dy, r_fee) = swap_from(
         token_out_idx,
         r_token_out_amount,
         token_in_idx,
-        current_reserves,
+        &r_current_reserves,
         fees,
         amp_coef,
     )?;
@@ -445,7 +447,6 @@ pub fn compute_lp_amount_for_deposit(
     }
 }
 
-
 pub fn rated_compute_lp_amount_for_deposit(
     rates: &[u128],
     deposit_amounts: &Vec<u128>,
@@ -465,8 +466,6 @@ pub fn rated_compute_lp_amount_for_deposit(
         amp_coef,
     )
 }
-
-
 
 /// Compute the ideal amounts of deposits for lp mint
 /// return <deposit_amounts, new_reserves>
@@ -582,7 +581,6 @@ pub fn compute_lp_amount_for_withdraw(
         Ok((burn_shares, 0))
     }
 }
-
 
 pub fn rated_compute_lp_amount_for_withdraw(
     rates: &[u128],

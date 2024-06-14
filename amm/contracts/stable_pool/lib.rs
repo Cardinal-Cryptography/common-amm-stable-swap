@@ -10,7 +10,7 @@ pub mod stable_pool {
         },
         ensure,
         stable_swap_math::{self as math, fees::Fees},
-    }; 
+    };
     use ink::contract_ref;
     use ink::prelude::{
         string::{String, ToString},
@@ -149,7 +149,9 @@ pub mod stable_pool {
 
             let precisions = tokens_decimals
                 .iter()
-                .map(|&decimal| 10u128.pow(TOKEN_TARGET_DECIMALS.checked_sub(decimal).unwrap() as u32))
+                .map(|&decimal| {
+                    10u128.pow(TOKEN_TARGET_DECIMALS.checked_sub(decimal).unwrap() as u32)
+                })
                 .collect();
             Ok(Self {
                 owner,
@@ -174,8 +176,7 @@ pub mod stable_pool {
             owner: AccountId,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
-            let token_rates =
-                vec![TokenRate::new_constant(RATE_PRECISION); tokens.len()];
+            let token_rates = vec![TokenRate::new_constant(RATE_PRECISION); tokens.len()];
             Self::new_pool(
                 tokens,
                 tokens_decimals,
@@ -256,11 +257,16 @@ pub mod stable_pool {
         /// If TOKEN_TARGET_DECIMALS is 18 and RATE_DECIMALS is 12, then rates not exceeding ~340282366 should fit.
         /// That's because if precision <= 10^18 and rate <= 10^12 * 340282366, then rate * precision < 2^128.
         fn get_scaled_rates(&self) -> Result<Vec<u128>, MathError> {
-            self.pool.token_rates.iter().zip(self.pool.precisions.iter()).map(|(rate, &precision)| {
-                rate.get_rate()
-                    .checked_mul(precision)
-                    .ok_or(MathError::MulOverflow(114))
-            }).collect()
+            self.pool
+                .token_rates
+                .iter()
+                .zip(self.pool.precisions.iter())
+                .map(|(rate, &precision)| {
+                    rate.get_rate()
+                        .checked_mul(precision)
+                        .ok_or(MathError::MulOverflow(114))
+                })
+                .collect()
         }
 
         fn ensure_onwer(&self) -> Result<(), StablePoolError> {
@@ -498,7 +504,6 @@ pub mod stable_pool {
             Ok((shares, fee_part))
         }
 
-
         // Note that this method does not require to update rates, neither it uses rates.
         // Thus it's always possible to call it, even if the rate is outdated, or the rate provider is down.
         #[ink(message)]
@@ -516,14 +521,16 @@ pub mod stable_pool {
 
             // Check if enough tokens are withdrawn
             ensure!(
-                amounts.iter().zip(min_amounts.iter()).all(|(amount, min_amount)| amount >= min_amount),
+                amounts
+                    .iter()
+                    .zip(min_amounts.iter())
+                    .all(|(amount, min_amount)| amount >= min_amount),
                 StablePoolError::InsufficientOutputAmount
             );
 
             // transfer tokens
             for (&token, &amount) in self.pool.tokens.iter().zip(amounts.iter()) {
-                self.token_by_address(token)
-                    .transfer(to, amount, vec![])?;
+                self.token_by_address(token).transfer(to, amount, vec![])?;
             }
 
             // update reserves
@@ -579,8 +586,7 @@ pub mod stable_pool {
             }
             // transfer tokens
             for (&token, &amount) in self.pool.tokens.iter().zip(amounts.iter()) {
-                self.token_by_address(token)
-                    .transfer(to, amount, vec![])?;
+                self.token_by_address(token).transfer(to, amount, vec![])?;
             }
             // update reserves
             for (i, &amount) in amounts.iter().enumerate() {
@@ -812,7 +818,7 @@ pub mod stable_pool {
                 liquidity,
                 &self.reserves(),
                 self.psp22.total_supply(),
-            )  {
+            ) {
                 Ok((amounts, _)) => Ok(amounts),
                 Err(err) => Err(StablePoolError::MathError(err)),
             }
