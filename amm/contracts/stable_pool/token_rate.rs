@@ -35,6 +35,7 @@ impl TokenRate {
         ))
     }
 
+    // To make sure the rate is up-to-date, the caller should call `update_rate` before calling this method.
     pub fn get_rate(&self) -> u128 {
         match self {
             Self::Constant(rate) => *rate,

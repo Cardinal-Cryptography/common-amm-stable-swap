@@ -50,13 +50,6 @@ pub mod stable_pool {
         #[ink(topic)]
         pub to: AccountId,
     }
-    #[ink(event)]
-    pub struct RampAmpCoef {
-        pub old_amp_coef: u128,
-        pub new_amp_coef: u128,
-        pub init_time: u64,
-        pub ramp_duration: u64,
-    }
 
     #[ink(event)]
     pub struct Approval {
