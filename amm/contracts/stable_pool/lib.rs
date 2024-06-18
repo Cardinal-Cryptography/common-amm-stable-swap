@@ -76,6 +76,24 @@ pub mod stable_pool {
         pub value: u128,
     }
 
+    #[ink(event)]
+    pub struct OwnerChanged {
+        #[ink(topic)]
+        pub new_owner: AccountId,
+    }
+
+    #[ink(event)]
+    pub struct FeeReceiverChanged {
+        #[ink(topic)]
+        pub new_fee_receiver: Option<AccountId>,
+    }
+
+    #[ink(event)]
+    pub struct AmpCoefChanged {
+        #[ink(topic)]
+        pub new_amp_coef: u128,
+    }
+
     #[ink::storage_item]
     #[derive(Debug)]
     pub struct StablePoolData {
@@ -699,6 +717,7 @@ pub mod stable_pool {
         fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
             self.owner = new_owner;
+            self.env().emit_event(OwnerChanged { new_owner });
             Ok(())
         }
 
@@ -709,6 +728,7 @@ pub mod stable_pool {
         ) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
             self.pool.fee_receiver = fee_receiver;
+            self.env().emit_event(FeeReceiverChanged { new_fee_receiver: fee_receiver });
             Ok(())
         }
 
@@ -717,6 +737,7 @@ pub mod stable_pool {
             self.ensure_onwer()?;
             validate_amp_coef(amp_coef)?;
             self.pool.amp_coef = amp_coef;
+            self.env().emit_event(AmpCoefChanged { new_amp_coef: amp_coef });
             Ok(())
         }
     }
