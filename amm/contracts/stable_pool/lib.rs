@@ -50,13 +50,6 @@ pub mod stable_pool {
         #[ink(topic)]
         pub to: AccountId,
     }
-    #[ink(event)]
-    pub struct RampAmpCoef {
-        pub old_amp_coef: u128,
-        pub new_amp_coef: u128,
-        pub init_time: u64,
-        pub ramp_duration: u64,
-    }
 
     #[ink(event)]
     pub struct Approval {
@@ -81,6 +74,24 @@ pub mod stable_pool {
         pub to: Option<AccountId>,
         /// Amount of tokens transferred (or minted/burned).
         pub value: u128,
+    }
+
+    #[ink(event)]
+    pub struct OwnerChanged {
+        #[ink(topic)]
+        pub new_owner: AccountId,
+    }
+
+    #[ink(event)]
+    pub struct FeeReceiverChanged {
+        #[ink(topic)]
+        pub new_fee_receiver: Option<AccountId>,
+    }
+
+    #[ink(event)]
+    pub struct AmpCoefChanged {
+        #[ink(topic)]
+        pub new_amp_coef: u128,
     }
 
     #[ink::storage_item]
@@ -706,6 +717,7 @@ pub mod stable_pool {
         fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
             self.owner = new_owner;
+            self.env().emit_event(OwnerChanged { new_owner });
             Ok(())
         }
 
@@ -716,6 +728,7 @@ pub mod stable_pool {
         ) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
             self.pool.fee_receiver = fee_receiver;
+            self.env().emit_event(FeeReceiverChanged { new_fee_receiver: fee_receiver });
             Ok(())
         }
 
@@ -724,6 +737,7 @@ pub mod stable_pool {
             self.ensure_onwer()?;
             validate_amp_coef(amp_coef)?;
             self.pool.amp_coef = amp_coef;
+            self.env().emit_event(AmpCoefChanged { new_amp_coef: amp_coef });
             Ok(())
         }
     }
@@ -955,79 +969,4 @@ pub mod stable_pool {
         }
     }
 
-    //#[cfg(test)]
-    // mod test {
-    //     use ink::primitives::AccountId;
-
-    //     use super::*;
-    //     #[test]
-    //     fn amount_to_comparable_and_back_1() {
-    //         let stable_pool_contract = StablePoolContract::new_stable(
-    //             vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
-    //             vec![6, 12],
-    //             1,
-    //             AccountId::from([0u8; 32]),
-    //             None,
-    //         )
-    //         .map_err(|err| panic!("Contract instantiation error: {err:?}"))
-    //         .unwrap();
-    //         let amount: u128 = 1_000_000_000_000; // 1000000.000000
-    //         let expect_amount: u128 = amount * 10u128.pow((TOKEN_TARGET_DECIMALS - 6) as u32); // 1000000.000000000000
-    //         assert_eq!(
-    //             stable_pool_contract.amount_to_r_amount(amount, 0),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract
-    //                 .r_amount_to_amount(expect_amount, 0)
-    //                 .unwrap(),
-    //             amount
-    //         );
-    //         let amount: u128 = 1_000_000_000_000_000_000; // 1000000.000000
-    //         let expect_amount: u128 = amount * 10u128.pow((TOKEN_TARGET_DECIMALS - 12) as u32);
-    //         assert_eq!(
-    //             stable_pool_contract.amount_to_r_amount(amount, 1),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract
-    //                 .r_amount_to_amount(expect_amount, 1)
-    //                 .unwrap(),
-    //             amount
-    //         );
-    //     }
-
-    //     #[test]
-    //     fn amount_to_comparable_and_back_2() {
-    //         let stable_pool_contract = StablePoolContract::new_stable(
-    //             vec![AccountId::from([1u8; 32]), AccountId::from([2u8; 32])],
-    //             vec![0, 18],
-    //             1,
-    //             AccountId::from([0u8; 32]),
-    //             Some(AccountId::from([0u8; 32])),
-    //         )
-    //         .map_err(|err| panic!("Contract instantiation error: {err:?}"))
-    //         .unwrap();
-    //         let amount: u128 = 1_000_000; // 1000000
-    //         let expect_amount: u128 = amount * 10u128.pow(RATE_DECIMALS as u32); // 1000000.000000000000000000
-    //         assert_eq!(
-    //             stable_pool_contract.amount_to_r_amount(amount, 0),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract.r_amount_to_amount(expect_amount, 0),
-    //             Ok(amount)
-    //         );
-    //         let amount: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1000000.000000000000000000
-    //         let expect_amount: u128 = amount;
-    //         assert_eq!(
-    //             stable_pool_contract.amount_to_r_amount(amount, 1),
-    //             Ok(expect_amount)
-    //         );
-    //         assert_eq!(
-    //             stable_pool_contract.r_amount_to_amount(expect_amount, 1),
-    //             Ok(amount)
-    //         );
-    //     }
-    // }
 }
