@@ -455,10 +455,12 @@ pub mod stable_pool {
             amounts: Vec<u128>,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-            if amounts.len() != self.pool.tokens.len() {
-                return Err(StablePoolError::IncorrectAmountsCount);
+            // calc lp tokens (shares_to_mint, fee)
+            let (shares, fee_part) = self.get_mint_liquidity_for_amounts(amounts.clone())?;
+
+            // Check min shares
+            if shares < min_share_amount {
+                return Err(StablePoolError::InsufficientLiquidityMinted);
             }
 
             // transfer amounts
@@ -469,23 +471,6 @@ pub mod stable_pool {
                     amounts[id],
                     vec![],
                 )?;
-            }
-
-            let rates = self.get_scaled_rates()?;
-
-            // calc lp tokens (shares_to_mint, fee)
-            let (shares, fee_part) = math::rated_compute_lp_amount_for_deposit(
-                &rates,
-                &amounts,
-                &self.reserves(),
-                self.psp22.total_supply(),
-                Some(&self.pool.fees),
-                self.amp_coef(),
-            )?;
-
-            // Check min shares
-            if shares < min_share_amount {
-                return Err(StablePoolError::InsufficientLiquidityMinted);
             }
 
             // mint shares
@@ -563,23 +548,10 @@ pub mod stable_pool {
             amounts: Vec<u128>,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-            if amounts.len() != self.pool.tokens.len() {
-                return Err(StablePoolError::IncorrectAmountsCount);
-            }
-
-            let rates = self.get_scaled_rates()?;
-
             // calc comparable amounts
-            let (shares_to_burn, fee_part) = math::rated_compute_lp_amount_for_withdraw(
-                &rates,
-                &amounts,
-                &self.reserves(),
-                self.psp22.total_supply(),
-                Some(&self.pool.fees),
-                self.amp_coef(),
-            )?;
+            let (shares_to_burn, fee_part) =
+                self.get_burn_liquidity_for_amounts(amounts.clone())?;
+
             // check max shares
             if shares_to_burn > max_share_amount {
                 return Err(StablePoolError::InsufficientLiquidityBurned);
@@ -728,7 +700,9 @@ pub mod stable_pool {
         ) -> Result<(), StablePoolError> {
             self.ensure_onwer()?;
             self.pool.fee_receiver = fee_receiver;
-            self.env().emit_event(FeeReceiverChanged { new_fee_receiver: fee_receiver });
+            self.env().emit_event(FeeReceiverChanged {
+                new_fee_receiver: fee_receiver,
+            });
             Ok(())
         }
 
@@ -737,7 +711,9 @@ pub mod stable_pool {
             self.ensure_onwer()?;
             validate_amp_coef(amp_coef)?;
             self.pool.amp_coef = amp_coef;
-            self.env().emit_event(AmpCoefChanged { new_amp_coef: amp_coef });
+            self.env().emit_event(AmpCoefChanged {
+                new_amp_coef: amp_coef,
+            });
             Ok(())
         }
     }
@@ -968,5 +944,4 @@ pub mod stable_pool {
             TOKEN_TARGET_DECIMALS
         }
     }
-
 }
