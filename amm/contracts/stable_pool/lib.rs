@@ -524,7 +524,7 @@ pub mod stable_pool {
             min_amounts: Vec<u128>,
             to: AccountId,
         ) -> Result<Vec<u128>, StablePoolError> {
-            let amounts = math::compute_withdraw_amounts_for_lp(
+            let amounts = math::compute_amounts_given_lp(
                 shares,
                 &self.reserves(),
                 self.psp22.total_supply(),
@@ -828,12 +828,12 @@ pub mod stable_pool {
             &mut self,
             liquidity: u128,
         ) -> Result<Vec<u128>, StablePoolError> {
-            match math::compute_deposit_amounts_for_lp(
+            match math::compute_amounts_given_lp(
                 liquidity,
                 &self.reserves(),
                 self.psp22.total_supply(),
             ) {
-                Ok((amounts, _)) => Ok(amounts),
+                Ok(amounts) => Ok(amounts),
                 Err(err) => Err(StablePoolError::MathError(err)),
             }
         }
@@ -864,7 +864,7 @@ pub mod stable_pool {
             &mut self,
             liquidity: u128,
         ) -> Result<Vec<u128>, StablePoolError> {
-            match math::compute_withdraw_amounts_for_lp(
+            match math::compute_amounts_given_lp(
                 liquidity,
                 &self.reserves(),
                 self.psp22.total_supply(),
