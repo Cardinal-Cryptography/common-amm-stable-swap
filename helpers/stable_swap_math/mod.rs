@@ -45,7 +45,7 @@ pub fn amounts_from_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec
 }
 
 /// Computes stable swap invariant (D)
-pub fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
+fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
     // SUM{x_i}
     let amount_sum = amounts.iter().try_fold(U256::from(0), |acc, &amount| {
         acc.checked_add(amount.into())
@@ -137,7 +137,7 @@ fn compute_d_next(
 /// given new reserve of `x` tokens
 ///
 /// NOTICE: it does not check if `token_x_id` != `token_y_id` and if tokens' `id`s are out of bounds
-pub fn compute_y(
+fn compute_y(
     new_reserve_x: u128,
     reserves: &Vec<u128>,
     token_x_id: usize,
@@ -226,7 +226,7 @@ fn compute_y_next(y_prev: U256, b: U256, c: U256, d: U256) -> Result<U256, MathE
 /// panics if token ids are out of bounds.
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`.
 /// Returns (amount_out, fee_amount)
-pub fn swap_to(
+fn swap_to(
     token_in_idx: usize,
     token_in_amount: u128,
     token_out_idx: usize,
@@ -287,7 +287,7 @@ pub fn rated_swap_to(
 /// panics if token ids are out of bounds
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`
 /// /// Returns (amount_in, fee_amount)
-pub fn swap_from(
+fn swap_from(
     token_out_idx: usize,
     token_out_amount: u128, // Net amount (w/o fee)
     token_in_idx: usize,
@@ -348,7 +348,7 @@ pub fn rated_swap_from(
 
 /// Compute the amount of LP tokens to mint after a deposit
 /// return <lp_amount_to_mint, lp_fees_part>
-pub fn compute_lp_amount_for_deposit(
+fn compute_lp_amount_for_deposit(
     deposit_amounts: &Vec<u128>,
     old_reserves: &Vec<u128>,
     pool_token_supply: u128,
@@ -498,7 +498,7 @@ pub fn compute_deposit_amounts_for_lp(
 /// given token_out user want get and total tokens in pool and lp token supply,
 /// return <lp_amount_to_burn, lp_fees_part>
 /// all amounts are in c_amount (comparable amount)
-pub fn compute_lp_amount_for_withdraw(
+fn compute_lp_amount_for_withdraw(
     withdraw_amounts: &[u128],
     old_reserves: &Vec<u128>,
     pool_token_supply: u128,
