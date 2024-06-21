@@ -280,7 +280,7 @@ pub mod stable_pool {
                 .collect()
         }
 
-        fn ensure_onwer(&self) -> Result<(), StablePoolError> {
+        fn ensure_owner(&self) -> Result<(), StablePoolError> {
             ensure!(
                 self.env().caller() == self.owner,
                 StablePoolError::OnlyOwner
@@ -302,12 +302,12 @@ pub mod stable_pool {
             token_in: AccountId,
             token_out: AccountId,
         ) -> Result<(usize, usize), StablePoolError> {
+            if token_in == token_out {
+                return Err(StablePoolError::IdenticalTokenId);
+            }
             //check token ids
             let token_in_id = self.token_id(token_in)?;
             let token_out_id = self.token_id(token_out)?;
-            if token_in_id == token_out_id {
-                return Err(StablePoolError::IdenticalTokenId);
-            }
             Ok((token_in_id, token_out_id))
         }
 
@@ -602,11 +602,11 @@ pub mod stable_pool {
             min_token_out_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-
             //check token ids
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+
+            // Make sure rates are up to date before we attempt any calculations
+            self.update_rates();
 
             // transfer token_in
             self.token_by_address(token_in).transfer_from(
@@ -648,11 +648,11 @@ pub mod stable_pool {
             max_token_in_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-
             //check token ids
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+
+            // Make sure rates are up to date before we attempt any calculations
+            self.update_rates();
 
             // calculate amount out, mint admin fee and update reserves
             let (token_in_amount, swap_fee) = self._swap_from(
@@ -687,7 +687,7 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
-            self.ensure_onwer()?;
+            self.ensure_owner()?;
             self.owner = new_owner;
             self.env().emit_event(OwnerChanged { new_owner });
             Ok(())
@@ -698,7 +698,7 @@ pub mod stable_pool {
             &mut self,
             fee_receiver: Option<AccountId>,
         ) -> Result<(), StablePoolError> {
-            self.ensure_onwer()?;
+            self.ensure_owner()?;
             self.pool.fee_receiver = fee_receiver;
             self.env().emit_event(FeeReceiverChanged {
                 new_fee_receiver: fee_receiver,
@@ -708,7 +708,7 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError> {
-            self.ensure_onwer()?;
+            self.ensure_owner()?;
             validate_amp_coef(amp_coef)?;
             self.pool.amp_coef = amp_coef;
             self.env().emit_event(AmpCoefChanged {
@@ -743,8 +743,8 @@ pub mod stable_pool {
             token_out: AccountId,
             token_in_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
-            self.update_rates();
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+            self.update_rates();
             let rates = self.get_scaled_rates()?;
             Ok(math::rated_swap_to(
                 &rates,
@@ -764,8 +764,8 @@ pub mod stable_pool {
             token_out: AccountId,
             token_out_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
-            self.update_rates();
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+            self.update_rates();
             let rates = self.get_scaled_rates()?;
             Ok(math::rated_swap_from(
                 &rates,
@@ -783,10 +783,10 @@ pub mod stable_pool {
             &mut self,
             amounts: Vec<u128>,
         ) -> Result<(u128, u128), StablePoolError> {
-            self.update_rates();
             if amounts.len() != self.pool.tokens.len() {
                 return Err(StablePoolError::IncorrectAmountsCount);
             }
+            self.update_rates();
             let rates = self.get_scaled_rates()?;
 
             Ok(math::rated_compute_lp_amount_for_deposit(

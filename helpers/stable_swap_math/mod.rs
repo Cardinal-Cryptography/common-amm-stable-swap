@@ -156,13 +156,13 @@ fn compute_y(
         .ok_or(MathError::MulOverflow(10))?
         .checked_div(new_reserve_x.into())
         .ok_or(MathError::DivByZero(3))?;
-    let mut reservers_sum: U256 = new_reserve_x.into();
+    let mut reserves_sum: U256 = new_reserve_x.into();
     // reserves_sum = ... + x_(i') + ...
     // c1 = ... * d / x_(i') * ... * d
     // where  i' in (0,n) AND i' != token_y_id
     for (idx, &reserve) in reserves.iter().enumerate() {
         if idx != token_x_id && idx != token_y_id {
-            reservers_sum = reservers_sum
+            reserves_sum = reserves_sum
                 .checked_add(reserve.into())
                 .ok_or(MathError::AddOverflow(5))?;
             c = c
@@ -185,7 +185,7 @@ fn compute_y(
     let b: U256 = d
         .checked_div(ann)
         .ok_or(MathError::DivByZero(6))?
-        .checked_add(reservers_sum)
+        .checked_add(reserves_sum)
         .ok_or(MathError::AddOverflow(6))?; // d will be subtracted later
 
     let mut y_prev = d;
@@ -476,17 +476,15 @@ pub fn compute_amounts_given_lp(
     reserves: &Vec<u128>,
     pool_token_supply: u128,
 ) -> Result<Vec<u128>, MathError> {
-    let mut amounts = Vec::new();
+    let mut amounts = Vec::with_capacity(reserves.len());
     for i in 0..reserves.len() {
-        amounts.push(
-            U256::from(reserves[i])
+        amounts[i] = U256::from(reserves[i])
                 .checked_mul(lp_amount.into())
                 .ok_or(MathError::MulOverflow(21))?
                 .checked_div(pool_token_supply.into())
                 .ok_or(MathError::DivByZero(13))?
                 .try_into()
-                .map_err(|_| MathError::CastOverflow(6))?,
-        );
+                .map_err(|_| MathError::CastOverflow(6))?;
     }
     Ok(amounts)
 }
