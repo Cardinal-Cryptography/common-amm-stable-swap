@@ -19,4 +19,6 @@ mod benchmark;
 #[cfg(test)]
 mod sazero_rate_mock_contract;
 #[cfg(test)]
+mod stable_swap_tests;
+#[cfg(test)]
 mod rated_swap_tests;

@@ -139,7 +139,7 @@ fn rated_test_1(mut session: Session) {
     .unwrap();
 
     set_timestamp(&mut session, now + 10000 * one_minute);
-    let res = stable_swap::swap(
+    let res = stable_swap::swap_exact_in(
         &mut session,
         rated_swap.into(),
         BOB,

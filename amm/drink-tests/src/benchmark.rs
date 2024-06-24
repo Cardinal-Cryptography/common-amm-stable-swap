@@ -167,7 +167,7 @@ fn benchmark_2pool_swap(&mut session: Session) {
     );
     let swap_amount = 1_000u128;
     for i in 0..RUNS {
-        let res = stable_swap::swap(
+        let res = stable_swap::swap_exact_in(
             &mut session,
             stable_swap.into(),
             BOB,

@@ -256,7 +256,7 @@ pub mod stable_swap {
             .unwrap()
     }
 
-    pub fn swap(
+    pub fn swap_exact_in(
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,
         caller: drink::AccountId32,
@@ -275,6 +275,30 @@ pub mod stable_swap {
                 token_out,
                 token_in_amount,
                 min_token_out_amount,
+                to,
+            ))
+            .unwrap()
+    }
+
+    pub fn swap_exact_out(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        caller: drink::AccountId32,
+        token_in: AccountId,
+        token_out: AccountId,
+        token_out_amount: u128,
+        max_token_in_amount: u128,
+        to: AccountId,
+    ) -> ContractResult<
+        Result<Result<(u128, u128), StablePoolError>, ink_wrapper_types::InkLangError>,
+    > {
+        let _ = session.set_actor(caller);
+        session
+            .execute(stable_pool_contract::Instance::from(stable_pool).swap_exact_out(
+                token_in,
+                token_out,
+                token_out_amount,
+                max_token_in_amount,
                 to,
             ))
             .unwrap()
