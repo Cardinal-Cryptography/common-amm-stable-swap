@@ -48,9 +48,9 @@ fn setup_test_contracts_2pool(
     };
 
     let wazero = wazero::setup(session);
-    let ice = psp22_utils::setup_with_amounts(session, ICE.to_string(), ICE_DEC, INIT_SUPPLY, BOB);
+    let ice = psp22_utils::setup_with_amounts(session, ICE.to_string(), ICE_DEC, INIT_SUPPLY * ONE_ICE, BOB);
     let wood =
-        psp22_utils::setup_with_amounts(session, WOOD.to_string(), WOOD_DEC, INIT_SUPPLY, BOB);
+        psp22_utils::setup_with_amounts(session, WOOD.to_string(), WOOD_DEC, INIT_SUPPLY * ONE_WOOD, BOB);
     let stable_swap = stable_swap::setup(
         session,
         vec![ice.into(), wood.into()],

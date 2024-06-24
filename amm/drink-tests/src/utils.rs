@@ -256,6 +256,26 @@ pub mod stable_swap {
             .unwrap()
     }
 
+    pub fn remove_liquidity_by_shares(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        caller: drink::AccountId32,
+        shares_amount: u128,
+        min_amounts: Vec<u128>,
+        to: AccountId,
+    ) -> ContractResult<Result<Result<Vec<u128>, StablePoolError>, InkLangError>> {
+        let _ = session.set_actor(caller);
+        session
+            .execute(
+                stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_shares(
+                    shares_amount,
+                    min_amounts,
+                    to,
+                ),
+            )
+            .unwrap()
+    }
+
     pub fn swap_exact_in(
         session: &mut Session<MinimalRuntime>,
         stable_pool: AccountId,
@@ -358,7 +378,7 @@ pub mod psp22_utils {
         let _ = session.set_actor(caller);
 
         let instance = PSP22::new(
-            init_supply * 10u128.pow(decimals.into()),
+            init_supply,
             Some(name.clone()),
             Some(name),
             decimals,

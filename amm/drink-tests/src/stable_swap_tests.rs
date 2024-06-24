@@ -13,135 +13,207 @@ use drink::{self, runtime::MinimalRuntime, session::Session};
 use ink_primitives::AccountId;
 use ink_wrapper_types::{Connection, ToAccountId};
 
-const LPT_DEC: u8 = 18;
-const STABLE_6: u8 = 6;
-const STABLE_15: u8 = 15;
-
-const ONE_LPT: u128 = 10u128.pow(LPT_DEC as u32);
-const ONE_STABLE_6: u128 = 10u128.pow(STABLE_6 as u32);
-const ONE_STABLE_15: u128 = 10u128.pow(STABLE_15 as u32);
-
-const INIT_SUPPLY: u128 = 1_002_137; // 1M
-
-// Fees in BPS
-// const TRADE_FEE: u128 = 6;
-// const ADMIN_FEE: u128 = 2000;
-// const BPS_DENOM: u128 = 10000;
+const FEE_BPS_DENOM: u128 = 10_000;
 
 fn setup_stable_swap(
     session: &mut Session<MinimalRuntime>,
-    stable_6: AccountId,
-    stable_15: AccountId,
-    init_amp_coef: u128,
-    caller: drink::AccountId32,
-    fee_receiver: Option<AccountId>,
-) -> stable_pool_contract::Instance {
+    token_decimals: [u8; 2],
+    token_supply: [u128; 2],
+    amp_coef: u128,
+    _fee_bps: u128,
+    _admin_fee_bps: u128,
+) -> (AccountId, AccountId, AccountId) {
+    // (stable_pool, token_0, token_1)
+    let _ = session.set_actor(BOB);
+    upload_all(session);
     session
         .upload_code(stable_pool_contract::upload())
-        .expect("Upload stable_stable_pair_contract code");
-    let _ = session.set_actor(caller.clone());
+        .expect("Upload stable_pair_contract code");
 
-    let instance = stable_pool_contract::Instance::new_stable(
-        vec![stable_6, stable_15],
-        vec![STABLE_6, STABLE_15],
-        init_amp_coef,
-        caller.to_account_id(),
-        fee_receiver,
+    // instantiate tokens
+    let token_0 = psp22_utils::setup_with_amounts(
+        session,
+        "token_0".to_string(),
+        token_decimals[0],
+        token_supply[0],
+        BOB,
+    );
+    let token_1 = psp22_utils::setup_with_amounts(
+        session,
+        "token_1".to_string(),
+        token_decimals[1],
+        token_supply[1],
+        BOB,
     );
 
-    session
+    // instantiate stable_swap
+    let instance = stable_pool_contract::Instance::new_stable(
+        vec![token_0.into(), token_1.into()],
+        token_decimals.to_vec(),
+        amp_coef,
+        // Fees {fee_bps, admin_fee_bps},
+        bob(),
+        Some(charlie()), // fee receiver
+    );
+
+    let stable_swap: stable_pool_contract::Instance = session
         .instantiate(instance)
         .unwrap()
         .result
         .to_account_id()
-        .into()
-}
+        .into();
 
-fn setup_all(
-    session: &mut Session<MinimalRuntime>,
-    amp_coef: u128,
-) -> (AccountId, AccountId, AccountId) {
-    upload_all(session);
-
-    let stable_6 = psp22_utils::setup_with_amounts(
-        session,
-        "stable6".to_string(),
-        STABLE_6,
-        INIT_SUPPLY,
-        BOB,
-    );
-    let stable_15 = psp22_utils::setup_with_amounts(
-        session,
-        "stable18".to_string(),
-        STABLE_15,
-        INIT_SUPPLY,
-        BOB,
-    );
-    let stable_pool_contract = setup_stable_swap(
-        session,
-        stable_6.into(),
-        stable_15.into(),
-        amp_coef,
-        BOB,
-        Some(bob()),
-    );
-
-    for token in [stable_6, stable_15] {
-        psp22_utils::increase_allowance(
-            session,
-            token.into(),
-            stable_pool_contract.into(),
-            u128::MAX,
-            BOB,
-        )
-        .unwrap();
+    // setup max allowance for stable swap contract on both tokens
+    for token in [token_0, token_1] {
+        psp22_utils::increase_allowance(session, token.into(), stable_swap.into(), u128::MAX, BOB)
+            .unwrap();
     }
 
-    (stable_pool_contract.into(), stable_6.into(), stable_15.into())
+    (stable_swap.into(), token_0.into(), token_1.into())
 }
 
-#[drink::test]
-fn stable_test_balances_after_swap_exact_in_01(mut session: Session) {
-    upload_all(&mut session);
-    let (stable_swap, stable_6, stable_15) = setup_all(&mut session, 1000);
+/// Tests swap of token at index 0 to token at index 1.
+fn setup_test_swap_exact_in(
+    session: &mut Session<MinimalRuntime>,
+    token_decimals: [u8; 2],
+    initial_reserves: [u128; 2],
+    amp_coef: u128,
+    fee_bps: u128,
+    admin_fee_bps: u128,
+    swap_amount_in: u128,
+    expected_swap_amount_out_total: u128,
+) {
+    let expected_fee = expected_swap_amount_out_total * fee_bps / FEE_BPS_DENOM;
+    let expected_swap_amount_out = expected_swap_amount_out_total - expected_fee;
+    let expected_admin_fee_part = expected_fee * admin_fee_bps / FEE_BPS_DENOM;
+
+    let initial_supply = [initial_reserves[0] + swap_amount_in, initial_reserves[1]];
+    let (stable_swap, token_0, token_1) = setup_stable_swap(
+        session,
+        token_decimals,
+        initial_supply,
+        amp_coef,
+        fee_bps,
+        admin_fee_bps,
+    );
     _ = stable_swap::add_liquidity(
-        &mut session,
-        stable_swap.into(),
+        session,
+        stable_swap,
         BOB,
         1,
-        vec![100_000 * ONE_STABLE_6, 100_000 * ONE_STABLE_15],
+        initial_reserves.to_vec(),
         bob(),
-    );;
+    );
 
     let (amount_out, fee) = stable_swap::swap_exact_in(
-        &mut session,
+        session,
         stable_swap.into(),
         BOB,
-        stable_15.into(),       // in
-        stable_6.into(),        // out
-        10_000 * ONE_STABLE_15,  // amount_in
-        1,                      // min_token_out
+        token_0,        // in
+        token_1,        // out
+        swap_amount_in, // amount_in
+        0,              // min_token_out
         bob(),
-    ).result.unwrap().unwrap();
+    )
+    .result
+    .unwrap()
+    .unwrap();
 
-    //check swap result, total 9999495232 including fee 0.06%
-    assert_eq!(amount_out, 9993495535, "Amount out mismatch");
-    assert_eq!(fee, 5999697, "Fee mismatch");
+    // check ruterned amount swapped and fee
+    assert_eq!(expected_swap_amount_out, amount_out, "Amount out mismatch");
+    assert_eq!(expected_fee, fee, "Fee mismatch");
 
-    // check if reserves are ok
-    let reserves = stable_swap::reserves(
-        &mut session,
+    // check if reserves are equal the actual balances
+    let reserves = stable_swap::reserves(session, stable_swap.into());
+    let balance_0 = psp22_utils::balance_of(session, token_0.into(), stable_swap.into());
+    let balance_1 = psp22_utils::balance_of(session, token_1.into(), stable_swap.into());
+    assert_eq!(
+        reserves,
+        vec![balance_0, balance_1],
+        "Balances - reserves mismatch"
+    );
+
+    //check bobs balances
+    let balance_0 = psp22_utils::balance_of(session, token_0.into(), bob());
+    let balance_1 = psp22_utils::balance_of(session, token_1.into(), bob());
+    assert_eq!(
+        [0, expected_swap_amount_out],
+        [balance_0, balance_1],
+        "Incorrect Bob's balances"
+    );
+
+    // check admin fee
+    let admin_fee_lp = psp22_utils::balance_of(session, stable_swap.into(), charlie());
+    let (total_lp_required, lp_fee_part) = stable_swap::remove_liquidity_by_amounts(
+        session,
         stable_swap.into(),
-    );
-    let balance_0 = psp22_utils::balance_of(
+        BOB,
+        admin_fee_lp * 2,
+        [0, expected_admin_fee_part].to_vec(),
+        bob(),
+    )
+    .result
+    .unwrap()
+    .unwrap();
+    assert_eq!(total_lp_required - lp_fee_part, admin_fee_lp, "Incorrect admin fee");
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L744
+#[drink::test]
+fn test_stable_swap_exact_in_01(mut session: Session) {
+    setup_test_swap_exact_in(
         &mut session,
-        stable_6.into(),
-        stable_swap.into()
+        [6, 6],                         // decimals
+        [100000000000, 100000000000],   // initial reserves
+        1000,                           // A
+        6,                              // fee BPS
+        2000,                           // admin fee BPS
+        10000000000,                    // swap_amount_in
+        9999495232,                     // expected out (with fee)
     );
-    let balance_1 = psp22_utils::balance_of(
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L763
+#[drink::test]
+fn test_stable_swap_exact_in_02(mut session: Session) {
+    setup_test_swap_exact_in(
         &mut session,
-        stable_15.into(),
-        stable_swap.into()
+        [12, 18],
+        [100000000000000000, 100000000000000000000000],
+        1000,
+        6,
+        2000,
+        10000000000000000,
+        9999495232752197989995,
     );
-    assert_eq!(reserves, vec![balance_0, balance_1], "Balances - reserves mismatch");
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L896
+#[drink::test]
+fn test_stable_swap_exact_in_03(mut session: Session) {
+    setup_test_swap_exact_in(
+        &mut session,
+        [6, 6],
+        [100000000000, 100000000000],
+        1000,
+        6,
+        2000,
+        99999000001,
+        98443167413,
+    );
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L915
+#[drink::test]
+fn test_stable_swap_exact_in_04(mut session: Session) {
+    setup_test_swap_exact_in(
+        &mut session,
+        [12, 18],
+        [100000000000000000, 100000000000000000000000],
+        1000,
+        6,
+        2000,
+        99999000000000000,
+        98443167413204135506296,
+    );
 }
