@@ -280,7 +280,7 @@ pub mod stable_pool {
                 .collect()
         }
 
-        fn ensure_onwer(&self) -> Result<(), StablePoolError> {
+        fn ensure_owner(&self) -> Result<(), StablePoolError> {
             ensure!(
                 self.env().caller() == self.owner,
                 StablePoolError::OnlyOwner
@@ -302,12 +302,12 @@ pub mod stable_pool {
             token_in: AccountId,
             token_out: AccountId,
         ) -> Result<(usize, usize), StablePoolError> {
+            if token_in == token_out {
+                return Err(StablePoolError::IdenticalTokenId);
+            }
             //check token ids
             let token_in_id = self.token_id(token_in)?;
             let token_out_id = self.token_id(token_out)?;
-            if token_in_id == token_out_id {
-                return Err(StablePoolError::IdenticalTokenId);
-            }
             Ok((token_in_id, token_out_id))
         }
 
@@ -455,10 +455,12 @@ pub mod stable_pool {
             amounts: Vec<u128>,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-            if amounts.len() != self.pool.tokens.len() {
-                return Err(StablePoolError::IncorrectAmountsCount);
+            // calc lp tokens (shares_to_mint, fee)
+            let (shares, fee_part) = self.get_mint_liquidity_for_amounts(amounts.clone())?;
+
+            // Check min shares
+            if shares < min_share_amount {
+                return Err(StablePoolError::InsufficientLiquidityMinted);
             }
 
             // transfer amounts
@@ -469,23 +471,6 @@ pub mod stable_pool {
                     amounts[id],
                     vec![],
                 )?;
-            }
-
-            let rates = self.get_scaled_rates()?;
-
-            // calc lp tokens (shares_to_mint, fee)
-            let (shares, fee_part) = math::rated_compute_lp_amount_for_deposit(
-                &rates,
-                &amounts,
-                &self.reserves(),
-                self.psp22.total_supply(),
-                Some(&self.pool.fees),
-                self.amp_coef(),
-            )?;
-
-            // Check min shares
-            if shares < min_share_amount {
-                return Err(StablePoolError::InsufficientLiquidityMinted);
             }
 
             // mint shares
@@ -524,7 +509,7 @@ pub mod stable_pool {
             min_amounts: Vec<u128>,
             to: AccountId,
         ) -> Result<Vec<u128>, StablePoolError> {
-            let amounts = math::compute_withdraw_amounts_for_lp(
+            let amounts = math::compute_amounts_given_lp(
                 shares,
                 &self.reserves(),
                 self.psp22.total_supply(),
@@ -563,23 +548,10 @@ pub mod stable_pool {
             amounts: Vec<u128>,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-            if amounts.len() != self.pool.tokens.len() {
-                return Err(StablePoolError::IncorrectAmountsCount);
-            }
-
-            let rates = self.get_scaled_rates()?;
-
             // calc comparable amounts
-            let (shares_to_burn, fee_part) = math::rated_compute_lp_amount_for_withdraw(
-                &rates,
-                &amounts,
-                &self.reserves(),
-                self.psp22.total_supply(),
-                Some(&self.pool.fees),
-                self.amp_coef(),
-            )?;
+            let (shares_to_burn, fee_part) =
+                self.get_burn_liquidity_for_amounts(amounts.clone())?;
+
             // check max shares
             if shares_to_burn > max_share_amount {
                 return Err(StablePoolError::InsufficientLiquidityBurned);
@@ -630,11 +602,11 @@ pub mod stable_pool {
             min_token_out_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-
             //check token ids
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+
+            // Make sure rates are up to date before we attempt any calculations
+            self.update_rates();
 
             // transfer token_in
             self.token_by_address(token_in).transfer_from(
@@ -676,11 +648,11 @@ pub mod stable_pool {
             max_token_in_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-
             //check token ids
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+
+            // Make sure rates are up to date before we attempt any calculations
+            self.update_rates();
 
             // calculate amount out, mint admin fee and update reserves
             let (token_in_amount, swap_fee) = self._swap_from(
@@ -715,7 +687,7 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
-            self.ensure_onwer()?;
+            self.ensure_owner()?;
             self.owner = new_owner;
             self.env().emit_event(OwnerChanged { new_owner });
             Ok(())
@@ -726,18 +698,22 @@ pub mod stable_pool {
             &mut self,
             fee_receiver: Option<AccountId>,
         ) -> Result<(), StablePoolError> {
-            self.ensure_onwer()?;
+            self.ensure_owner()?;
             self.pool.fee_receiver = fee_receiver;
-            self.env().emit_event(FeeReceiverChanged { new_fee_receiver: fee_receiver });
+            self.env().emit_event(FeeReceiverChanged {
+                new_fee_receiver: fee_receiver,
+            });
             Ok(())
         }
 
         #[ink(message)]
         fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError> {
-            self.ensure_onwer()?;
+            self.ensure_owner()?;
             validate_amp_coef(amp_coef)?;
             self.pool.amp_coef = amp_coef;
-            self.env().emit_event(AmpCoefChanged { new_amp_coef: amp_coef });
+            self.env().emit_event(AmpCoefChanged {
+                new_amp_coef: amp_coef,
+            });
             Ok(())
         }
     }
@@ -767,8 +743,8 @@ pub mod stable_pool {
             token_out: AccountId,
             token_in_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
-            self.update_rates();
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+            self.update_rates();
             let rates = self.get_scaled_rates()?;
             Ok(math::rated_swap_to(
                 &rates,
@@ -788,8 +764,8 @@ pub mod stable_pool {
             token_out: AccountId,
             token_out_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
-            self.update_rates();
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+            self.update_rates();
             let rates = self.get_scaled_rates()?;
             Ok(math::rated_swap_from(
                 &rates,
@@ -807,10 +783,10 @@ pub mod stable_pool {
             &mut self,
             amounts: Vec<u128>,
         ) -> Result<(u128, u128), StablePoolError> {
-            self.update_rates();
             if amounts.len() != self.pool.tokens.len() {
                 return Err(StablePoolError::IncorrectAmountsCount);
             }
+            self.update_rates();
             let rates = self.get_scaled_rates()?;
 
             Ok(math::rated_compute_lp_amount_for_deposit(
@@ -828,12 +804,12 @@ pub mod stable_pool {
             &mut self,
             liquidity: u128,
         ) -> Result<Vec<u128>, StablePoolError> {
-            match math::compute_deposit_amounts_for_lp(
+            match math::compute_amounts_given_lp(
                 liquidity,
                 &self.reserves(),
                 self.psp22.total_supply(),
             ) {
-                Ok((amounts, _)) => Ok(amounts),
+                Ok(amounts) => Ok(amounts),
                 Err(err) => Err(StablePoolError::MathError(err)),
             }
         }
@@ -864,7 +840,7 @@ pub mod stable_pool {
             &mut self,
             liquidity: u128,
         ) -> Result<Vec<u128>, StablePoolError> {
-            match math::compute_withdraw_amounts_for_lp(
+            match math::compute_amounts_given_lp(
                 liquidity,
                 &self.reserves(),
                 self.psp22.total_supply(),
@@ -968,5 +944,4 @@ pub mod stable_pool {
             TOKEN_TARGET_DECIMALS
         }
     }
-
 }

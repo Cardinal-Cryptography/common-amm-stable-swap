@@ -45,7 +45,7 @@ pub fn amounts_from_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec
 }
 
 /// Computes stable swap invariant (D)
-pub fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
+fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
     // SUM{x_i}
     let amount_sum = amounts.iter().try_fold(U256::from(0), |acc, &amount| {
         acc.checked_add(amount.into())
@@ -137,7 +137,7 @@ fn compute_d_next(
 /// given new reserve of `x` tokens
 ///
 /// NOTICE: it does not check if `token_x_id` != `token_y_id` and if tokens' `id`s are out of bounds
-pub fn compute_y(
+fn compute_y(
     new_reserve_x: u128,
     reserves: &Vec<u128>,
     token_x_id: usize,
@@ -156,13 +156,13 @@ pub fn compute_y(
         .ok_or(MathError::MulOverflow(10))?
         .checked_div(new_reserve_x.into())
         .ok_or(MathError::DivByZero(3))?;
-    let mut reservers_sum: U256 = new_reserve_x.into();
+    let mut reserves_sum: U256 = new_reserve_x.into();
     // reserves_sum = ... + x_(i') + ...
     // c1 = ... * d / x_(i') * ... * d
     // where  i' in (0,n) AND i' != token_y_id
     for (idx, &reserve) in reserves.iter().enumerate() {
         if idx != token_x_id && idx != token_y_id {
-            reservers_sum = reservers_sum
+            reserves_sum = reserves_sum
                 .checked_add(reserve.into())
                 .ok_or(MathError::AddOverflow(5))?;
             c = c
@@ -185,7 +185,7 @@ pub fn compute_y(
     let b: U256 = d
         .checked_div(ann)
         .ok_or(MathError::DivByZero(6))?
-        .checked_add(reservers_sum)
+        .checked_add(reserves_sum)
         .ok_or(MathError::AddOverflow(6))?; // d will be subtracted later
 
     let mut y_prev = d;
@@ -226,7 +226,7 @@ fn compute_y_next(y_prev: U256, b: U256, c: U256, d: U256) -> Result<U256, MathE
 /// panics if token ids are out of bounds.
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`.
 /// Returns (amount_out, fee_amount)
-pub fn swap_to(
+fn swap_to(
     token_in_idx: usize,
     token_in_amount: u128,
     token_out_idx: usize,
@@ -287,7 +287,7 @@ pub fn rated_swap_to(
 /// panics if token ids are out of bounds
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`
 /// /// Returns (amount_in, fee_amount)
-pub fn swap_from(
+fn swap_from(
     token_out_idx: usize,
     token_out_amount: u128, // Net amount (w/o fee)
     token_in_idx: usize,
@@ -348,7 +348,7 @@ pub fn rated_swap_from(
 
 /// Compute the amount of LP tokens to mint after a deposit
 /// return <lp_amount_to_mint, lp_fees_part>
-pub fn compute_lp_amount_for_deposit(
+fn compute_lp_amount_for_deposit(
     deposit_amounts: &Vec<u128>,
     old_reserves: &Vec<u128>,
     pool_token_supply: u128,
@@ -467,38 +467,32 @@ pub fn rated_compute_lp_amount_for_deposit(
     )
 }
 
-/// Compute the ideal amounts of deposits for lp mint
-/// return <deposit_amounts, new_reserves>
-pub fn compute_deposit_amounts_for_lp(
+/***
+ * Returns amounts of tokens minted/burned for a given amount of LP tokens
+ * and the current reserves
+ */
+pub fn compute_amounts_given_lp(
     lp_amount: u128,
-    old_reserves: &Vec<u128>,
+    reserves: &Vec<u128>,
     pool_token_supply: u128,
-) -> Result<(Vec<u128>, Vec<u128>), MathError> {
-    let mut amounts = Vec::new();
-    let mut new_reserves = Vec::new();
-    for i in 0..old_reserves.len() {
-        amounts.push(
-            U256::from(old_reserves[i])
+) -> Result<Vec<u128>, MathError> {
+    let mut amounts = Vec::with_capacity(reserves.len());
+    for i in 0..reserves.len() {
+        amounts[i] = U256::from(reserves[i])
                 .checked_mul(lp_amount.into())
                 .ok_or(MathError::MulOverflow(21))?
                 .checked_div(pool_token_supply.into())
                 .ok_or(MathError::DivByZero(13))?
                 .try_into()
-                .map_err(|_| MathError::CastOverflow(6))?,
-        );
-        new_reserves.push(
-            old_reserves[i]
-                .checked_add(*amounts.last().unwrap())
-                .ok_or(MathError::SubUnderflow(23))?,
-        );
+                .map_err(|_| MathError::CastOverflow(6))?;
     }
-    Ok((amounts, new_reserves))
+    Ok(amounts)
 }
 
 /// given token_out user want get and total tokens in pool and lp token supply,
 /// return <lp_amount_to_burn, lp_fees_part>
 /// all amounts are in c_amount (comparable amount)
-pub fn compute_lp_amount_for_withdraw(
+fn compute_lp_amount_for_withdraw(
     withdraw_amounts: &[u128],
     old_reserves: &Vec<u128>,
     pool_token_supply: u128,
@@ -600,28 +594,6 @@ pub fn rated_compute_lp_amount_for_withdraw(
         fees,
         amp_coef,
     )
-}
-
-/// compute amounts to withdraw for lp tokens (no fee)
-/// returns <amounts_to_withdraw, new_reserves>
-pub fn compute_withdraw_amounts_for_lp(
-    lp_amount: u128,
-    old_reserves: &Vec<u128>,
-    pool_token_supply: u128,
-) -> Result<Vec<u128>, MathError> {
-    let mut amounts = Vec::new();
-    for i in 0..old_reserves.len() {
-        amounts.push(
-            U256::from(old_reserves[i])
-                .checked_mul(lp_amount.into())
-                .ok_or(MathError::MulOverflow(26))?
-                .checked_div(pool_token_supply.into())
-                .ok_or(MathError::DivByZero(18))?
-                .try_into()
-                .map_err(|_| MathError::CastOverflow(7))?,
-        );
-    }
-    Ok(amounts)
 }
 
 #[cfg(test)]
@@ -835,9 +807,8 @@ mod tests {
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
-        let withdraw_amounts_by_share =
-            compute_withdraw_amounts_for_lp(share, &reserves, token_supply)
-                .unwrap_or_else(|_| panic!("Should work"));
+        let withdraw_amounts_by_share = compute_amounts_given_lp(share, &reserves, token_supply)
+            .unwrap_or_else(|_| panic!("Should work"));
         let (share_by_withdraw_amounts, fee_part) = compute_lp_amount_for_withdraw(
             &withdraw_amounts_by_share,
             &reserves,
@@ -860,9 +831,8 @@ mod tests {
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
-        let (deposit_amounts, reserves_b) =
-            compute_deposit_amounts_for_lp(share, &reserves, token_supply)
-                .unwrap_or_else(|_| panic!("Should mint liquidity"));
+        let deposit_amounts = compute_amounts_given_lp(share, &reserves, token_supply)
+            .unwrap_or_else(|_| panic!("Should mint liquidity"));
         let (share_by_deposit, fee_part) = compute_lp_amount_for_deposit(
             &deposit_amounts,
             &reserves,
@@ -872,12 +842,7 @@ mod tests {
         )
         .unwrap_or_else(|_| panic!("Should mint liquidity"));
         assert_eq!(fee_part, 0, "Fee should be 0");
-        let reserves_a = vec![
-            reserves[0] + deposit_amounts[0],
-            reserves[1] + deposit_amounts[1],
-        ];
         assert_eq!(share, share_by_deposit, "Deposit amounts differ.");
-        assert_eq!(reserves_a, reserves_b, "Reserves should match");
     }
 
     #[test]
@@ -887,9 +852,8 @@ mod tests {
         let reserves: Vec<u128> = Vec::from([12341234123412341234, 5343245543253432435]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
-        let withdraw_amounts_by_share =
-            compute_withdraw_amounts_for_lp(share, &reserves, token_supply)
-                .unwrap_or_else(|_| panic!("Should work"));
+        let withdraw_amounts_by_share = compute_amounts_given_lp(share, &reserves, token_supply)
+            .unwrap_or_else(|_| panic!("Should work"));
         let (share_by_withdraw_amounts, fee_part) = compute_lp_amount_for_withdraw(
             &withdraw_amounts_by_share,
             &reserves,
@@ -912,9 +876,8 @@ mod tests {
         let reserves: Vec<u128> = Vec::from([12341234123412341234, 5343245543253432435]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
-        let (deposit_amounts, reserves_b) =
-            compute_deposit_amounts_for_lp(share, &reserves, token_supply)
-                .unwrap_or_else(|_| panic!("Should mint liquidity"));
+        let deposit_amounts = compute_amounts_given_lp(share, &reserves, token_supply)
+            .unwrap_or_else(|_| panic!("Should mint liquidity"));
         let (share_by_deposit, fee_part) = compute_lp_amount_for_deposit(
             &deposit_amounts,
             &reserves,
@@ -924,11 +887,6 @@ mod tests {
         )
         .unwrap_or_else(|_| panic!("Should mint liquidity"));
         assert_eq!(fee_part, 0, "Fee should be 0");
-        let reserves_a = vec![
-            reserves[0] + deposit_amounts[0],
-            reserves[1] + deposit_amounts[1],
-        ];
-        assert_eq!(reserves_a, reserves_b, "Reserves should match");
         assert_eq!(share, share_by_deposit, "Deposit amounts differ.");
     }
 }
