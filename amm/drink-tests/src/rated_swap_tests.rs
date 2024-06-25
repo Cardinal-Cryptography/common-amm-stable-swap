@@ -2,8 +2,8 @@ use crate::factory_contract;
 use crate::pair_contract;
 use crate::pair_contract::Pair;
 use crate::router_contract;
-use crate::stable_pool_contract;
 use crate::sazero_rate_mock_contract;
+use crate::stable_pool_contract;
 use crate::utils::*;
 
 use router_contract::Router as _;
@@ -139,29 +139,19 @@ fn rated_test_1(mut session: Session) {
     .unwrap();
 
     set_timestamp(&mut session, now + 10000 * one_minute);
-    let res = stable_swap::swap(
+    let res = stable_swap::swap_exact_in(
         &mut session,
         rated_swap.into(),
         BOB,
         sazero.into(),
         wazero.into(),
-        amount,  
-        1,                   // min_token_out
+        amount,
+        1, // min_token_out
         bob(),
-    ).result;
-    let reserves = stable_swap::reserves(
-        &mut session,
-        rated_swap.into(),
-    );
-    let balance_0 = psp22_utils::balance_of(
-        &mut session,
-        sazero.into(),
-        rated_swap.into()
-    );
-    let balance_1 = psp22_utils::balance_of(
-        &mut session,
-        wazero.into(),
-        rated_swap.into()
-    );
+    )
+    .result;
+    let reserves = stable_swap::reserves(&mut session, rated_swap.into());
+    let balance_0 = psp22_utils::balance_of(&mut session, sazero.into(), rated_swap.into());
+    let balance_1 = psp22_utils::balance_of(&mut session, wazero.into(), rated_swap.into());
     assert_eq!(reserves, vec![balance_0, balance_1]);
 }
