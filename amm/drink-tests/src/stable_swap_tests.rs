@@ -2,7 +2,7 @@ use crate::factory_contract;
 use crate::pair_contract;
 use crate::pair_contract::Pair;
 use crate::router_contract;
-use crate::stable_pool_contract;
+use crate::stable_pool_contract::{self, StablePoolError};
 use crate::utils::*;
 
 use router_contract::Router as _;
@@ -81,12 +81,8 @@ fn setup_test_swap_exact_in(
     fee_bps: u128,
     admin_fee_bps: u128,
     swap_amount_in: u128,
-    expected_swap_amount_out_total: u128,
+    expected_swap_amount_out_total_result: Result<u128, StablePoolError>,
 ) {
-    let expected_fee = expected_swap_amount_out_total * fee_bps / FEE_BPS_DENOM;
-    let expected_swap_amount_out = expected_swap_amount_out_total - expected_fee;
-    let expected_admin_fee_part = expected_fee * admin_fee_bps / FEE_BPS_DENOM;
-
     let initial_supply = [initial_reserves[0] + swap_amount_in, initial_reserves[1]];
     let (stable_swap, token_0, token_1) = setup_stable_swap(
         session,
@@ -105,7 +101,7 @@ fn setup_test_swap_exact_in(
         bob(),
     );
 
-    let (amount_out, fee) = stable_swap::swap_exact_in(
+    let swap_result = stable_swap::swap_exact_in(
         session,
         stable_swap.into(),
         BOB,
@@ -116,10 +112,26 @@ fn setup_test_swap_exact_in(
         bob(),
     )
     .result
-    .unwrap()
     .unwrap();
 
-    // check ruterned amount swapped and fee
+    if expected_swap_amount_out_total_result.is_err() {
+        match swap_result {
+            Err(ref err) => {
+                let wrapped_error: Result<u128, StablePoolError> = Err(err.clone());
+                assert_eq!(expected_swap_amount_out_total_result, wrapped_error);
+                return;
+            }
+            Ok(val) => panic!("Should return an error. Return val: {val:?}"),
+        }
+    }
+
+    let (amount_out, fee) = swap_result.unwrap();
+    let expected_swap_amount_out_total = expected_swap_amount_out_total_result.unwrap();
+    let expected_fee = expected_swap_amount_out_total * fee_bps / FEE_BPS_DENOM;
+    let expected_swap_amount_out = expected_swap_amount_out_total - expected_fee;
+    let expected_admin_fee_part = expected_fee * admin_fee_bps / FEE_BPS_DENOM;
+
+    // check returned amount swapped and fee
     assert_eq!(expected_swap_amount_out, amount_out, "Amount out mismatch");
     assert_eq!(expected_fee, fee, "Fee mismatch");
 
@@ -133,7 +145,7 @@ fn setup_test_swap_exact_in(
         "Balances - reserves mismatch"
     );
 
-    //check bobs balances
+    // check bobs balances
     let balance_0 = psp22_utils::balance_of(session, token_0.into(), bob());
     let balance_1 = psp22_utils::balance_of(session, token_1.into(), bob());
     assert_eq!(
@@ -155,7 +167,11 @@ fn setup_test_swap_exact_in(
     .result
     .unwrap()
     .unwrap();
-    assert_eq!(total_lp_required - lp_fee_part, admin_fee_lp, "Incorrect admin fee");
+    assert_eq!(
+        total_lp_required - lp_fee_part,
+        admin_fee_lp,
+        "Incorrect admin fee"
+    );
 }
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L744
@@ -163,13 +179,13 @@ fn setup_test_swap_exact_in(
 fn test_stable_swap_exact_in_01(mut session: Session) {
     setup_test_swap_exact_in(
         &mut session,
-        [6, 6],                         // decimals
-        [100000000000, 100000000000],   // initial reserves
-        1000,                           // A
-        6,                              // fee BPS
-        2000,                           // admin fee BPS
-        10000000000,                    // swap_amount_in
-        9999495232,                     // expected out (with fee)
+        [6, 6],                       // decimals
+        [100000000000, 100000000000], // initial reserves
+        1000,                         // A
+        6,                            // fee BPS
+        2000,                         // admin fee BPS
+        10000000000,                  // swap_amount_in
+        Ok(9999495232),               // expected out (with fee)
     );
 }
 
@@ -184,11 +200,11 @@ fn test_stable_swap_exact_in_02(mut session: Session) {
         6,
         2000,
         10000000000000000,
-        9999495232752197989995,
+        Ok(9999495232752197989995),
     );
 }
 
-// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L896
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L782
 #[drink::test]
 fn test_stable_swap_exact_in_03(mut session: Session) {
     setup_test_swap_exact_in(
@@ -198,12 +214,12 @@ fn test_stable_swap_exact_in_03(mut session: Session) {
         1000,
         6,
         2000,
-        99999000001,
-        98443167413,
+        0,
+        Err(StablePoolError::InsufficientInputAmount()),
     );
 }
 
-// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L915
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L801
 #[drink::test]
 fn test_stable_swap_exact_in_04(mut session: Session) {
     setup_test_swap_exact_in(
@@ -213,7 +229,97 @@ fn test_stable_swap_exact_in_04(mut session: Session) {
         1000,
         6,
         2000,
+        0,
+        Err(StablePoolError::InsufficientInputAmount()),
+    );
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L820
+#[drink::test]
+fn test_stable_swap_exact_in_05(mut session: Session) {
+    setup_test_swap_exact_in(
+        &mut session,
+        [6, 6],
+        [100000000000, 100000000000],
+        1000,
+        6,
+        2000,
+        1,
+        Ok(0),
+    );
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L839
+#[drink::test]
+fn test_stable_swap_exact_in_06(mut session: Session) {
+    setup_test_swap_exact_in(
+        &mut session,
+        [18, 12],
+        [100000000000000000000000, 100000000000000000],
+        1000,
+        6,
+        2000,
+        1000000,
+        Ok(0),
+    );
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L858
+#[drink::test]
+fn test_stable_swap_exact_in_07(mut session: Session) {
+    setup_test_swap_exact_in(
+        &mut session,
+        [6, 6],
+        [100000000000, 100000000000],
+        1000,
+        6,
+        2000,
+        100000000000,
+        Ok(98443663539),
+    );
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L877
+#[drink::test]
+fn test_stable_swap_exact_in_08(mut session: Session) {
+    setup_test_swap_exact_in(
+        &mut session,
+        [12, 18],
+        [100000000000000000, 100000000000000000000000],
+        1000,
+        6,
+        2000,
+        100000000000000000,
+        Ok(98443663539913153080656),
+    );
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L896
+#[drink::test]
+fn test_stable_swap_exact_in_09(mut session: Session) {
+    setup_test_swap_exact_in(
+        &mut session,
+        [6, 6],
+        [100000000000, 100000000000],
+        1000,
+        6,
+        2000,
+        99999000000 + 1, // +1 because of accounting for fee rounding
+        Ok(98443167413),
+    );
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L915
+#[drink::test]
+fn test_stable_swap_exact_in_10(mut session: Session) {
+    setup_test_swap_exact_in(
+        &mut session,
+        [12, 18],
+        [100000000000000000, 100000000000000000000000],
+        1000,
+        6,
+        2000,
         99999000000000000,
-        98443167413204135506296,
+        Ok(98443167413204135506296),
     );
 }

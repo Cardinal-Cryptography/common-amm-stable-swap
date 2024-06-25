@@ -189,7 +189,7 @@ pub mod router {
 
 pub mod stable_swap {
     use super::*;
-    use stable_pool_contract::{StablePool as _, StablePoolView as _, StablePoolError};
+    use stable_pool_contract::{StablePool as _, StablePoolError, StablePoolView as _};
 
     pub fn setup(
         session: &mut Session<MinimalRuntime>,
@@ -290,13 +290,15 @@ pub mod stable_swap {
     > {
         let _ = session.set_actor(caller);
         session
-            .execute(stable_pool_contract::Instance::from(stable_pool).swap_exact_in(
-                token_in,
-                token_out,
-                token_in_amount,
-                min_token_out_amount,
-                to,
-            ))
+            .execute(
+                stable_pool_contract::Instance::from(stable_pool).swap_exact_in(
+                    token_in,
+                    token_out,
+                    token_in_amount,
+                    min_token_out_amount,
+                    to,
+                ),
+            )
             .unwrap()
     }
 
@@ -314,25 +316,24 @@ pub mod stable_swap {
     > {
         let _ = session.set_actor(caller);
         session
-            .execute(stable_pool_contract::Instance::from(stable_pool).swap_exact_out(
-                token_in,
-                token_out,
-                token_out_amount,
-                max_token_in_amount,
-                to,
-            ))
+            .execute(
+                stable_pool_contract::Instance::from(stable_pool).swap_exact_out(
+                    token_in,
+                    token_out,
+                    token_out_amount,
+                    max_token_in_amount,
+                    to,
+                ),
+            )
             .unwrap()
     }
 
-    pub fn reserves(
-        session: &mut Session<MinimalRuntime>,
-        stable_pool: AccountId,
-    ) -> Vec<u128> {
-            session
-                .query(stable_pool_contract::Instance::from(stable_pool).reserves())
-                .unwrap()
-                .result
-                .unwrap()
+    pub fn reserves(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> Vec<u128> {
+        session
+            .query(stable_pool_contract::Instance::from(stable_pool).reserves())
+            .unwrap()
+            .result
+            .unwrap()
     }
 }
 
@@ -377,12 +378,7 @@ pub mod psp22_utils {
 
         let _ = session.set_actor(caller);
 
-        let instance = PSP22::new(
-            init_supply,
-            Some(name.clone()),
-            Some(name),
-            decimals,
-        );
+        let instance = PSP22::new(init_supply, Some(name.clone()), Some(name), decimals);
 
         session
             .instantiate(instance)
@@ -459,4 +455,3 @@ pub fn handle_ink_error<R>(res: ContractResult<Result<R, InkLangError>>) -> R {
         Ok(r) => r,
     }
 }
-
