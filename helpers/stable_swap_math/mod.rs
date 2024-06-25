@@ -288,9 +288,9 @@ pub fn rated_swap_to(
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`
 /// /// Returns (amount_in, fee_amount)
 fn swap_from(
-    token_out_idx: usize,
-    token_out_amount: u128, // Net amount (w/o fee)
     token_in_idx: usize,
+    token_out_amount: u128, // Net amount (w/o fee)
+    token_out_idx: usize,
     current_reserves: &Vec<u128>,
     fees: &Fees,
     amp_coef: u128,
@@ -323,9 +323,9 @@ fn swap_from(
 
 pub fn rated_swap_from(
     rates: &[u128],
-    token_out_idx: usize,
-    token_out_amount: u128,
     token_in_idx: usize,
+    token_out_amount: u128,
+    token_out_idx: usize,
     current_reserves: &Vec<u128>,
     fees: &Fees,
     amp_coef: u128,
@@ -333,9 +333,9 @@ pub fn rated_swap_from(
     let r_token_out_amount = amount_to_rated(token_out_amount, rates[token_out_idx])?;
     let r_current_reserves = amounts_to_rated(current_reserves, rates)?;
     let (r_dy, r_fee) = swap_from(
-        token_out_idx,
-        r_token_out_amount,
         token_in_idx,
+        r_token_out_amount,
+        token_out_idx,
         &r_current_reserves,
         fees,
         amp_coef,

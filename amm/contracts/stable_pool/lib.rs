@@ -443,7 +443,7 @@ pub mod stable_pool {
             self.mint_admin_fee(fee, token_out_id)?;
 
             // note that fee is applied to token_out (same as in _swap_to)
-            Ok((token_out_amount, fee))
+            Ok((token_in_amount, fee))
         }
     }
 
