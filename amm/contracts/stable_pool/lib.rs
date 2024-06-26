@@ -701,7 +701,9 @@ pub mod stable_pool {
 
             let token_in_amount = self
                 .token_by_address(token_in)
-                .balance_of(self.env().account_id());
+                .balance_of(self.env().account_id())
+                .checked_sub(self.pool.reserves[token_in_id])
+                .ok_or(StablePoolError::InsufficientInputAmount)?;
 
             // calculate amount out, mint admin fee and update reserves
             let (token_out_amount, swap_fee) = self._swap_to(
