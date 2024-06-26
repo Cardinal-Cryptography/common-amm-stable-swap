@@ -686,6 +686,47 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
+        fn swap(
+            &mut self,
+            token_in: AccountId,
+            token_out: AccountId,
+            min_token_out_amount: u128,
+            to: AccountId,
+        ) -> Result<(u128, u128), StablePoolError> {
+            //check token ids
+            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+
+            // Make sure rates are up to date before we attempt any calculations
+            self.update_rates();
+
+            let token_in_amount = self
+                .token_by_address(token_in)
+                .balance_of(self.env().account_id());
+
+            // calculate amount out, mint admin fee and update reserves
+            let (token_out_amount, swap_fee) = self._swap_to(
+                token_in_id,
+                token_out_id,
+                token_in_amount,
+                min_token_out_amount,
+            )?;
+
+            // transfer token_out
+            self.token_by_address(token_out)
+                .transfer(to, token_out_amount, vec![])?;
+
+            self.env().emit_event(Swap {
+                sender: self.env().caller(),
+                token_in,
+                amount_in: token_in_amount,
+                token_out,
+                amount_out: token_out_amount,
+                to,
+            });
+            Ok((token_out_amount, swap_fee))
+        }
+
+        #[ink(message)]
         fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
             self.ensure_owner()?;
             self.owner = new_owner;
