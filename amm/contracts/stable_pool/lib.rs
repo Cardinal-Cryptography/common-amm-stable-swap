@@ -57,10 +57,8 @@ pub mod stable_pool {
     }
 
     #[ink(event)]
-    pub struct TokenRateUpdated {
-        #[ink(topic)]
-        pub token: AccountId,
-        pub rate: TokenRate,
+    pub struct RatesUpdated {
+        rates: Vec<TokenRate>,
     }
 
     #[ink(event)]
@@ -221,22 +219,18 @@ pub mod stable_pool {
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
             let current_time = Self::env().block_timestamp();
-            let token_rates = external_rates
+            let token_rates: Vec<TokenRate> = external_rates
                 .into_iter()
-                .enumerate()
-                .map(|(id, rate)| match rate {
+                .map(|rate| match rate {
                     Some(contract) => {
-                        let rate = TokenRate::new_external(
-                            current_time,
-                            contract,
-                            rate_expiration_duration_ms,
-                        );
-                        Self::env().emit_event(TokenRateUpdated { token: tokens[id], rate });
-                        rate
+                        TokenRate::new_external(current_time, contract, rate_expiration_duration_ms)
                     }
                     None => TokenRate::new_constant(RATE_PRECISION),
                 })
                 .collect();
+            Self::env().emit_event(RatesUpdated {
+                rates: token_rates.clone(),
+            });
             Self::new_pool(
                 tokens,
                 tokens_decimals,
@@ -274,10 +268,14 @@ pub mod stable_pool {
 
         fn update_rates(&mut self) {
             let current_time = self.env().block_timestamp();
-            for (id, rate) in self.pool.token_rates.iter_mut().enumerate() {
-                if rate.update_rate(current_time) {
-                    Self::env().emit_event(TokenRateUpdated { token: self.pool.tokens[id], rate: *rate })
-                }
+            let mut rate_changed = false;
+            for rate in self.pool.token_rates.iter_mut() {
+                rate_changed = rate_changed || rate.update_rate(current_time);
+            }
+            if rate_changed {
+                Self::env().emit_event(RatesUpdated {
+                    rates: self.pool.token_rates.clone(),
+                });
             }
         }
 
@@ -624,11 +622,13 @@ pub mod stable_pool {
         #[ink(message)]
         fn force_update_rate(&mut self) {
             let current_time = self.env().block_timestamp();
-            for (id, rate) in self.pool.token_rates.iter_mut().enumerate() {
-                if rate.update_rate_no_cache(current_time) {
-                    Self::env().emit_event(TokenRateUpdated { token: self.pool.tokens[id], rate: *rate })
-                }
+            let mut rate_changed = false;
+            for rate in self.pool.token_rates.iter_mut() {
+                rate_changed = rate_changed || rate.update_rate_no_cache(current_time);
             }
+            Self::env().emit_event(RatesUpdated {
+                rates: self.pool.token_rates.clone(),
+            })
         }
 
         #[ink(message)]
