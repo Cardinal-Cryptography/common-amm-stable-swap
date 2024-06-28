@@ -686,7 +686,7 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn swap(
+        fn swap_received(
             &mut self,
             token_in: AccountId,
             token_out: AccountId,

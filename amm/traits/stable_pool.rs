@@ -157,7 +157,7 @@ pub trait StablePool {
     /// Swapped tokens are transferred to the `to` account.
     /// Returns (amount_out, fees)
     #[ink(message)]
-    fn swap(
+    fn swap_received(
         &mut self,
         token_in: AccountId,
         token_out: AccountId,
