@@ -771,6 +771,9 @@ pub mod stable_pool {
                 amount_out: token_out_amount,
                 to,
             });
+            self.env().emit_event(Sync {
+                reserves: self.reserves(),
+            });
             Ok((token_out_amount, swap_fee))
         }
 
