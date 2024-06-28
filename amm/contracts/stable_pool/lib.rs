@@ -52,6 +52,18 @@ pub mod stable_pool {
     }
 
     #[ink(event)]
+    pub struct Sync {
+        reserves: Vec<u128>,
+    }
+
+    #[ink(event)]
+    pub struct TokenRateUpdated {
+        #[ink(topic)]
+        pub token: AccountId,
+        pub rate: TokenRate,
+    }
+
+    #[ink(event)]
     pub struct Approval {
         /// Account providing allowance.
         #[ink(topic)]
@@ -211,9 +223,16 @@ pub mod stable_pool {
             let current_time = Self::env().block_timestamp();
             let token_rates = external_rates
                 .into_iter()
-                .map(|rate| match rate {
+                .enumerate()
+                .map(|(id, rate)| match rate {
                     Some(contract) => {
-                        TokenRate::new_external(current_time, contract, rate_expiration_duration_ms)
+                        let rate = TokenRate::new_external(
+                            current_time,
+                            contract,
+                            rate_expiration_duration_ms,
+                        );
+                        Self::env().emit_event(TokenRateUpdated { token: tokens[id], rate });
+                        rate
                     }
                     None => TokenRate::new_constant(RATE_PRECISION),
                 })
@@ -255,8 +274,10 @@ pub mod stable_pool {
 
         fn update_rates(&mut self) {
             let current_time = self.env().block_timestamp();
-            for rate in self.pool.token_rates.iter_mut() {
-                rate.update_rate(current_time);
+            for (id, rate) in self.pool.token_rates.iter_mut().enumerate() {
+                if rate.update_rate(current_time) {
+                    Self::env().emit_event(TokenRateUpdated { token: self.pool.tokens[id], rate: *rate })
+                }
             }
         }
 
@@ -497,6 +518,9 @@ pub mod stable_pool {
                 shares,
                 to,
             });
+            self.env().emit_event(Sync {
+                reserves: self.reserves(),
+            });
             Ok((shares, fee_part))
         }
 
@@ -538,6 +562,15 @@ pub mod stable_pool {
             let events = self.psp22.burn(self.env().caller(), shares)?;
             self.emit_events(events);
 
+            self.env().emit_event(RemoveLiquidity {
+                provider: self.env().caller(),
+                token_amounts: amounts.clone(),
+                shares,
+                to,
+            });
+            self.env().emit_event(Sync {
+                reserves: self.reserves(),
+            });
             Ok(amounts)
         }
 
@@ -582,14 +615,19 @@ pub mod stable_pool {
                 shares: shares_to_burn,
                 to,
             });
+            self.env().emit_event(Sync {
+                reserves: self.reserves(),
+            });
             Ok((shares_to_burn, fee_part))
         }
 
         #[ink(message)]
         fn force_update_rate(&mut self) {
             let current_time = self.env().block_timestamp();
-            for rate in self.pool.token_rates.iter_mut() {
-                rate.update_rate_no_cache(current_time);
+            for (id, rate) in self.pool.token_rates.iter_mut().enumerate() {
+                if rate.update_rate_no_cache(current_time) {
+                    Self::env().emit_event(TokenRateUpdated { token: self.pool.tokens[id], rate: *rate })
+                }
             }
         }
 
@@ -636,6 +674,9 @@ pub mod stable_pool {
                 amount_out: token_out_amount,
                 to,
             });
+            self.env().emit_event(Sync {
+                reserves: self.reserves(),
+            });
             Ok((token_out_amount, swap_fee))
         }
 
@@ -681,6 +722,9 @@ pub mod stable_pool {
                 token_out,
                 amount_out: token_out_amount,
                 to,
+            });
+            self.env().emit_event(Sync {
+                reserves: self.reserves(),
             });
             Ok((token_in_amount, swap_fee))
         }
