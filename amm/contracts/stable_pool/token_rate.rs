@@ -28,11 +28,13 @@ impl TokenRate {
         token_rate_contract: AccountId,
         expiration_duration_ms: u64,
     ) -> Self {
-        Self::External(ExternalTokenRate::new(
+        let mut rate = Self::External(ExternalTokenRate::new(
             current_time,
             token_rate_contract,
             expiration_duration_ms,
-        ))
+        ));
+        _ = rate.update_rate_no_cache(current_time);
+        rate
     }
 
     // To make sure the rate is up-to-date, the caller should call `update_rate` before calling this method.
@@ -43,17 +45,17 @@ impl TokenRate {
         }
     }
 
-    pub fn update_rate(&mut self, current_time: u64) {
+    pub fn update_rate(&mut self, current_time: u64) -> bool {
         match self {
             Self::External(external) => external.update_rate(current_time),
-            _ => {}
+            _ => false,
         }
     }
 
-    pub fn update_rate_no_cache(&mut self, current_time: u64) {
+    pub fn update_rate_no_cache(&mut self, current_time: u64) -> bool {
         match self {
             Self::External(external) => external.update_rate_no_cache(current_time),
-            _ => {}
+            _ => false,
         }
     }
 }
@@ -77,14 +79,16 @@ impl ExternalTokenRate {
         self.cached_token_rate
     }
 
-    pub fn update_rate(&mut self, current_time: u64) {
+    pub fn update_rate(&mut self, current_time: u64) -> bool {
         if self.is_outdated(current_time) {
-            self.update(current_time);
+            self.update(current_time)
+        } else {
+            false
         }
     }
 
-    pub fn update_rate_no_cache(&mut self, current_time: u64) {
-        self.update(current_time);
+    pub fn update_rate_no_cache(&mut self, current_time: u64) -> bool {
+        self.update(current_time)
     }
 
     fn query_rate(token_rate_contract: AccountId) -> u128 {
@@ -97,8 +101,9 @@ impl ExternalTokenRate {
         current_time.saturating_sub(self.last_token_rate_update_ts) >= self.expiration_duration_ms
     }
 
-    fn update(&mut self, current_time: u64) {
+    fn update(&mut self, current_time: u64) -> bool {
         self.cached_token_rate = Self::query_rate(self.token_rate_contract);
         self.last_token_rate_update_ts = current_time;
+        true
     }
 }
