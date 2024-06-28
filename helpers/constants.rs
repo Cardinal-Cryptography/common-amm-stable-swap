@@ -7,7 +7,7 @@ pub const BURN_ADDRESS: [u8; 32] = [
 ];
 
 #[allow(unused)]
-const BURN_ADDRESS_MSG: &str = "This is Aleph Zero DEX's burn address.";
+const BURN_ADDRESS_MSG: &str = "This is Aleph Zero DEX's zero address.";
 
 /// Minimum liquidity threshold that is subtracted
 /// from the minted liquidity and sent to the `BURN_ADDRESS`.
