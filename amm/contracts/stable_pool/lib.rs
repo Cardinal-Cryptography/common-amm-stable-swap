@@ -626,9 +626,11 @@ pub mod stable_pool {
             for rate in self.pool.token_rates.iter_mut() {
                 rate_changed = rate_changed || rate.update_rate_no_cache(current_time);
             }
-            Self::env().emit_event(RatesUpdated {
-                rates: self.pool.token_rates.clone(),
-            })
+            if rate_changed {
+                Self::env().emit_event(RatesUpdated {
+                    rates: self.pool.token_rates.clone(),
+                })
+            }
         }
 
         #[ink(message)]
