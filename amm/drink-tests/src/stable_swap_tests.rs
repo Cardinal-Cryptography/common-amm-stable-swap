@@ -20,8 +20,8 @@ fn setup_stable_swap(
     token_decimals: [u8; 2],
     token_supply: [u128; 2],
     amp_coef: u128,
-    _fee_bps: u128,
-    _admin_fee_bps: u128,
+    fee_bps: u16,
+    protocol_fee_bps: u16,
 ) -> (AccountId, AccountId, AccountId) {
     // (stable_pool, token_0, token_1)
     let _ = session.set_actor(BOB);
@@ -51,8 +51,9 @@ fn setup_stable_swap(
         vec![token_0.into(), token_1.into()],
         token_decimals.to_vec(),
         amp_coef,
-        // Fees {fee_bps, admin_fee_bps},
         bob(),
+        fee_bps,
+        protocol_fee_bps,
         Some(charlie()), // fee receiver
     );
 
@@ -78,8 +79,8 @@ fn setup_test_swap_exact_in(
     token_decimals: [u8; 2],
     initial_reserves: [u128; 2],
     amp_coef: u128,
-    fee_bps: u128,
-    admin_fee_bps: u128,
+    fee_bps: u16,
+    protocol_fee_bps: u16,
     swap_amount_in: u128,
     expected_swap_amount_out_total_result: Result<u128, StablePoolError>,
 ) {
@@ -90,7 +91,7 @@ fn setup_test_swap_exact_in(
         initial_supply,
         amp_coef,
         fee_bps,
-        admin_fee_bps,
+        protocol_fee_bps,
     );
     _ = stable_swap::add_liquidity(
         session,
@@ -127,9 +128,9 @@ fn setup_test_swap_exact_in(
 
     let (amount_out, fee) = swap_result.unwrap();
     let expected_swap_amount_out_total = expected_swap_amount_out_total_result.unwrap();
-    let expected_fee = expected_swap_amount_out_total * fee_bps / FEE_BPS_DENOM;
+    let expected_fee = expected_swap_amount_out_total * fee_bps as u128 / FEE_BPS_DENOM;
     let expected_swap_amount_out = expected_swap_amount_out_total - expected_fee;
-    let expected_admin_fee_part = expected_fee * admin_fee_bps / FEE_BPS_DENOM;
+    let expected_protocol_fee_part = expected_fee * protocol_fee_bps as u128 / FEE_BPS_DENOM;
 
     // check returned amount swapped and fee
     assert_eq!(expected_swap_amount_out, amount_out, "Amount out mismatch");
@@ -154,14 +155,14 @@ fn setup_test_swap_exact_in(
         "Incorrect Bob's balances"
     );
 
-    // check admin fee
-    let admin_fee_lp = psp22_utils::balance_of(session, stable_swap.into(), charlie());
+    // check protocol fee
+    let protocol_fee_lp = psp22_utils::balance_of(session, stable_swap.into(), charlie());
     let (total_lp_required, lp_fee_part) = stable_swap::remove_liquidity_by_amounts(
         session,
         stable_swap.into(),
         BOB,
-        admin_fee_lp * 2,
-        [0, expected_admin_fee_part].to_vec(),
+        protocol_fee_lp * 2,
+        [0, expected_protocol_fee_part].to_vec(),
         bob(),
     )
     .result
@@ -169,8 +170,8 @@ fn setup_test_swap_exact_in(
     .unwrap();
     assert_eq!(
         total_lp_required - lp_fee_part,
-        admin_fee_lp,
-        "Incorrect admin fee"
+        protocol_fee_lp,
+        "Incorrect protocol fee"
     );
 }
 
@@ -183,7 +184,7 @@ fn test_stable_swap_exact_in_01(mut session: Session) {
         [100000000000, 100000000000], // initial reserves
         1000,                         // A
         6,                            // fee BPS
-        2000,                         // admin fee BPS
+        2000,                         // protocol fee BPS
         10000000000,                  // swap_amount_in
         Ok(9999495232),               // expected out (with fee)
     );
