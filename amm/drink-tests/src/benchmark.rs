@@ -66,10 +66,10 @@ fn setup_test_contracts_2pool(
         session,
         vec![ice.into(), wood.into()],
         vec![ICE_DEC, WOOD_DEC],
-        100, // A = 100
+        100,
         BOB,
-        2000, // trade_fee
-        6,    // protocol_fee
+        6,      // trade_fee
+        2000,   // protocol_fee
         fee_receiver,
     );
 
