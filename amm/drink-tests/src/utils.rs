@@ -197,6 +197,8 @@ pub mod stable_swap {
         tokens_decimals: Vec<u8>,
         init_amp_coef: u128,
         caller: drink::AccountId32,
+        trade_fee_bps: u16,
+        protocol_fee_bps: u16,
         fee_receiver: Option<AccountId>,
     ) -> stable_pool_contract::Instance {
         let _ = session.set_actor(caller.clone());
@@ -205,6 +207,8 @@ pub mod stable_swap {
             tokens_decimals,
             init_amp_coef,
             caller.to_account_id(),
+            trade_fee_bps,
+            protocol_fee_bps,
             fee_receiver,
         );
 
