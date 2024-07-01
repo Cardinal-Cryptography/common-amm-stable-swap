@@ -152,6 +152,19 @@ pub trait StablePool {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
 
+    /// Swaps excess reserve balance of `token_in` to `token_out`.
+    ///
+    /// Swapped tokens are transferred to the `to` account.
+    /// Returns (amount_out, fees)
+    #[ink(message)]
+    fn swap_received(
+        &mut self,
+        token_in: AccountId,
+        token_out: AccountId,
+        min_token_out_amount: u128,
+        to: AccountId,
+    ) -> Result<(u128, u128), StablePoolError>;
+
     #[ink(message)]
     fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError>;
 
