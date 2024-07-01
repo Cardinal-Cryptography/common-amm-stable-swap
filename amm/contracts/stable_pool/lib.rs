@@ -5,9 +5,7 @@ mod token_rate;
 pub mod stable_pool {
     use crate::token_rate::TokenRate;
     use amm_helpers::{
-        constants::stable_pool::{
-            ADMIN_FEE_BPS, MAX_AMP, MIN_AMP, RATE_PRECISION, TOKEN_TARGET_DECIMALS, TRADE_FEE_BPS,
-        },
+        constants::stable_pool::{MAX_AMP, MIN_AMP, RATE_PRECISION, TOKEN_TARGET_DECIMALS},
         ensure,
         stable_swap_math::{self as math, fees::Fees},
     };
@@ -119,7 +117,7 @@ pub mod stable_pool {
         amp_coef: u128,
         /// Fees
         fees: Fees,
-        /// Who receives admin fees (if any).
+        /// Who receives protocol fees (if any).
         fee_receiver: Option<AccountId>,
     }
 
@@ -145,6 +143,7 @@ pub mod stable_pool {
             token_rates: Vec<TokenRate>,
             amp_coef: u128,
             owner: AccountId,
+            fees: Option<Fees>,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
             validate_amp_coef(amp_coef)?;
@@ -182,7 +181,7 @@ pub mod stable_pool {
                     precisions,
                     token_rates,
                     amp_coef,
-                    fees: Fees::new(TRADE_FEE_BPS, ADMIN_FEE_BPS),
+                    fees: fees.ok_or(StablePoolError::InvalidFee)?,
                     fee_receiver,
                 },
                 psp22: PSP22Data::default(),
@@ -195,6 +194,8 @@ pub mod stable_pool {
             tokens_decimals: Vec<u8>,
             init_amp_coef: u128,
             owner: AccountId,
+            trade_fee_bps: u16,
+            protocol_fee_bps: u16,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
             let token_rates = vec![TokenRate::new_constant(RATE_PRECISION); tokens.len()];
@@ -204,6 +205,7 @@ pub mod stable_pool {
                 token_rates,
                 init_amp_coef,
                 owner,
+                Fees::new(trade_fee_bps, protocol_fee_bps),
                 fee_receiver,
             )
         }
@@ -216,6 +218,8 @@ pub mod stable_pool {
             rate_expiration_duration_ms: u64,
             init_amp_coef: u128,
             owner: AccountId,
+            trade_fee_bps: u16,
+            protocol_fee_bps: u16,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
             let current_time = Self::env().block_timestamp();
@@ -237,6 +241,7 @@ pub mod stable_pool {
                 token_rates,
                 init_amp_coef,
                 owner,
+                Fees::new(trade_fee_bps, protocol_fee_bps),
                 fee_receiver,
             )
         }
@@ -333,27 +338,27 @@ pub mod stable_pool {
             Ok((token_in_id, token_out_id))
         }
 
-        fn mint_admin_fee(&mut self, fee: u128, token_id: usize) -> Result<(), StablePoolError> {
+        fn mint_protocol_fee(&mut self, fee: u128, token_id: usize) -> Result<(), StablePoolError> {
             if let Some(fee_to) = self.fee_to() {
-                let admin_fee = self.pool.fees.admin_trade_fee(fee)?;
-                if admin_fee > 0 {
+                let protocol_fee = self.pool.fees.protocol_trade_fee(fee)?;
+                if protocol_fee > 0 {
                     let rates = self.get_scaled_rates()?;
-                    let mut admin_deposit_amounts = vec![0u128; self.pool.tokens.len()];
-                    admin_deposit_amounts[token_id] = admin_fee;
+                    let mut protocol_deposit_amounts = vec![0u128; self.pool.tokens.len()];
+                    protocol_deposit_amounts[token_id] = protocol_fee;
                     let mut reserves = self.pool.reserves.clone();
                     reserves[token_id] = reserves[token_id]
-                        .checked_sub(admin_fee)
+                        .checked_sub(protocol_fee)
                         .ok_or(MathError::SubUnderflow(102))?;
-                    let (admin_fee_lp, _) = math::rated_compute_lp_amount_for_deposit(
+                    let (protocol_fee_lp, _) = math::rated_compute_lp_amount_for_deposit(
                         &rates,
-                        &admin_deposit_amounts,
+                        &protocol_deposit_amounts,
                         &reserves,
                         self.psp22.total_supply(),
                         None, // no fees
                         self.amp_coef(),
                     )?;
-                    // mint fee (shares) to admin
-                    let events = self.psp22.mint(fee_to, admin_fee_lp)?;
+                    // mint fee (shares) to protocol
+                    let events = self.psp22.mint(fee_to, protocol_fee_lp)?;
                     self.emit_events(events);
                 }
             }
@@ -385,7 +390,7 @@ pub mod stable_pool {
         /// This method is for internal use only
         /// - calculates token_out amount
         /// - calculates swap fee
-        /// - mints admin fee
+        /// - mints protocol fee
         /// - updates reserves
         /// It assumes that rates have been updated.
         /// Returns (token_out_amount, swap_fee)
@@ -427,8 +432,8 @@ pub mod stable_pool {
             self.increase_reserve(token_in_id, token_in_amount)?;
             self.decrease_reserve(token_out_id, token_out_amount)?;
 
-            // mint admin fee
-            self.mint_admin_fee(fee, token_out_id)?;
+            // mint protocol fee
+            self.mint_protocol_fee(fee, token_out_id)?;
 
             // transfer token_out
             self.token_by_address(token_out)
@@ -451,7 +456,7 @@ pub mod stable_pool {
         /// This method is for internal use only
         /// - calculates token_in amount
         /// - calculates swap fee
-        /// - mints admin fee
+        /// - mints protocol fee
         /// - updates reserves
         /// It assumes that rates have been updated.
         /// Returns (token_in_amount, swap_fee)
@@ -496,8 +501,8 @@ pub mod stable_pool {
             self.increase_reserve(token_in_id, token_in_amount)?;
             self.decrease_reserve(token_out_id, token_out_amount)?;
 
-            // mint admin fee
-            self.mint_admin_fee(fee, token_out_id)?;
+            // mint protocol fee
+            self.mint_protocol_fee(fee, token_out_id)?;
 
             // transfer token_in
             _ = self._transfer_in(token_in_id, Some(token_in_amount))?;
@@ -577,11 +582,11 @@ pub mod stable_pool {
             let events = self.psp22.mint(to, shares)?;
             self.emit_events(events);
 
-            // mint admin fee
+            // mint protocol fee
             if let Some(fee_to) = self.fee_to() {
-                let admin_fee = self.pool.fees.admin_trade_fee(fee_part)?;
-                if admin_fee > 0 {
-                    let events = self.psp22.mint(fee_to, admin_fee)?;
+                let protocol_fee = self.pool.fees.protocol_trade_fee(fee_part)?;
+                if protocol_fee > 0 {
+                    let events = self.psp22.mint(fee_to, protocol_fee)?;
                     self.emit_events(events);
                 }
             }
@@ -672,11 +677,11 @@ pub mod stable_pool {
             // burn shares
             let events = self.psp22.burn(self.env().caller(), shares_to_burn)?;
             self.emit_events(events);
-            // mint admin fee
+            // mint protocol fee
             if let Some(fee_to) = self.fee_to() {
-                let admin_fee = self.pool.fees.admin_trade_fee(fee_part)?;
-                if admin_fee > 0 {
-                    let events = self.psp22.mint(fee_to, admin_fee)?;
+                let protocol_fee = self.pool.fees.protocol_trade_fee(fee_part)?;
+                if protocol_fee > 0 {
+                    let events = self.psp22.mint(fee_to, protocol_fee)?;
                     self.emit_events(events);
                 }
             }
@@ -780,6 +785,18 @@ pub mod stable_pool {
             self.env().emit_event(FeeReceiverChanged {
                 new_fee_receiver: fee_receiver,
             });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn set_fee(
+            &mut self,
+            trade_fee_bps: u16,
+            protocol_fee_bps: u16,
+        ) -> Result<(), StablePoolError> {
+            self.ensure_owner()?;
+            self.pool.fees =
+                Fees::new(trade_fee_bps, protocol_fee_bps).ok_or(StablePoolError::InvalidFee)?;
             Ok(())
         }
 
