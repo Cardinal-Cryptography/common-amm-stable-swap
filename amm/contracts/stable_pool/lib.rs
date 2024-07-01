@@ -266,6 +266,11 @@ pub mod stable_pool {
             address.into()
         }
 
+        #[inline]
+        fn token_by_id(&self, token_id: usize) -> contract_ref!(PSP22) {
+            self.pool.tokens[token_id].into()
+        }
+
         fn update_rates(&mut self) {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
@@ -386,16 +391,27 @@ pub mod stable_pool {
         /// - updates reserves
         /// It assumes that rates have been updated.
         /// Returns (token_out_amount, swap_fee)
-        fn _swap_to(
+        fn _swap_exact_in(
             &mut self,
-            token_in_id: usize,
-            token_out_id: usize,
-            token_in_amount: u128,
+            token_in: AccountId,
+            token_out: AccountId,
+            token_in_amount: Option<u128>,
             min_token_out_amount: u128,
+            to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
+            //check token ids
+            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+
+            // get transfered token_in amount
+            let token_in_amount = self._transfer_in(token_in_id, token_in_amount)?;
+
             if token_in_amount == 0 {
                 return Err(StablePoolError::InsufficientInputAmount);
             }
+
+            // Make sure rates are up to date before we attempt any calculations
+            self.update_rates();
+
             let rates = self.get_scaled_rates()?;
             // calc amount_out and fees
             let (token_out_amount, fee) = math::rated_swap_to(
@@ -418,6 +434,22 @@ pub mod stable_pool {
 
             // mint admin fee
             self.mint_admin_fee(fee, token_out_id)?;
+
+            // transfer token_out
+            self.token_by_address(token_out)
+                .transfer(to, token_out_amount, vec![])?;
+
+            self.env().emit_event(Swap {
+                sender: self.env().caller(),
+                token_in,
+                amount_in: token_in_amount,
+                token_out,
+                amount_out: token_out_amount,
+                to,
+            });
+            self.env().emit_event(Sync {
+                reserves: self.reserves(),
+            });
             Ok((token_out_amount, fee))
         }
 
@@ -428,17 +460,26 @@ pub mod stable_pool {
         /// - updates reserves
         /// It assumes that rates have been updated.
         /// Returns (token_in_amount, swap_fee)
-        fn _swap_from(
+        fn _swap_exact_out(
             &mut self,
-            token_in_id: usize,
-            token_out_id: usize,
+            token_in: AccountId,
+            token_out: AccountId,
             token_out_amount: u128,
             max_token_in_amount: u128,
+            to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
+            //check token ids
+            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
+
             if token_out_amount == 0 {
                 return Err(StablePoolError::InsufficientOutputAmount);
             }
+
+            // Make sure rates are up to date before we attempt any calculations
+            self.update_rates();
+
             let rates = self.get_scaled_rates()?;
+
             // calc amount_out and fees
             let (token_in_amount, fee) = math::rated_swap_from(
                 &rates,
@@ -461,8 +502,48 @@ pub mod stable_pool {
             // mint admin fee
             self.mint_admin_fee(fee, token_out_id)?;
 
-            // note that fee is applied to token_out (same as in _swap_to)
+            // transfer token_in
+            _ = self._transfer_in(token_in_id, Some(token_in_amount))?;
+
+            // transfer token_out
+            self.token_by_address(token_out)
+                .transfer(to, token_out_amount, vec![])?;
+
+            self.env().emit_event(Swap {
+                sender: self.env().caller(),
+                token_in,
+                amount_in: token_in_amount,
+                token_out,
+                amount_out: token_out_amount,
+                to,
+            });
+            self.env().emit_event(Sync {
+                reserves: self.reserves(),
+            });
+            // note that fee is applied to token_out (same as in _swap_exact_in)
             Ok((token_in_amount, fee))
+        }
+
+        fn _transfer_in(
+            &self,
+            token_id: usize,
+            amount: Option<u128>,
+        ) -> Result<u128, StablePoolError> {
+            let mut token = self.token_by_id(token_id);
+            if let Some(token_amount) = amount {
+                token.transfer_from(
+                    self.env().caller(),
+                    self.env().account_id(),
+                    token_amount,
+                    vec![],
+                )?;
+                Ok(token_amount)
+            } else {
+                token
+                    .balance_of(self.env().account_id())
+                    .checked_sub(self.pool.reserves[token_id])
+                    .ok_or(StablePoolError::InsufficientInputAmount)
+            }
         }
     }
 
@@ -642,44 +723,13 @@ pub mod stable_pool {
             min_token_out_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            //check token ids
-            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-
-            // transfer token_in
-            self.token_by_address(token_in).transfer_from(
-                self.env().caller(),
-                self.env().account_id(),
-                token_in_amount,
-                vec![],
-            )?;
-
-            // calculate amount out, mint admin fee and update reserves
-            let (token_out_amount, swap_fee) = self._swap_to(
-                token_in_id,
-                token_out_id,
-                token_in_amount,
-                min_token_out_amount,
-            )?;
-
-            // transfer token_out
-            self.token_by_address(token_out)
-                .transfer(to, token_out_amount, vec![])?;
-
-            self.env().emit_event(Swap {
-                sender: self.env().caller(),
+            self._swap_exact_in(
                 token_in,
-                amount_in: token_in_amount,
                 token_out,
-                amount_out: token_out_amount,
+                Some(token_in_amount),
+                min_token_out_amount,
                 to,
-            });
-            self.env().emit_event(Sync {
-                reserves: self.reserves(),
-            });
-            Ok((token_out_amount, swap_fee))
+            )
         }
 
         #[ink(message)]
@@ -691,44 +741,13 @@ pub mod stable_pool {
             max_token_in_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            //check token ids
-            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-
-            // calculate amount out, mint admin fee and update reserves
-            let (token_in_amount, swap_fee) = self._swap_from(
-                token_in_id,
-                token_out_id,
+            self._swap_exact_out(
+                token_in,
+                token_out,
                 token_out_amount,
                 max_token_in_amount,
-            )?;
-
-            // transfer token_in
-            self.token_by_address(token_in).transfer_from(
-                self.env().caller(),
-                self.env().account_id(),
-                token_in_amount,
-                vec![],
-            )?;
-
-            // transfer token_out
-            self.token_by_address(token_out)
-                .transfer(to, token_out_amount, vec![])?;
-
-            self.env().emit_event(Swap {
-                sender: self.env().caller(),
-                token_in,
-                amount_in: token_in_amount,
-                token_out,
-                amount_out: token_out_amount,
                 to,
-            });
-            self.env().emit_event(Sync {
-                reserves: self.reserves(),
-            });
-            Ok((token_in_amount, swap_fee))
+            )
         }
 
         #[ink(message)]
@@ -739,42 +758,7 @@ pub mod stable_pool {
             min_token_out_amount: u128,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
-            //check token ids
-            let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-
-            // Make sure rates are up to date before we attempt any calculations
-            self.update_rates();
-
-            let token_in_amount = self
-                .token_by_address(token_in)
-                .balance_of(self.env().account_id())
-                .checked_sub(self.pool.reserves[token_in_id])
-                .ok_or(StablePoolError::InsufficientInputAmount)?;
-
-            // calculate amount out, mint admin fee and update reserves
-            let (token_out_amount, swap_fee) = self._swap_to(
-                token_in_id,
-                token_out_id,
-                token_in_amount,
-                min_token_out_amount,
-            )?;
-
-            // transfer token_out
-            self.token_by_address(token_out)
-                .transfer(to, token_out_amount, vec![])?;
-
-            self.env().emit_event(Swap {
-                sender: self.env().caller(),
-                token_in,
-                amount_in: token_in_amount,
-                token_out,
-                amount_out: token_out_amount,
-                to,
-            });
-            self.env().emit_event(Sync {
-                reserves: self.reserves(),
-            });
-            Ok((token_out_amount, swap_fee))
+            self._swap_exact_in(token_in, token_out, None, min_token_out_amount, to)
         }
 
         #[ink(message)]
