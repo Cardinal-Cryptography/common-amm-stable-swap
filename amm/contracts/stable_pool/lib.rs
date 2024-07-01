@@ -138,6 +138,7 @@ pub mod stable_pool {
         Ok(())
     }
 
+    
     impl StablePoolContract {
         pub fn new_pool(
             tokens: Vec<AccountId>,
