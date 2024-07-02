@@ -1,6 +1,5 @@
 # ![Common logo](common_logo.svg "Common logo")
 
-
 This repository contains implementations of AMM DEXes written for Common product.
 
 There will be multiple AMM models implemented, each being the most suitable model for a certain token pair (stablecoin pairs being created in a CFM based on Curve StableSwap, PSP22 token pair on UniswapV2, etc.)
@@ -44,7 +43,7 @@ The reason to build contracts with this command is to allow for _reproducible bu
 
 ##### How to verify
 
-Check out the repository at commit `TODO` (after deployment) and in the root of the project run the command above. This will output contracts' builds to `/target/ink` directory. 
+Check out the repository at commit `TODO` (after deployment) and in the root of the project run the command above. This will output contracts' builds to `/target/ink` directory.
 
 For every contract there's a separate folder in which you will find `<contract>.json` containing contract's metadata. One of the keys is `source.hash`. Compare that to the code hash of the on-chain contract.
 
