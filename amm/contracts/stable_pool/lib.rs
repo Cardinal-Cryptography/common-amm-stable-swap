@@ -795,7 +795,7 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_fee(
+        fn set_fees(
             &mut self,
             trade_fee_bps: u16,
             protocol_fee_bps: u16,

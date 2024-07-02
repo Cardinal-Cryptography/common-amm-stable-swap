@@ -181,7 +181,7 @@ pub trait StablePool {
     fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;
 
     #[ink(message)]
-    fn set_fee(&mut self, trade_fee_bps: u16, protocol_fee_bps: u16)
+    fn set_fees(&mut self, trade_fee_bps: u16, protocol_fee_bps: u16)
         -> Result<(), StablePoolError>;
 
     #[ink(message)]
