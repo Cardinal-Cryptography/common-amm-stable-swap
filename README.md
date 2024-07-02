@@ -1,12 +1,6 @@
 # ![Common logo](common_logo.svg "Common logo")
 
-This repository contains implementations of AMM DEXes written for Common product.
-
-There will be multiple AMM models implemented, each being the most suitable model for a certain token pair (stablecoin pairs being created in a CFM based on Curve StableSwap, PSP22 token pair on UniswapV2, etc.)
-
-## Purpose
-
-This is an unaudited full dex implementation ready to be used.
+This repository contains an implementation of StableSwap contract for Common DEX.
 
 ## Versions
 
@@ -78,37 +72,18 @@ To manually run unit tests, use:
 cargo test
 ```
 
-##### 💫 Run E2E tests
+##### 💫 Run DRink! tests
 
-To run the E2E test suite, execute the following command from the root directory of the project.
+To run the DRink! test suite, execute the following command from the root directory of the project.
 
 ```sh
-make e2e-tests-with-setup-and-teardown
+make all-drink
 ```
 
 This will:
 
 - Build and wrap your contracts.
-- Run a single node.
-- Sequentially run all the E2E test cases with setup.
-- Stop the node.
-
-##### 💫 Run drink!-based integration tests
-
-To run drink!-based integration test suite, currently implemented only for `Farm` contract, go to `./farm` directory and run `make all-drink` - this will set up the tests and run them.
-
-For more information about the framework see [here](./farm/tests/README.md).
-
-##### 💫 Deploy
-
-First start your local node. You can do that by running `make start-node` in the root directory of the project.
-
-To deploy contracts, execute `npm run deploy-local` in the root directory.
-
-To create sample tokens, execute `npm run create-tokens-local`.
-To register them as pairs in the DEX, run `npm run add-liquidity-local`.
-
-Note that this requires rebuilding TypeScript wrappers first: `npm run compile`.
+- Run e2e tests, using DRink! environment.
 
 ##### 💫 Help
 
@@ -120,4 +95,4 @@ make help
 
 ## Acknowledgement
 
-The contracts here implement a constant-product AMM based on the classical Uniswap V2 model. The initial version of the code has been developed by @HyunggyuJang, @PierreOssun and @shunsukew from Astar and was based on the Solidity implementation of UniswapV2. Since then, a multitude of fixes, enhancements, and alterations have been implemented to refine its functionality and address evolving needs. Through collaborative efforts and continuous improvement, the repository has undergone significant changes, paving the way for a more robust and efficient system that aligns with our current objectives.
+The contracts here implement a StableSwap invariant AMM based on the Curve and Ref Finance. Code has been adapted to work with ink! and be more easily integrated with already-existing Common AMM.
