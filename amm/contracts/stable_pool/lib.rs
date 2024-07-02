@@ -102,6 +102,12 @@ pub mod stable_pool {
         pub new_amp_coef: u128,
     }
 
+    #[ink(event)]
+    pub struct FeeChanged {
+        trade_fee_bps: u16,
+        protocol_fee_bps: u16,
+    }
+
     #[ink::storage_item]
     #[derive(Debug)]
     pub struct StablePoolData {
@@ -797,6 +803,10 @@ pub mod stable_pool {
             self.ensure_owner()?;
             self.pool.fees =
                 Fees::new(trade_fee_bps, protocol_fee_bps).ok_or(StablePoolError::InvalidFee)?;
+            self.env().emit_event(FeeChanged {
+                trade_fee_bps,
+                protocol_fee_bps,
+            });
             Ok(())
         }
 
