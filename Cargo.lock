@@ -227,42 +227,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "factory_contract"
-version = "0.1.0"
-dependencies = [
- "amm-helpers",
- "ink",
- "pair_contract",
- "parity-scale-codec",
- "scale-info",
- "traits",
-]
-
-[[package]]
-name = "farm-trait"
-version = "0.1.0"
-dependencies = [
- "amm-helpers",
- "ink",
- "parity-scale-codec",
- "psp22",
- "scale-info",
-]
-
-[[package]]
-name = "farm_contract"
-version = "0.1.0"
-dependencies = [
- "amm-helpers",
- "farm-trait",
- "ink",
- "parity-scale-codec",
- "primitive-types",
- "psp22",
- "scale-info",
-]
-
-[[package]]
 name = "fixed-hash"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -657,20 +621,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
-name = "pair_contract"
-version = "0.1.0"
-dependencies = [
- "amm-helpers",
- "ink",
- "parity-scale-codec",
- "primitive-types",
- "psp22",
- "scale-info",
- "sp-arithmetic",
- "traits",
-]
-
-[[package]]
 name = "parity-scale-codec"
 version = "3.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -839,19 +789,6 @@ name = "rlibc"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc874b127765f014d792f16763a81245ab80500e2ad921ed4ee9e82481ee08fe"
-
-[[package]]
-name = "router_contract"
-version = "0.1.0"
-dependencies = [
- "amm-helpers",
- "ink",
- "parity-scale-codec",
- "psp22",
- "scale-info",
- "traits",
- "wrapped-azero",
-]
 
 [[package]]
 name = "rustc-hex"
@@ -1337,16 +1274,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "829846f3e3db426d4cee4510841b71a8e58aa2a76b1132579487ae430ccd9c7b"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "wrapped-azero"
-version = "0.1.0"
-source = "git+https://github.com/Cardinal-Cryptography/wAZERO.git#f60d2cce0eb6d291be0bcb93dbb50ad20906f886"
-dependencies = [
- "ink",
- "parity-scale-codec",
- "psp22",
 ]
 
 [[package]]

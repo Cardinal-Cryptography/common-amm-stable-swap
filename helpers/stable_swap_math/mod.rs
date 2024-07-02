@@ -10,9 +10,9 @@ use primitive_types::U256;
 use fees::Fees;
 
 /// Max number of iterations for curve computation using Newton–Raphson method
-pub const MAX_ITERATIONS: u8 = 255;
+const MAX_ITERATIONS: u8 = 255;
 
-pub fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
+fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
     Ok(casted_mul(amount, scaled_rate)
         .checked_div(U256::from(RATE_PRECISION))
         .unwrap()
@@ -20,7 +20,7 @@ pub fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathErro
         .map_err(|_| MathError::CastOverflow(120))?)
 }
 
-pub fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>, MathError> {
+fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>, MathError> {
     amounts
         .iter()
         .zip(scaled_rates.iter())
@@ -28,20 +28,12 @@ pub fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u
         .collect()
 }
 
-pub fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
+fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
     Ok(casted_mul(amount, RATE_PRECISION)
         .checked_div(U256::from(scaled_rate))
         .unwrap()
         .try_into()
         .map_err(|_| MathError::CastOverflow(121))?)
-}
-
-pub fn amounts_from_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>, MathError> {
-    amounts
-        .iter()
-        .zip(scaled_rates.iter())
-        .map(|(amount, &rate)| amount_from_rated(*amount, rate))
-        .collect()
 }
 
 /// Computes stable swap invariant (D)

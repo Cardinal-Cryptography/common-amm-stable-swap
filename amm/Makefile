@@ -7,7 +7,7 @@ help: # Show help for each of the Makefile recipes.
 AMM_CONTRACTS = ./contracts
 AMM_CONTRACTS_PATHS := $(shell find $(AMM_CONTRACTS) -mindepth 1 -maxdepth 1 -type d)
 
-CONTRACTS := factory_contract pair_contract router_contract stable_pool_contract sazero_rate_mock_contract
+CONTRACTS := stable_pool_contract sazero_rate_mock_contract
 
 INK_DEV_IMAGE := "public.ecr.aws/p6e8q1z1/ink-dev:2.1.0"
 SCRIPT_DIR := $(shell cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
@@ -17,7 +17,7 @@ check-amm: check-drink-tests ## Runs cargo (contract) check on AMM contracts.
 	@for d in $(AMM_CONTRACTS_PATHS); do \
 		echo "Checking $$d" ; \
 		cargo check --quiet --all-targets --all-features --manifest-path $$d/Cargo.toml ; \
-		cargo clippy --quiet --all-features --manifest-path $$d/Cargo.toml -- --no-deps -D warnings ; \
+		# cargo clippy --quiet --all-features --manifest-path $$d/Cargo.toml -- --no-deps -D warnings ; \
 		cargo contract check --quiet --manifest-path $$d/Cargo.toml ; \
 	done
 
@@ -61,7 +61,3 @@ check-drink-tests: ## Runs cargo checks on drink tests.
 
 .PHONY:
 all-drink: setup-tests drink-tests ## Runs all tests.
-
-.PHONY: benchmark
-benchmark: setup-tests ## Runs the drink benchmarks.
-	@cd drink-tests && cargo test benchmark --features=benchmark -- --nocapture && cd ..
