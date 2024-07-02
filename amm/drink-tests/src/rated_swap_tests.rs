@@ -20,7 +20,7 @@ const WAZERO_DEC: u8 = 12;
 const ONE_SAZERO: u128 = 10u128.pow(SAZERO_DEC as u32);
 const ONE_AZERO: u128 = 10u128.pow(WAZERO_DEC as u32);
 
-const INIT_SUPPLY: u128 = 1_000_000; // 100k
+const INIT_SUPPLY: u128 = 1_000_000; // 1M
 
 const TRADE_FEE_BPS: u16 = 6;
 const PROTOCOL_FEE_BPS: u16 = 2000;

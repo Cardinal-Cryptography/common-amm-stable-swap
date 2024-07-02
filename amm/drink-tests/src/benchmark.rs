@@ -145,8 +145,8 @@ fn benchmark_2pool_burn_liquidity_imbalanced(&mut session: Session) {
             BOB,
             u128::MAX,
             vec![
-                INIT_SUPPLY * ONE_ICE / (RUNS as u128 + 1),
-                (INIT_SUPPLY - ((i as u128) * imbalance)) * ONE_WOOD / (RUNS as u128 + 1),
+                ((INIT_SUPPLY - 1) * ONE_ICE) / (RUNS as u128),
+                (INIT_SUPPLY - ((i as u128) * imbalance)) * ONE_WOOD / (RUNS as u128),
             ],
             bob(),
         );
