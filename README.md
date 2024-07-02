@@ -95,4 +95,4 @@ make help
 
 ## Acknowledgement
 
-The contracts here implement a constant-sum AMM based on the Curve and Ref Finance. Code has been adapted to work with ink! and be more easily integrated with already-existing Common AMM.
+The contracts here implement a StableSwap invariant AMM based on the Curve and Ref Finance. Code has been adapted to work with ink! and be more easily integrated with already-existing Common AMM.
