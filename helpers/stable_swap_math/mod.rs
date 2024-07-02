@@ -13,11 +13,11 @@ use fees::Fees;
 const MAX_ITERATIONS: u8 = 255;
 
 fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
-    Ok(casted_mul(amount, scaled_rate)
+    casted_mul(amount, scaled_rate)
         .checked_div(U256::from(RATE_PRECISION))
         .unwrap()
         .try_into()
-        .map_err(|_| MathError::CastOverflow(120))?)
+        .map_err(|_| MathError::CastOverflow(120))
 }
 
 fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>, MathError> {
@@ -29,11 +29,11 @@ fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>
 }
 
 fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
-    Ok(casted_mul(amount, RATE_PRECISION)
+    casted_mul(amount, RATE_PRECISION)
         .checked_div(U256::from(scaled_rate))
         .unwrap()
         .try_into()
-        .map_err(|_| MathError::CastOverflow(121))?)
+        .map_err(|_| MathError::CastOverflow(121))
 }
 
 /// Computes stable swap invariant (D)
@@ -254,7 +254,7 @@ pub fn rated_swap_to(
     token_in_idx: usize,
     token_in_amount: u128,
     token_out_idx: usize,
-    current_reserves: &Vec<u128>,
+    current_reserves: &[u128],
     fees: &Fees,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
@@ -318,7 +318,7 @@ pub fn rated_swap_from(
     token_in_idx: usize,
     token_out_amount: u128,
     token_out_idx: usize,
-    current_reserves: &Vec<u128>,
+    current_reserves: &[u128],
     fees: &Fees,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
@@ -441,8 +441,8 @@ fn compute_lp_amount_for_deposit(
 
 pub fn rated_compute_lp_amount_for_deposit(
     rates: &[u128],
-    deposit_amounts: &Vec<u128>,
-    old_reserves: &Vec<u128>,
+    deposit_amounts: &[u128],
+    old_reserves: &[u128],
     pool_token_supply: u128,
     fees: Option<&Fees>,
     amp_coef: u128,
@@ -469,9 +469,9 @@ pub fn compute_amounts_given_lp(
     pool_token_supply: u128,
 ) -> Result<Vec<u128>, MathError> {
     let mut amounts = Vec::with_capacity(reserves.len());
-    for i in 0..reserves.len() {
+    for &reserve in reserves {
         amounts.push(
-            U256::from(reserves[i])
+            U256::from(reserve)
                 .checked_mul(lp_amount.into())
                 .ok_or(MathError::MulOverflow(21))?
                 .checked_div(pool_token_supply.into())
@@ -573,7 +573,7 @@ fn compute_lp_amount_for_withdraw(
 pub fn rated_compute_lp_amount_for_withdraw(
     rates: &[u128],
     withdraw_amounts: &[u128],
-    old_reserves: &Vec<u128>,
+    old_reserves: &[u128],
     pool_token_supply: u128,
     fees: Option<&Fees>,
     amp_coef: u128,
