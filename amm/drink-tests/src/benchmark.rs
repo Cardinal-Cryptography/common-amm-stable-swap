@@ -28,20 +28,24 @@ const RUNS: u64 = 20;
 
 fn setup_test_contracts_2pool(
     session: &mut Session<MinimalRuntime>,
-    enable_admin_fee: bool,
+    enable_protocol_fee: bool,
 ) -> (AccountId, AccountId, AccountId, AccountId, AccountId) {
     upload_all(session);
 
     let fee_to_setter = bob();
     let factory = factory::setup(session, fee_to_setter);
-    if enable_admin_fee {
+    if enable_protocol_fee {
         let _ = session.set_actor(BOB);
         _ = session.execute(
             factory_contract::Instance::from(factory).set_fee_to(AccountId::from([42u8; 32])),
         );
     }
 
-    let fee_receiver = if enable_admin_fee { Some(bob()) } else { None };
+    let fee_receiver = if enable_protocol_fee {
+        Some(bob())
+    } else {
+        None
+    };
 
     let wazero = wazero::setup(session);
     let ice = psp22_utils::setup_with_amounts(
@@ -62,8 +66,10 @@ fn setup_test_contracts_2pool(
         session,
         vec![ice.into(), wood.into()],
         vec![ICE_DEC, WOOD_DEC],
-        100, // A = 100
+        100,
         BOB,
+        6,      // trade_fee
+        2000,   // protocol_fee
         fee_receiver,
     );
 

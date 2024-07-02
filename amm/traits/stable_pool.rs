@@ -19,6 +19,10 @@ pub trait StablePoolView {
     #[ink(message)]
     fn amp_coef(&self) -> u128;
 
+    /// Returns current trade and protocol fees in BPS.
+    #[ink(message)]
+    fn fees(&self) -> (u16, u16);
+
     /// Calculate swap amount of token_out
     /// given token_in amount
     /// Returns (amount_out, fee)
@@ -166,16 +170,22 @@ pub trait StablePool {
     ) -> Result<(u128, u128), StablePoolError>;
 
     #[ink(message)]
+    fn force_update_rate(&mut self);
+
+    // --- OWNER RESTRICTED FUNCTIONS --- //
+
+    #[ink(message)]
     fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError>;
 
     #[ink(message)]
     fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;
 
     #[ink(message)]
-    fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError>;
+    fn set_fees(&mut self, trade_fee_bps: u16, protocol_fee_bps: u16)
+        -> Result<(), StablePoolError>;
 
     #[ink(message)]
-    fn force_update_rate(&mut self);
+    fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError>;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -195,6 +205,7 @@ pub enum StablePoolError {
     InsufficientInputAmount,
     IncorrectTokenCount,
     TooLargeTokenDecimal,
+    InvalidFee,
     OnlyOwner,
 }
 

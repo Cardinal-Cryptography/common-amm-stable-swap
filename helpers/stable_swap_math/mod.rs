@@ -368,7 +368,7 @@ fn compute_lp_amount_for_deposit(
     } else {
         // Initial invariant
         let d_0 = compute_d(old_reserves, amp_coef)?;
-        let n_coins = old_reserves.len();
+        let n_coins = old_reserves.len() as u16;
         let mut new_reserves = old_reserves
             .iter()
             .zip(deposit_amounts.iter())
@@ -399,7 +399,7 @@ fn compute_lp_amount_for_deposit(
                         .checked_sub(ideal_reserve)
                         .ok_or(MathError::SubUnderflow(17))?
                 };
-                let fee = _fees.normalized_trade_fee(n_coins as u32, difference)?;
+                let fee = _fees.normalized_trade_fee(n_coins, difference)?;
                 new_reserves[i] = new_reserves[i]
                     .checked_sub(fee)
                     .ok_or(MathError::SubUnderflow(18))?;
@@ -501,7 +501,7 @@ fn compute_lp_amount_for_withdraw(
     fees: Option<&Fees>,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
-    let n_coins = old_reserves.len();
+    let n_coins = old_reserves.len() as u16;
     // Initial invariant, D0
     let d_0 = compute_d(old_reserves, amp_coef)?;
 
@@ -535,7 +535,7 @@ fn compute_lp_amount_for_withdraw(
                     .checked_sub(ideal_u128)
                     .ok_or(MathError::SubUnderflow(26))?
             };
-            let fee = _fees.normalized_trade_fee(n_coins as u32, difference)?;
+            let fee = _fees.normalized_trade_fee(n_coins, difference)?;
             // new_u128 is for calculation D2, the one with fee charged
             new_reserves[i] = new_reserves[i]
                 .checked_sub(fee)

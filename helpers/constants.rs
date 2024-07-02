@@ -18,11 +18,6 @@ const BURN_ADDRESS_MSG: &str = "This is Aleph Zero DEX's zero address.";
 pub const MINIMUM_LIQUIDITY: u128 = 1000;
 
 pub mod stable_pool {
-    // amount * 0.06%
-    pub const TRADE_FEE_BPS: u32 = 6;
-    // amount * 0.06% * 20% (part of the TRADE_FEE)
-    pub const ADMIN_FEE_BPS: u32 = 2_000;
-
     // Token amounts are rescaled so as if they have TOKEN_TARGET_DECIMALS decimal places.
     pub const TOKEN_TARGET_DECIMALS: u8 = 18;
     pub const TOKEN_TARGET_PRECISION: u128 = 10u128.pow(TOKEN_TARGET_DECIMALS as u32);

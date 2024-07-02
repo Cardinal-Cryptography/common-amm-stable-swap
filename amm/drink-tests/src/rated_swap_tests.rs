@@ -22,6 +22,9 @@ const ONE_AZERO: u128 = 10u128.pow(WAZERO_DEC as u32);
 
 const INIT_SUPPLY: u128 = 1_000_000; // 1M
 
+const TRADE_FEE_BPS: u16 = 6;
+const PROTOCOL_FEE_BPS: u16 = 2000;
+
 const AMP_COEF: u128 = 1000;
 
 fn setup_rated_swap(
@@ -31,6 +34,8 @@ fn setup_rated_swap(
     init_amp_coef: u128,
     rate_expiration_duration_ms: u64,
     caller: drink::AccountId32,
+    trade_fee: u16,
+    protocol_fee: u16,
     fee_receiver: Option<AccountId>,
 ) -> stable_pool_contract::Instance {
     //upload and deploy rate mock
@@ -57,6 +62,8 @@ fn setup_rated_swap(
         rate_expiration_duration_ms,
         init_amp_coef,
         caller.to_account_id(),
+        trade_fee,
+        protocol_fee,
         fee_receiver,
     );
 
@@ -70,7 +77,7 @@ fn setup_rated_swap(
 
 fn setup_all(
     session: &mut Session<MinimalRuntime>,
-    enable_admin_fee: bool,
+    enable_protocol_fee: bool,
 ) -> (AccountId, AccountId, AccountId) {
     upload_all(session);
 
@@ -78,14 +85,14 @@ fn setup_all(
         session,
         "wAZERO".to_string(),
         WAZERO_DEC,
-        INIT_SUPPLY,
+        INIT_SUPPLY * ONE_AZERO,
         BOB,
     );
     let sazero = psp22_utils::setup_with_amounts(
         session,
         "SAZERO".to_string(),
         SAZERO_DEC,
-        INIT_SUPPLY,
+        INIT_SUPPLY * ONE_SAZERO,
         BOB,
     );
     let stable_pool_contract = setup_rated_swap(
@@ -95,6 +102,8 @@ fn setup_all(
         AMP_COEF,
         10000, //10 seconds rate cache expiration
         BOB,
+        TRADE_FEE_BPS,
+        PROTOCOL_FEE_BPS,
         Some(bob()),
     );
 
@@ -113,7 +122,7 @@ fn setup_all(
 }
 
 #[drink::test]
-fn rated_test_1(mut session: Session) {
+fn test_rated_1(mut session: Session) {
     let one_minute: u64 = 60000;
     let now = get_timestamp(&mut session);
     set_timestamp(&mut session, now);
@@ -124,10 +133,10 @@ fn rated_test_1(mut session: Session) {
         rated_swap.into(),
         BOB,
         1,
-        vec![INIT_SUPPLY * ONE_SAZERO / 2, INIT_SUPPLY * ONE_AZERO / 2],
+        vec![INIT_SUPPLY * ONE_SAZERO / 10, INIT_SUPPLY * ONE_AZERO / 10],
         bob(),
     );
-    let amount = 10 * ONE_SAZERO;
+    let amount = 10_000 * ONE_SAZERO; // 10k
 
     psp22_utils::increase_allowance(
         &mut session,
@@ -139,7 +148,7 @@ fn rated_test_1(mut session: Session) {
     .unwrap();
 
     set_timestamp(&mut session, now + 10000 * one_minute);
-    let res = stable_swap::swap_exact_in(
+    let (amount_out, fee) = stable_swap::swap_exact_in(
         &mut session,
         rated_swap.into(),
         BOB,
@@ -149,7 +158,9 @@ fn rated_test_1(mut session: Session) {
         1, // min_token_out
         bob(),
     )
-    .result;
+    .result
+    .unwrap()
+    .unwrap_or_else(|_| panic!("Should return valid result"));
     let reserves = stable_swap::reserves(&mut session, rated_swap.into());
     let balance_0 = psp22_utils::balance_of(&mut session, sazero.into(), rated_swap.into());
     let balance_1 = psp22_utils::balance_of(&mut session, wazero.into(), rated_swap.into());
