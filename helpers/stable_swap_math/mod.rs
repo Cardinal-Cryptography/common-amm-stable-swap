@@ -704,7 +704,7 @@ mod tests {
     #[test]
     fn swap_to_computation_with_fees() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0); // 10% fee
+        let fees = Fees::new(1000, 0).unwrap(); // 10% fee
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_in = 10000000000;
         let expect_token_out = 9999495232;
@@ -722,7 +722,7 @@ mod tests {
     #[test]
     fn swap_from_computation_with_fees() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0); // 10% fee
+        let fees = Fees::new(1000, 0).unwrap(); // 10% fee
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_out = 9999495232;
         let expect_fee: u128 = 9999495232 / 10;
@@ -738,7 +738,7 @@ mod tests {
     #[test]
     fn swap_to_from_computation() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_in: u128 = 62463425433;
         let (amount_out, fee_out) = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef)
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn swap_from_to_computation() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_out: u128 = 62463425433;
 
@@ -767,7 +767,7 @@ mod tests {
     #[test]
     fn withdraw_liquidity_by_share_and_by_amounts_equality_1() {
         let amp_coef: u128 = 85;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
@@ -791,7 +791,7 @@ mod tests {
     #[test]
     fn deposit_liquidity_by_share_and_by_amounts_equality_1() {
         let amp_coef: u128 = 85;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
