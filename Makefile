@@ -106,4 +106,7 @@ all-dockerized: ## Runs the drink test, unit tests and cargo checks on all contr
 		--name ink-dev \
 		-v "$(shell pwd)":/code \
 		$(INK_DEV_IMAGE) \
-		make all-drink && make check-all
+		make all-drink-and-check
+
+.PHONY: all-drink-and-check
+all-drink-and-check: all-drink check-all ## Runs the drink test, unit tests and cargo checks on all contracts.
