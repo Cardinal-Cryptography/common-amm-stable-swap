@@ -23,6 +23,11 @@ pub trait StablePoolView {
     #[ink(message)]
     fn fees(&self) -> (u16, u16);
 
+    /// Updates cached token rates if expired and
+    /// returns current tokens rates with precision of 12 decimal places.
+    #[ink(message)]
+    fn token_rates(&mut self) -> Vec<u128>;
+
     /// Calculate swap amount of token_out
     /// given token_in amount
     /// Returns (amount_out, fee)
@@ -181,8 +186,11 @@ pub trait StablePool {
     fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;
 
     #[ink(message)]
-    fn set_fees(&mut self, trade_fee_bps: u16, protocol_fee_bps: u16)
-        -> Result<(), StablePoolError>;
+    fn set_fees(
+        &mut self,
+        trade_fee_bps: u16,
+        protocol_fee_bps: u16,
+    ) -> Result<(), StablePoolError>;
 
     #[ink(message)]
     fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError>;

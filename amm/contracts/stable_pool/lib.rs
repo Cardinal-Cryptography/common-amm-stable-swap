@@ -849,6 +849,16 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
+        fn token_rates(&mut self) -> Vec<u128> {
+            self.update_rates();
+            self.pool
+                .token_rates
+                .iter()
+                .map(|rate| rate.get_rate())
+                .collect()
+        }
+
+        #[ink(message)]
         fn get_swap_amount_out(
             &mut self,
             token_in: AccountId,
