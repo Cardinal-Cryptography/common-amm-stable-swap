@@ -1,8 +1,6 @@
 use crate::stable_pool_contract::{self, StablePoolError};
 use crate::utils::*;
 
-use drink::frame_support::sp_runtime::traits::IntegerSquareRoot;
-use drink::frame_support::sp_runtime::traits::Scale;
 use drink::{self, runtime::MinimalRuntime, session::Session};
 use ink_primitives::AccountId;
 use ink_wrapper_types::{Connection, ToAccountId};

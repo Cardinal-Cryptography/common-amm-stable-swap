@@ -13,11 +13,11 @@ use fees::Fees;
 const MAX_ITERATIONS: u8 = 255;
 
 fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
-    Ok(casted_mul(amount, scaled_rate)
+    casted_mul(amount, scaled_rate)
         .checked_div(U256::from(RATE_PRECISION))
         .unwrap()
         .try_into()
-        .map_err(|_| MathError::CastOverflow(120))?)
+        .map_err(|_| MathError::CastOverflow(120))
 }
 
 fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>, MathError> {
@@ -29,11 +29,11 @@ fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>
 }
 
 fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
-    Ok(casted_mul(amount, RATE_PRECISION)
+    casted_mul(amount, RATE_PRECISION)
         .checked_div(U256::from(scaled_rate))
         .unwrap()
         .try_into()
-        .map_err(|_| MathError::CastOverflow(121))?)
+        .map_err(|_| MathError::CastOverflow(121))
 }
 
 /// Computes stable swap invariant (D)
@@ -254,7 +254,7 @@ pub fn rated_swap_to(
     token_in_idx: usize,
     token_in_amount: u128,
     token_out_idx: usize,
-    current_reserves: &Vec<u128>,
+    current_reserves: &[u128],
     fees: &Fees,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
@@ -318,7 +318,7 @@ pub fn rated_swap_from(
     token_in_idx: usize,
     token_out_amount: u128,
     token_out_idx: usize,
-    current_reserves: &Vec<u128>,
+    current_reserves: &[u128],
     fees: &Fees,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
@@ -441,8 +441,8 @@ fn compute_lp_amount_for_deposit(
 
 pub fn rated_compute_lp_amount_for_deposit(
     rates: &[u128],
-    deposit_amounts: &Vec<u128>,
-    old_reserves: &Vec<u128>,
+    deposit_amounts: &[u128],
+    old_reserves: &[u128],
     pool_token_supply: u128,
     fees: Option<&Fees>,
     amp_coef: u128,
@@ -469,9 +469,9 @@ pub fn compute_amounts_given_lp(
     pool_token_supply: u128,
 ) -> Result<Vec<u128>, MathError> {
     let mut amounts = Vec::with_capacity(reserves.len());
-    for i in 0..reserves.len() {
+    for &reserve in reserves {
         amounts.push(
-            U256::from(reserves[i])
+            U256::from(reserve)
                 .checked_mul(lp_amount.into())
                 .ok_or(MathError::MulOverflow(21))?
                 .checked_div(pool_token_supply.into())
@@ -573,7 +573,7 @@ fn compute_lp_amount_for_withdraw(
 pub fn rated_compute_lp_amount_for_withdraw(
     rates: &[u128],
     withdraw_amounts: &[u128],
-    old_reserves: &Vec<u128>,
+    old_reserves: &[u128],
     pool_token_supply: u128,
     fees: Option<&Fees>,
     amp_coef: u128,
@@ -704,7 +704,7 @@ mod tests {
     #[test]
     fn swap_to_computation_with_fees() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0); // 10% fee
+        let fees = Fees::new(1000, 0).unwrap(); // 10% fee
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_in = 10000000000;
         let expect_token_out = 9999495232;
@@ -722,7 +722,7 @@ mod tests {
     #[test]
     fn swap_from_computation_with_fees() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0); // 10% fee
+        let fees = Fees::new(1000, 0).unwrap(); // 10% fee
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_out = 9999495232;
         let expect_fee: u128 = 9999495232 / 10;
@@ -738,7 +738,7 @@ mod tests {
     #[test]
     fn swap_to_from_computation() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_in: u128 = 62463425433;
         let (amount_out, fee_out) = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef)
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn swap_from_to_computation() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_out: u128 = 62463425433;
 
@@ -767,7 +767,7 @@ mod tests {
     #[test]
     fn withdraw_liquidity_by_share_and_by_amounts_equality_1() {
         let amp_coef: u128 = 85;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
@@ -791,7 +791,7 @@ mod tests {
     #[test]
     fn deposit_liquidity_by_share_and_by_amounts_equality_1() {
         let amp_coef: u128 = 85;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%

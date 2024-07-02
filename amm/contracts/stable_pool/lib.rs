@@ -136,7 +136,7 @@ pub mod stable_pool {
 
     fn validate_amp_coef(amp_coef: u128) -> Result<(), StablePoolError> {
         ensure!(
-            amp_coef >= MIN_AMP && amp_coef <= MAX_AMP,
+            (MIN_AMP..=MAX_AMP).contains(&amp_coef),
             StablePoolError::InvalidAmpCoef
         );
         Ok(())
@@ -217,6 +217,7 @@ pub mod stable_pool {
         }
 
         #[ink(constructor)]
+        #[allow(clippy::too_many_arguments)]
         pub fn new_rated(
             tokens: Vec<AccountId>,
             tokens_decimals: Vec<u8>,
@@ -490,9 +491,9 @@ pub mod stable_pool {
             // calc amount_out and fees
             let (token_in_amount, fee) = math::rated_swap_from(
                 &rates,
-                token_in_id as usize,
+                token_in_id,
                 token_out_amount,
-                token_out_id as usize,
+                token_out_id,
                 &self.reserves(),
                 &self.pool.fees,
                 self.amp_coef(),
@@ -870,9 +871,9 @@ pub mod stable_pool {
             let rates = self.get_scaled_rates()?;
             Ok(math::rated_swap_to(
                 &rates,
-                token_in_id as usize,
+                token_in_id,
                 token_in_amount,
-                token_out_id as usize,
+                token_out_id,
                 &self.reserves(),
                 &self.pool.fees,
                 self.amp_coef(),
@@ -891,9 +892,9 @@ pub mod stable_pool {
             let rates = self.get_scaled_rates()?;
             Ok(math::rated_swap_from(
                 &rates,
-                token_in_id as usize,
+                token_in_id,
                 token_out_amount,
-                token_out_id as usize,
+                token_out_id,
                 &self.reserves(),
                 &self.pool.fees,
                 self.amp_coef(),
@@ -953,7 +954,7 @@ pub mod stable_pool {
                 Some(&self.pool.fees),
                 self.amp_coef(),
             )
-            .map_err(|err| StablePoolError::MathError(err))
+            .map_err(StablePoolError::MathError)
         }
 
         #[ink(message)]

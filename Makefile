@@ -46,7 +46,7 @@ check-amm: ## Runs cargo (contract) check on AMM contracts.
 	@cd amm && make check-amm && cd ..
 
 .PHONY: check-all
-check-all: check-amm ## Runs cargo checks and unit tests on all contracts.
+check-all: build-and-wrap-all check-amm ## Runs cargo checks and unit tests on all contracts.
 	@cargo test --quiet --locked --frozen --workspace
 
 .PHONY: format
@@ -99,3 +99,14 @@ all-drink-dockerized: ## Runs the drink test in a container.
 .PHONY: all-drink
 all-drink: ## Runs the drink test.
 	@cd amm && make all-drink && cd ..
+
+.PHONY: all-dockerized
+all-dockerized: ## Runs the drink test, unit tests and cargo checks on all contracts in a contrainer.
+	@docker run --rm \
+		--name ink-dev \
+		-v "$(shell pwd)":/code \
+		$(INK_DEV_IMAGE) \
+		make all-drink-and-check
+
+.PHONY: all-drink-and-check
+all-drink-and-check: all-drink check-all ## Runs the drink test, unit tests and cargo checks on all contracts.

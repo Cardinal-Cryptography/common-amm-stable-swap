@@ -1,13 +1,11 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
 use crate::*;
 
 use anyhow::Result;
 use drink::{runtime::MinimalRuntime, session::Session, AccountId32};
 use ink_primitives::AccountId;
 use ink_wrapper_types::{Connection, ContractResult, InkLangError, ToAccountId};
-
-pub const ICE: &str = "ICE";
-pub const WOOD: &str = "WOOD";
-pub const FIRE: &str = "FIRE";
 
 pub const BOB: drink::AccountId32 = AccountId32::new([1u8; 32]);
 pub const CHARLIE: drink::AccountId32 = AccountId32::new([3u8; 32]);

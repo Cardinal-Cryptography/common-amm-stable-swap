@@ -25,4 +25,4 @@ jobs:
             ${{ runner.os }}-rust
 
       - name: DRink! tests
-        run: make all-drink-dockerized
+        run: make all-dockerized

@@ -2,8 +2,6 @@ use crate::sazero_rate_mock_contract;
 use crate::stable_pool_contract;
 use crate::utils::*;
 
-use drink::frame_support::sp_runtime::traits::IntegerSquareRoot;
-use drink::frame_support::sp_runtime::traits::Scale;
 use drink::{self, runtime::MinimalRuntime, session::Session};
 use ink_primitives::AccountId;
 use ink_wrapper_types::{Connection, ToAccountId};
@@ -71,7 +69,6 @@ fn setup_rated_swap(
 
 fn setup_all(
     session: &mut Session<MinimalRuntime>,
-    enable_protocol_fee: bool,
 ) -> (AccountId, AccountId, AccountId) {
     upload_all(session);
 
@@ -121,7 +118,7 @@ fn test_rated_1(mut session: Session) {
     let now = get_timestamp(&mut session);
     set_timestamp(&mut session, now);
     upload_all(&mut session);
-    let (rated_swap, sazero, wazero) = setup_all(&mut session, false);
+    let (rated_swap, sazero, wazero) = setup_all(&mut session);
     _ = stable_swap::add_liquidity(
         &mut session,
         rated_swap.into(),
@@ -142,7 +139,7 @@ fn test_rated_1(mut session: Session) {
     .unwrap();
 
     set_timestamp(&mut session, now + 10000 * one_minute);
-    let (amount_out, fee) = stable_swap::swap_exact_in(
+    _ = stable_swap::swap_exact_in(
         &mut session,
         rated_swap.into(),
         BOB,

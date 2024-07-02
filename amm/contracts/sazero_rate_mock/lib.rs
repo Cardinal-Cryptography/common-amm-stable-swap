@@ -10,6 +10,7 @@ mod sazero_rate_mock {
 
     impl SazeroMockContract {
         #[ink(constructor)]
+        #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
             Self {
                 initial_ts: Self::env().block_timestamp(),
@@ -24,8 +25,7 @@ mod sazero_rate_mock {
             // mock increasing rate (0.01% every 1 minute)
             let now = self.env().block_timestamp();
             let time_d = (now - self.initial_ts) as u128; // ms elapsed
-            let current_one_share_price = RATE_PRECISION + RATE_PRECISION * time_d / 600000000;
-            current_one_share_price
+            RATE_PRECISION + RATE_PRECISION * time_d / 600000000
         }
     }
 
