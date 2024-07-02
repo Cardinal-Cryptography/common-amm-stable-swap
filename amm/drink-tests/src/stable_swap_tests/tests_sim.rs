@@ -7,6 +7,7 @@ const ONE_USDC: u128 = 1000000;
 
 use super::*;
 
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/tests/test_stable_pool.rs#L23
 #[drink::test]
 fn test_01(mut session: Session) {
     let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
@@ -122,18 +123,19 @@ fn test_01(mut session: Session) {
         stable_swap::reserves(&mut session, stable_swap),
         vec![
             100002 * ONE_DAI,
-            99999 * ONE_USDT + 2501,    // -- DIFF -- 99999 * ONE_USDT + 2500
-            99999 * ONE_USDC + 2501     // -- DIFF -- 99999 * ONE_USDC + 2500
+            99999 * ONE_USDT + 2501, // -- DIFF -- 99999 * ONE_USDT + 2500
+            99999 * ONE_USDC + 2501  // -- DIFF -- 99999 * ONE_USDC + 2500
         ],
         "Incorrect reserves"
     );
     assert_eq!(
         psp22_utils::total_supply(&mut session, stable_swap),
-        300000 * ONE_LPT + 498999996725367 + 498999993395420,    // -- DIFF -- 300000 * ONE_LPT + 499999996666583 + 499999993277742
+        300000 * ONE_LPT + 498999996725367 + 498999993395420, // -- DIFF -- 300000 * ONE_LPT + 499999996666583 + 499999993277742
         "Incorrect LP token supply"
     );
 }
 
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/tests/test_stable_pool.rs#L123
 #[drink::test]
 fn test_02(mut session: Session) {
     seed_account(&mut session, CHARLIE);
@@ -482,7 +484,6 @@ fn test_02(mut session: Session) {
         ],
         BOB,
     );
-
 
     handle_ink_error(stable_swap::add_liquidity(
         &mut session,
