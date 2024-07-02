@@ -2,6 +2,8 @@ use crate::sazero_rate_mock_contract;
 use crate::stable_pool_contract;
 use crate::utils::*;
 
+use super::*;
+
 use drink::{self, runtime::MinimalRuntime, session::Session};
 use ink_primitives::AccountId;
 use ink_wrapper_types::{Connection, ToAccountId};
@@ -19,7 +21,7 @@ const PROTOCOL_FEE_BPS: u16 = 2000;
 
 const AMP_COEF: u128 = 1000;
 
-fn setup_rated_swap(
+fn setup_rated_swap_with_tokens(
     session: &mut Session<MinimalRuntime>,
     sazero: AccountId,
     wazero: AccountId,
@@ -69,6 +71,7 @@ fn setup_rated_swap(
 
 fn setup_all(
     session: &mut Session<MinimalRuntime>,
+    _enable_protocol_fee: bool,
 ) -> (AccountId, AccountId, AccountId) {
     upload_all(session);
 
@@ -86,7 +89,7 @@ fn setup_all(
         INIT_SUPPLY * ONE_SAZERO,
         BOB,
     );
-    let stable_pool_contract = setup_rated_swap(
+    let stable_pool_contract = setup_rated_swap_with_tokens(
         session,
         sazero.into(),
         wazero.into(),
@@ -113,12 +116,12 @@ fn setup_all(
 }
 
 #[drink::test]
-fn test_rated_1(mut session: Session) {
+fn test_01(mut session: Session) {
     let one_minute: u64 = 60000;
     let now = get_timestamp(&mut session);
     set_timestamp(&mut session, now);
     upload_all(&mut session);
-    let (rated_swap, sazero, wazero) = setup_all(&mut session);
+    let (rated_swap, sazero, wazero) = setup_all(&mut session, false);
     _ = stable_swap::add_liquidity(
         &mut session,
         rated_swap.into(),
@@ -139,7 +142,7 @@ fn test_rated_1(mut session: Session) {
     .unwrap();
 
     set_timestamp(&mut session, now + 10000 * one_minute);
-    _ = stable_swap::swap_exact_in(
+    let (_amount_out, _fee) = handle_ink_error(stable_swap::swap_exact_in(
         &mut session,
         rated_swap.into(),
         BOB,
@@ -148,10 +151,9 @@ fn test_rated_1(mut session: Session) {
         amount,
         1, // min_token_out
         bob(),
-    )
-    .result
-    .unwrap()
-    .unwrap_or_else(|_| panic!("Should return valid result"));
+    ))
+    .unwrap_or_else(|err| panic!("Should return valid result. Err: {err:?}"));
+
     let reserves = stable_swap::reserves(&mut session, rated_swap.into());
     let balance_0 = psp22_utils::balance_of(&mut session, sazero.into(), rated_swap.into());
     let balance_1 = psp22_utils::balance_of(&mut session, wazero.into(), rated_swap.into());

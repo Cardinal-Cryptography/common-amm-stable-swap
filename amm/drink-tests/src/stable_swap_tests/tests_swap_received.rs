@@ -1,89 +1,27 @@
-use crate::stable_pool_contract::{self, StablePoolError};
-use crate::utils::*;
-
 use drink::{self, runtime::MinimalRuntime, session::Session};
-use ink_primitives::AccountId;
-use ink_wrapper_types::{Connection, ToAccountId};
 
-const FEE_BPS_DENOM: u128 = 10_000;
-
-fn setup_stable_swap(
-    session: &mut Session<MinimalRuntime>,
-    token_decimals: [u8; 2],
-    token_supply: [u128; 2],
-    amp_coef: u128,
-    fee_bps: u16,
-    protocol_fee_bps: u16,
-) -> (AccountId, AccountId, AccountId) {
-    // (stable_pool, token_0, token_1)
-    let _ = session.set_actor(BOB);
-    upload_all(session);
-    session
-        .upload_code(stable_pool_contract::upload())
-        .expect("Upload stable_pair_contract code");
-
-    // instantiate tokens
-    let token_0 = psp22_utils::setup_with_amounts(
-        session,
-        "token_0".to_string(),
-        token_decimals[0],
-        token_supply[0],
-        BOB,
-    );
-    let token_1 = psp22_utils::setup_with_amounts(
-        session,
-        "token_1".to_string(),
-        token_decimals[1],
-        token_supply[1],
-        BOB,
-    );
-
-    // instantiate stable_swap
-    let instance = stable_pool_contract::Instance::new_stable(
-        vec![token_0.into(), token_1.into()],
-        token_decimals.to_vec(),
-        amp_coef,
-        bob(),
-        fee_bps,
-        protocol_fee_bps,
-        Some(charlie()), // fee receiver
-    );
-
-    let stable_swap: stable_pool_contract::Instance = session
-        .instantiate(instance)
-        .unwrap()
-        .result
-        .to_account_id()
-        .into();
-
-    // setup max allowance for stable swap contract on both tokens
-    for token in [token_0, token_1] {
-        psp22_utils::increase_allowance(session, token.into(), stable_swap.into(), u128::MAX, BOB)
-            .unwrap();
-    }
-
-    (stable_swap.into(), token_0.into(), token_1.into())
-}
+use super::*;
 
 /// Tests swap of token at index 0 to token at index 1.
-fn setup_test_swap_exact_in(
+fn setup_test_swap_received(
     session: &mut Session<MinimalRuntime>,
-    token_decimals: [u8; 2],
-    initial_reserves: [u128; 2],
+    token_decimals: Vec<u8>,
+    initial_reserves: Vec<u128>,
     amp_coef: u128,
     fee_bps: u16,
     protocol_fee_bps: u16,
     swap_amount_in: u128,
     expected_swap_amount_out_total_result: Result<u128, StablePoolError>,
 ) {
-    let initial_supply = [initial_reserves[0] + swap_amount_in, initial_reserves[1]];
-    let (stable_swap, token_0, token_1) = setup_stable_swap(
+    let initial_supply = vec![initial_reserves[0] + swap_amount_in, initial_reserves[1]];
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
         session,
         token_decimals,
         initial_supply,
         amp_coef,
         fee_bps,
         protocol_fee_bps,
+        BOB,
     );
     _ = stable_swap::add_liquidity(
         session,
@@ -94,23 +32,22 @@ fn setup_test_swap_exact_in(
         bob(),
     );
 
-    let swap_result = stable_swap::swap_exact_in(
+    let _ = psp22_utils::transfer(session, tokens[0], stable_swap, swap_amount_in, BOB);
+
+    let swap_result = handle_ink_error(stable_swap::swap_received(
         session,
-        stable_swap.into(),
+        stable_swap,
         BOB,
-        token_0,        // in
-        token_1,        // out
-        swap_amount_in, // amount_in
-        0,              // min_token_out
+        tokens[0], // in
+        tokens[1], // out
+        0,       // min_token_out
         bob(),
-    )
-    .result
-    .unwrap();
+    ));
 
     if expected_swap_amount_out_total_result.is_err() {
         match swap_result {
-            Err(ref err) => {
-                let wrapped_error: Result<u128, StablePoolError> = Err(err.clone());
+            Err(err) => {
+                let wrapped_error: Result<u128, StablePoolError> = Err(err);
                 assert_eq!(expected_swap_amount_out_total_result, wrapped_error);
                 return;
             }
@@ -129,9 +66,9 @@ fn setup_test_swap_exact_in(
     assert_eq!(expected_fee, fee, "Fee mismatch");
 
     // check if reserves are equal the actual balances
-    let reserves = stable_swap::reserves(session, stable_swap.into());
-    let balance_0 = psp22_utils::balance_of(session, token_0.into(), stable_swap.into());
-    let balance_1 = psp22_utils::balance_of(session, token_1.into(), stable_swap.into());
+    let reserves = stable_swap::reserves(session, stable_swap);
+    let balance_0 = psp22_utils::balance_of(session, tokens[0], stable_swap);
+    let balance_1 = psp22_utils::balance_of(session, tokens[1], stable_swap);
     assert_eq!(
         reserves,
         vec![balance_0, balance_1],
@@ -139,8 +76,8 @@ fn setup_test_swap_exact_in(
     );
 
     // check bobs balances
-    let balance_0 = psp22_utils::balance_of(session, token_0.into(), bob());
-    let balance_1 = psp22_utils::balance_of(session, token_1.into(), bob());
+    let balance_0 = psp22_utils::balance_of(session, tokens[0], bob());
+    let balance_1 = psp22_utils::balance_of(session, tokens[1], bob());
     assert_eq!(
         [0, expected_swap_amount_out],
         [balance_0, balance_1],
@@ -148,7 +85,7 @@ fn setup_test_swap_exact_in(
     );
 
     // check protocol fee
-    let protocol_fee_lp = psp22_utils::balance_of(session, stable_swap.into(), charlie());
+    let protocol_fee_lp = psp22_utils::balance_of(session, stable_swap.into(), fee_receiver());
     let (total_lp_required, lp_fee_part) = stable_swap::remove_liquidity_by_amounts(
         session,
         stable_swap.into(),
@@ -169,11 +106,11 @@ fn setup_test_swap_exact_in(
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L744
 #[drink::test]
-fn test_stable_swap_exact_in_01(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_01(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [6, 6],                       // decimals
-        [100000000000, 100000000000], // initial reserves
+        vec![6, 6],                       // decimals
+        vec![100000000000, 100000000000], // initial reserves
         1000,                         // A
         6,                            // fee BPS
         2000,                         // protocol fee BPS
@@ -184,11 +121,11 @@ fn test_stable_swap_exact_in_01(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L763
 #[drink::test]
-fn test_stable_swap_exact_in_02(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_02(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [12, 18],
-        [100000000000000000, 100000000000000000000000],
+        vec![12, 18],
+        vec![100000000000000000, 100000000000000000000000],
         1000,
         6,
         2000,
@@ -199,11 +136,11 @@ fn test_stable_swap_exact_in_02(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L782
 #[drink::test]
-fn test_stable_swap_exact_in_03(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_03(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [6, 6],
-        [100000000000, 100000000000],
+        vec![6, 6],
+        vec![100000000000, 100000000000],
         1000,
         6,
         2000,
@@ -214,11 +151,11 @@ fn test_stable_swap_exact_in_03(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L801
 #[drink::test]
-fn test_stable_swap_exact_in_04(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_04(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [12, 18],
-        [100000000000000000, 100000000000000000000000],
+        vec![12, 18],
+        vec![100000000000000000, 100000000000000000000000],
         1000,
         6,
         2000,
@@ -229,11 +166,11 @@ fn test_stable_swap_exact_in_04(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L820
 #[drink::test]
-fn test_stable_swap_exact_in_05(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_05(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [6, 6],
-        [100000000000, 100000000000],
+        vec![6, 6],
+        vec![100000000000, 100000000000],
         1000,
         6,
         2000,
@@ -244,11 +181,11 @@ fn test_stable_swap_exact_in_05(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L839
 #[drink::test]
-fn test_stable_swap_exact_in_06(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_06(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [18, 12],
-        [100000000000000000000000, 100000000000000000],
+        vec![18, 12],
+        vec![100000000000000000000000, 100000000000000000],
         1000,
         6,
         2000,
@@ -259,11 +196,11 @@ fn test_stable_swap_exact_in_06(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L858
 #[drink::test]
-fn test_stable_swap_exact_in_07(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_07(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [6, 6],
-        [100000000000, 100000000000],
+        vec![6, 6],
+        vec![100000000000, 100000000000],
         1000,
         6,
         2000,
@@ -274,11 +211,11 @@ fn test_stable_swap_exact_in_07(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L877
 #[drink::test]
-fn test_stable_swap_exact_in_08(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_08(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [12, 18],
-        [100000000000000000, 100000000000000000000000],
+        vec![12, 18],
+        vec![100000000000000000, 100000000000000000000000],
         1000,
         6,
         2000,
@@ -289,11 +226,11 @@ fn test_stable_swap_exact_in_08(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L896
 #[drink::test]
-fn test_stable_swap_exact_in_09(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_09(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [6, 6],
-        [100000000000, 100000000000],
+        vec![6, 6],
+        vec![100000000000, 100000000000],
         1000,
         6,
         2000,
@@ -304,11 +241,11 @@ fn test_stable_swap_exact_in_09(mut session: Session) {
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L915
 #[drink::test]
-fn test_stable_swap_exact_in_10(mut session: Session) {
-    setup_test_swap_exact_in(
+fn test_10(mut session: Session) {
+    setup_test_swap_received(
         &mut session,
-        [12, 18],
-        [100000000000000000, 100000000000000000000000],
+        vec![12, 18],
+        vec![100000000000000000, 100000000000000000000000],
         1000,
         6,
         2000,
