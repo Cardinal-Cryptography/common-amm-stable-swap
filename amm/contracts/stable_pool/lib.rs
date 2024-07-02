@@ -841,6 +841,14 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
+        fn fees(&self) -> (u16, u16) {
+            (
+                self.pool.fees.trade_fee_bps,
+                self.pool.fees.protocol_fee_bps,
+            )
+        }
+
+        #[ink(message)]
         fn get_swap_amount_out(
             &mut self,
             token_in: AccountId,
