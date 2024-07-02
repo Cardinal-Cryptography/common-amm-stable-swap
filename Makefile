@@ -34,27 +34,19 @@ build-node-arm64:
 build-node-x86_64:
 	@docker buildx build --pull --platform linux/amd64 -t aleph-onenode-chain-x86_64 --load docker
 
-.PHONY: build-farm
-build-farm: ## Builds farm contracts.
-	@cd farm && make build-farm && cd ..
-
 .PHONY: build-amm
 build-amm: ## Builds AMM contracts.
 	@cd amm && make build-all && cd ..
 
 .PHONY: build-all
-build-all: build-farm build-amm ## Builds all contracts.
-
-.PHONY: check-farm
-check-farm: ## Runs cargo checks on farm contracts.
-	@cd farm && make check-farm && cd ..
+build-all: build-amm ## Builds all contracts.
 
 .PHONY: check-amm
 check-amm: ## Runs cargo (contract) check on AMM contracts.
 	@cd amm && make check-amm && cd ..
 
 .PHONY: check-all
-check-all: check-farm check-amm ## Runs cargo checks and unit tests on all contracts.
+check-all: check-amm ## Runs cargo checks and unit tests on all contracts.
 	@cargo test --quiet --locked --frozen --workspace
 
 .PHONY: format
@@ -108,8 +100,3 @@ all-drink-dockerized: ## Runs the drink test in a container.
 .PHONY: all-drink
 all-drink: ## Runs the drink test.
 	@cd amm && make all-drink && cd ..
-	@cd farm && make all-drink && cd ..
-
-.PHONY: benchmark-amm
-benchmark-amm: ## Runs the drink benchmarks.
-	@cd amm && make benchmark && cd ..

@@ -1,11 +1,5 @@
-use crate::factory_contract;
-use crate::pair_contract;
-use crate::pair_contract::Pair;
-use crate::router_contract;
 use crate::stable_pool_contract::{self, StablePoolError};
 use crate::utils::*;
-
-use router_contract::Router as _;
 
 use drink::frame_support::sp_runtime::traits::IntegerSquareRoot;
 use drink::frame_support::sp_runtime::traits::Scale;
