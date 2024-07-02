@@ -12,6 +12,7 @@ use fees::Fees;
 /// Max number of iterations for curve computation using Newton–Raphson method
 const MAX_ITERATIONS: u8 = 255;
 
+// [OK]
 fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
     Ok(casted_mul(amount, scaled_rate)
         .checked_div(U256::from(RATE_PRECISION))
@@ -20,14 +21,17 @@ fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
         .map_err(|_| MathError::CastOverflow(120))?)
 }
 
+// [OK]
 fn amounts_to_rated(amounts: &[u128], scaled_rates: &[u128]) -> Result<Vec<u128>, MathError> {
     amounts
         .iter()
         .zip(scaled_rates.iter())
+        // suggestion: (&amount, &rate) to avoid dereferencing *amount later
         .map(|(amount, &rate)| amount_to_rated(*amount, rate))
         .collect()
 }
 
+// [OK]
 fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
     Ok(casted_mul(amount, RATE_PRECISION)
         .checked_div(U256::from(scaled_rate))
@@ -37,6 +41,7 @@ fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError>
 }
 
 /// Computes stable swap invariant (D)
+// [OK]
 fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
     // SUM{x_i}
     let amount_sum = amounts.iter().try_fold(U256::from(0), |acc, &amount| {
@@ -79,6 +84,7 @@ fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
     }
 }
 
+// [??]
 fn compute_d_next(
     d_prev: U256,
     n: u32,
@@ -90,6 +96,11 @@ fn compute_d_next(
     let mut d_prod = d_prev;
     // d_prod = ... * [d_prev / (x_(i) * n)] * ...
     // where i in (0,n)
+
+    // The order of arithmetic operations differs from curve.fi (https://github.com/curvefi/stableswap-ng/blob/main/contracts/main/CurveStableSwapNGMath.vy#L118)
+    // We perform division by n**n iteratively, while they divide by n**n at the end. Although mathematically both approaches
+    // are equivalent, due to integer division, the results are sometimes different (see test::check_d_next)
+    // tho ref-contracts has the same approach as ours: (https://github.com/ref-finance/ref-contracts/blob/main/ref-exchange/src/stable_swap/math.rs#L153)
     for amount in amounts {
         d_prod = d_prod
             .checked_mul(d_prev)
@@ -129,6 +140,7 @@ fn compute_d_next(
 /// given new reserve of `x` tokens
 ///
 /// NOTICE: it does not check if `token_x_id` != `token_y_id` and if tokens' `id`s are out of bounds
+// [OK]
 fn compute_y(
     new_reserve_x: u128,
     reserves: &Vec<u128>,
@@ -196,6 +208,7 @@ fn compute_y(
     Ok(y.as_u128())
 }
 
+// [OK]
 fn compute_y_next(y_prev: U256, b: U256, c: U256, d: U256) -> Result<U256, MathError> {
     let numerator = y_prev
         .checked_pow(2.into())
@@ -218,6 +231,7 @@ fn compute_y_next(y_prev: U256, b: U256, c: U256, d: U256) -> Result<U256, MathE
 /// panics if token ids are out of bounds.
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`.
 /// Returns (amount_out, fee_amount)
+// [OK]
 fn swap_to(
     token_in_idx: usize,
     token_in_amount: u128,
@@ -249,6 +263,7 @@ fn swap_to(
     Ok((amount_swapped, fee))
 }
 
+// [OK]
 pub fn rated_swap_to(
     rates: &[u128],
     token_in_idx: usize,
@@ -279,6 +294,7 @@ pub fn rated_swap_to(
 /// panics if token ids are out of bounds
 /// NOTICE: it does not check if `token_in_id` != `token_out_id`
 /// /// Returns (amount_in, fee_amount)
+// [OK]
 fn swap_from(
     token_in_idx: usize,
     token_out_amount: u128, // Net amount (w/o fee)
@@ -313,6 +329,7 @@ fn swap_from(
     Ok((dy, fee))
 }
 
+// [OK]
 pub fn rated_swap_from(
     rates: &[u128],
     token_in_idx: usize,
@@ -340,6 +357,7 @@ pub fn rated_swap_from(
 
 /// Compute the amount of LP tokens to mint after a deposit
 /// return <lp_amount_to_mint, lp_fees_part>
+// [OK]
 fn compute_lp_amount_for_deposit(
     deposit_amounts: &Vec<u128>,
     old_reserves: &Vec<u128>,
@@ -439,6 +457,7 @@ fn compute_lp_amount_for_deposit(
     }
 }
 
+// [OK]
 pub fn rated_compute_lp_amount_for_deposit(
     rates: &[u128],
     deposit_amounts: &Vec<u128>,
@@ -459,10 +478,12 @@ pub fn rated_compute_lp_amount_for_deposit(
     )
 }
 
+// Should be a doc-string '///'
 /***
  * Returns amounts of tokens minted/burned for a given amount of LP tokens
  * and the current reserves
  */
+// [OK]
 pub fn compute_amounts_given_lp(
     lp_amount: u128,
     reserves: &Vec<u128>,
@@ -486,6 +507,7 @@ pub fn compute_amounts_given_lp(
 /// given token_out user want get and total tokens in pool and lp token supply,
 /// return <lp_amount_to_burn, lp_fees_part>
 /// all amounts are in c_amount (comparable amount)
+// [OK]
 fn compute_lp_amount_for_withdraw(
     withdraw_amounts: &[u128],
     old_reserves: &Vec<u128>,
@@ -570,6 +592,7 @@ fn compute_lp_amount_for_withdraw(
     }
 }
 
+// [OK]
 pub fn rated_compute_lp_amount_for_withdraw(
     rates: &[u128],
     withdraw_amounts: &[u128],
@@ -704,7 +727,7 @@ mod tests {
     #[test]
     fn swap_to_computation_with_fees() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0); // 10% fee
+        let fees = Fees::new(1000, 0).unwrap(); // 10% fee
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_in = 10000000000;
         let expect_token_out = 9999495232;
@@ -722,7 +745,7 @@ mod tests {
     #[test]
     fn swap_from_computation_with_fees() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0); // 10% fee
+        let fees = Fees::new(1000, 0).unwrap(); // 10% fee
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_out = 9999495232;
         let expect_fee: u128 = 9999495232 / 10;
@@ -738,13 +761,13 @@ mod tests {
     #[test]
     fn swap_to_from_computation() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_in: u128 = 62463425433;
         let (amount_out, fee_out) = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+            .unwrap_or_else(|_| panic!("Should return SwapResult")); // .expect("Should return SwapResult") does the same thing (many places)
         let (amount_in, fee_in) = swap_from(0, amount_out, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+            .unwrap_or_else(|_| panic!("Should return SwapResult")); // .expect("Should return SwapResult") does the same thing (many places)
         assert_eq!(amount_in, token_0_in, "Incorrect swap amount");
         assert_eq!(fee_out, fee_in, "Incorrect fee amount");
     }
@@ -752,7 +775,7 @@ mod tests {
     #[test]
     fn swap_from_to_computation() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_out: u128 = 62463425433;
 
@@ -767,7 +790,7 @@ mod tests {
     #[test]
     fn withdraw_liquidity_by_share_and_by_amounts_equality_1() {
         let amp_coef: u128 = 85;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
@@ -791,7 +814,7 @@ mod tests {
     #[test]
     fn deposit_liquidity_by_share_and_by_amounts_equality_1() {
         let amp_coef: u128 = 85;
-        let fees = Fees::new(2137, 0);
+        let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
@@ -807,5 +830,68 @@ mod tests {
         .unwrap_or_else(|_| panic!("Should mint liquidity"));
         assert_eq!(fee_part, 0, "Fee should be 0");
         assert_eq!(share, share_by_deposit, "Deposit amounts differ.");
+    }
+
+    #[test]
+    fn check_d_next() {
+        let x: Vec<u128> = vec![637264123443299858, 748293774655121309, 763234919987373462];
+        let d_prev: U256 = (x[0] + x[1] + x[2]).into();
+
+        // method 1, used in our d_next
+        let mut d_prod = d_prev;
+        // d_prod = ... * [d_prev / (x_(i) * n)] * ...
+        // where i in (0,n)
+        for amount in &x {
+            d_prod = d_prod
+                .checked_mul(d_prev)
+                .ok_or(MathError::MulOverflow(3)).unwrap()
+                .checked_div(
+                    amount
+                        .checked_mul(x.len() as u128)
+                        .ok_or(MathError::MulOverflow(4)).unwrap()
+                        .into(),
+                )
+                .ok_or(MathError::DivByZero(1)).unwrap();
+        }
+
+        let res1 = d_prod;
+
+        // method 2, used in curve.fi
+        let mut d_prod = d_prev;
+        let mut n_pow: u128 = 1;
+        // d_prod = ... * [d_prev / (x_(i) * n)] * ...
+        // where i in (0,n)
+        for amount in &x {
+            n_pow *= x.len() as u128;
+            d_prod = d_prod
+                .checked_mul(d_prev)
+                .ok_or(MathError::MulOverflow(3)).unwrap()
+                .checked_div(
+                    (*amount).into()
+                )
+                .ok_or(MathError::DivByZero(1)).unwrap();
+        }
+
+        d_prod /= n_pow;
+
+        let res2 = d_prod;
+
+        assert_eq!(res1, res2); // fails
+        // res1: `2169524591427632092`
+        // res2: `2169524591427632093`
+    }
+
+    #[test]
+    fn check_from_to_3() {
+        let reserves: Vec<u128> = vec![876345987234123098, 123234765543098987, 987675234345456567];
+        let amt_in = 100000997434999321;
+        let fees = Fees::new(30, 0).unwrap();
+        let amp_coef: u128 = 1000;
+
+        let (amt_out, in_fee) = swap_to(0, amt_in, 1, &reserves, &fees, amp_coef).unwrap();
+        let (res_amt_in, out_fee) = swap_from(0, amt_out, 1, &reserves, &fees, amp_coef).unwrap();
+
+        assert_eq!(res_amt_in, amt_in);
+        assert_eq!(in_fee, out_fee);
     }
 }
