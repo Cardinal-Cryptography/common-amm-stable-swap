@@ -1,4 +1,5 @@
 mod tests_add_remove_lp;
+mod tests_getters;
 mod tests_rated;
 mod tests_swap_exact_in;
 mod tests_swap_received;
@@ -25,6 +26,11 @@ pub const FEE_RECEIVER: AccountId32 = AccountId32::new([42u8; 32]);
 pub fn fee_receiver() -> ink_primitives::AccountId {
     AsRef::<[u8; 32]>::as_ref(&FEE_RECEIVER).clone().into()
 }
+
+pub const ONE_LPT: u128 = 1000000000000000000;
+pub const ONE_DAI: u128 = 1000000000000000000;
+pub const ONE_USDT: u128 = 1000000;
+pub const ONE_USDC: u128 = 1000000;
 
 pub fn setup_stable_swap_with_tokens(
     session: &mut Session<MinimalRuntime>,
