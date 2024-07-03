@@ -64,8 +64,18 @@ fn test_swap_exact_in(
     assert_eq!(expected_swap_amount_out, amount_out, "Amount out mismatch");
     assert_eq!(expected_fee, fee, "Fee mismatch");
 
-    // check if reserves are equal the actual balances
+    // check if reserves were updated properly
     let reserves = stable_swap::reserves(session, stable_swap);
+    assert_eq!(
+        reserves,
+        [
+            initial_reserves[0] + swap_amount_in,
+            initial_reserves[1] - expected_swap_amount_out
+        ],
+        "Reserves not updated properly"
+    );
+
+    // check if reserves are equal the actual balances
     let balance_0 = psp22_utils::balance_of(session, tokens[0], stable_swap);
     let balance_1 = psp22_utils::balance_of(session, tokens[1], stable_swap);
     assert_eq!(
