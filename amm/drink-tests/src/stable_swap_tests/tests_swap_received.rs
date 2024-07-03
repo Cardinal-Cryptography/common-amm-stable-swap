@@ -34,15 +34,15 @@ fn setup_test_swap_received(
 
     let _ = psp22_utils::transfer(session, tokens[0], stable_swap, swap_amount_in, BOB);
 
-    let swap_result = stable_swap::swap_received(
+    let swap_result = handle_ink_error(stable_swap::swap_received(
         session,
         stable_swap,
         BOB,
         tokens[0], // in
         tokens[1], // out
-        0,         // min_token_out
+        0,       // min_token_out
         bob(),
-    );
+    ));
 
     if expected_swap_amount_out_total_result.is_err() {
         match swap_result {
@@ -94,7 +94,9 @@ fn setup_test_swap_received(
         [0, expected_protocol_fee_part].to_vec(),
         bob(),
     )
-    .expect("Should remove lp");
+    .result
+    .unwrap()
+    .unwrap();
     assert_eq!(
         total_lp_required - lp_fee_part,
         protocol_fee_lp,
@@ -109,11 +111,11 @@ fn test_01(mut session: Session) {
         &mut session,
         vec![6, 6],                       // decimals
         vec![100000000000, 100000000000], // initial reserves
-        1000,                             // A
-        6,                                // fee BPS
-        2000,                             // protocol fee BPS
-        10000000000,                      // swap_amount_in
-        Ok(9999495232),                   // expected out (with fee)
+        1000,                         // A
+        6,                            // fee BPS
+        2000,                         // protocol fee BPS
+        10000000000,                  // swap_amount_in
+        Ok(9999495232),               // expected out (with fee)
     );
 }
 

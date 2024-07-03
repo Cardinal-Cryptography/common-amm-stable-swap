@@ -9,7 +9,7 @@ readonly SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null 
 declare -a CONTRACTS=(
     "stable_pool_contract" 
     "psp22"
-    "mock_sazero_rate_contract"
+    "sazero_rate_mock_contract"
 )
 
 function wrap_contracts() {

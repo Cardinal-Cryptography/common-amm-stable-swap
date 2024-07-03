@@ -21,15 +21,15 @@ fn test_01(mut session: Session) {
         BOB,
     );
 
-    _ = stable_swap::add_liquidity(
+    handle_ink_error(stable_swap::add_liquidity(
         &mut session,
         stable_swap,
         BOB,
         1,
         initial_reserves.clone(),
         bob(),
-    )
-    .expect("Should successfully add liquidity");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully add liquidity. Err: {err:?}"));
 
     assert_eq!(
         stable_swap::tokens(&mut session, stable_swap),
@@ -75,7 +75,7 @@ fn test_01(mut session: Session) {
         "Incorrect Users tokens balances"
     );
 
-    _ = stable_swap::swap_exact_in(
+    _ = handle_ink_error(stable_swap::swap_exact_in(
         &mut session,
         stable_swap,
         BOB,
@@ -84,10 +84,10 @@ fn test_01(mut session: Session) {
         ONE_DAI,   // amount_in
         1,         // min_token_out
         charlie(),
-    )
-    .expect("Should successfully swap");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully swap. Err: {err:?}"));
 
-    _ = stable_swap::swap_exact_in(
+    _ = handle_ink_error(stable_swap::swap_exact_in(
         &mut session,
         stable_swap,
         BOB,
@@ -96,8 +96,8 @@ fn test_01(mut session: Session) {
         ONE_DAI,   // amount_in
         1,         // min_token_out
         charlie(),
-    )
-    .expect("Should successfully swap. ");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully swap. Err: {err:?}"));
 
     let balances: Vec<u128> = tokens
         .iter()
@@ -155,18 +155,18 @@ fn test_02(mut session: Session) {
         BOB,
     );
 
-    _ = stable_swap::add_liquidity(
+    handle_ink_error(stable_swap::add_liquidity(
         &mut session,
         stable_swap,
         BOB,
         1,
         initial_reserves.clone(),
         bob(),
-    )
-    .expect("Should successfully add liquidity");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully add liquidity. Err: {err:?}"));
 
     let (last_share_price, last_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap, None);
+        share_price_and_total_shares(&mut session, stable_swap);
 
     transfer_and_increase_allowance(
         &mut session,
@@ -178,33 +178,33 @@ fn test_02(mut session: Session) {
     );
 
     // add more liquidity with balanced tokens (charlie)
-    _ = stable_swap::add_liquidity(
+    handle_ink_error(stable_swap::add_liquidity(
         &mut session,
         stable_swap,
         CHARLIE,
         1,
         vec![500 * ONE_DAI, 500 * ONE_USDT, 500 * ONE_USDC],
         charlie(),
-    )
-    .expect("Should successfully add liquidity");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully add liquidity. Err: {err:?}"));
 
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares + 1500 * ONE_LPT)
     );
 
     let last_total_shares = last_total_shares + 1500 * ONE_LPT;
 
     // remove by shares (charlie)
-    _ = stable_swap::remove_liquidity_by_shares(
+    handle_ink_error(stable_swap::remove_liquidity_by_shares(
         &mut session,
         stable_swap,
         CHARLIE,
         300 * ONE_LPT,
         vec![1 * ONE_DAI, 1 * ONE_USDT, 1 * ONE_USDC],
         charlie(),
-    )
-    .expect("Should successfully remove liquidity");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully remove liquidity. Err: {err:?}"));
 
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
@@ -220,7 +220,7 @@ fn test_02(mut session: Session) {
         "Incorrect Users tokens balances"
     );
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares - 300 * ONE_LPT)
     );
     let last_total_shares = last_total_shares - 300 * ONE_LPT;
@@ -235,15 +235,15 @@ fn test_02(mut session: Session) {
     );
 
     // add more liquidity with imbalanced tokens (dave)
-    _ = stable_swap::add_liquidity(
+    handle_ink_error(stable_swap::add_liquidity(
         &mut session,
         stable_swap,
         DAVE,
         1,
         vec![100 * ONE_DAI, 200 * ONE_USDT, 400 * ONE_USDC],
         dave(),
-    )
-    .expect("Should successfully add liquidity");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully add liquidity. Err: {err:?}"));
     // "Mint 699699997426210330025 shares for user2, fee is 299999998348895348 shares",
     // "Exchange swap got 59999999669779069 shares",
 
@@ -264,7 +264,7 @@ fn test_02(mut session: Session) {
     );
 
     let (current_share_price, current_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap, None);
+        share_price_and_total_shares(&mut session, stable_swap);
     assert!(
         current_share_price > last_share_price,
         "Incorrect share price"
@@ -278,15 +278,15 @@ fn test_02(mut session: Session) {
     let last_total_shares = current_total_shares;
 
     // remove by tokens (charlie)
-    _ = stable_swap::remove_liquidity_by_amounts(
+    handle_ink_error(stable_swap::remove_liquidity_by_amounts(
         &mut session,
         stable_swap,
         CHARLIE,
         550 * ONE_LPT,
         vec![1 * ONE_DAI, 500 * ONE_USDT, 1 * ONE_USDC],
         charlie(),
-    )
-    .expect("Should successfully remove liquidity. Err: {err:?}");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully remove liquidity. Err: {err:?}"));
     // "LP charlie removed 502598511257512352631 shares by given tokens, and fee is 598899301432400519 shares",
     // "Exchange swap got 119779860286480103 shares",
     assert_eq!(
@@ -325,7 +325,7 @@ fn test_02(mut session: Session) {
         699699997426210330025,
         "Incorrect users share"
     );
-    let (current_share_price, _) = share_price_and_total_shares(&mut session, stable_swap, None);
+    let (current_share_price, _) = share_price_and_total_shares(&mut session, stable_swap);
     assert!(
         current_share_price > last_share_price,
         "Incorrect share price"
@@ -348,53 +348,51 @@ fn test_02(mut session: Session) {
     );
 
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares),
         "Incorrect share price and/or total shares"
     );
 
     // dave remove by shares trigger slippage
-    let res = stable_swap::remove_liquidity_by_shares(
+    let res = handle_ink_error(stable_swap::remove_liquidity_by_shares(
         &mut session,
         stable_swap,
         DAVE,
         300 * ONE_LPT,
         vec![1 * ONE_DAI, 298 * ONE_USDT, 1 * ONE_USDC],
         dave(),
-    )
-    .expect_err("Should return an error");
+    ));
 
     assert_eq!(
         res,
-        StablePoolError::InsufficientOutputAmount(),
+        Err(StablePoolError::InsufficientOutputAmount()),
         "Should return correct error"
     );
 
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares),
         "Incorrect share price and/or total shares"
     );
 
     // dave remove by tokens trigger slippage
-    let res = stable_swap::remove_liquidity_by_amounts(
+    let res = handle_ink_error(stable_swap::remove_liquidity_by_amounts(
         &mut session,
         stable_swap,
         DAVE,
         300 * ONE_LPT,
         vec![1 * ONE_DAI, 298 * ONE_USDT, 1 * ONE_USDC],
         dave(),
-    )
-    .expect_err("Shoulf return an error");
+    ));
 
     assert_eq!(
         res,
-        StablePoolError::InsufficientLiquidityBurned(),
+        Err(StablePoolError::InsufficientLiquidityBurned()),
         "Should return correct error"
     );
 
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares),
         "Incorrect share price and/or total shares"
     );
@@ -411,15 +409,15 @@ fn test_02(mut session: Session) {
     );
 
     // dave remove by share
-    _ = stable_swap::remove_liquidity_by_shares(
+    handle_ink_error(stable_swap::remove_liquidity_by_shares(
         &mut session,
         stable_swap,
         DAVE,
         300 * ONE_LPT,
         vec![1 * ONE_DAI, 1 * ONE_USDT, 1 * ONE_USDC],
         dave(),
-    )
-    .expect("Should successfully remove liquidity");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully remove liquidity. Err: {err:?}"));
     // "LP dave removed 498596320225563082252 shares by given tokens, and fee is 597500435701476809 shares",
     // "Exchange swap got 119500087140295361 shares",
 
@@ -435,7 +433,7 @@ fn test_02(mut session: Session) {
     );
 
     let (current_share_price, current_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap, None);
+        share_price_and_total_shares(&mut session, stable_swap);
     assert_eq!(
         current_share_price, last_share_price,
         "Incorrect share price"
@@ -447,15 +445,15 @@ fn test_02(mut session: Session) {
     );
     let last_total_shares = last_total_shares - 300 * ONE_LPT;
 
-    _ = stable_swap::remove_liquidity_by_amounts(
+    handle_ink_error(stable_swap::remove_liquidity_by_amounts(
         &mut session,
         stable_swap,
         DAVE,
         499 * ONE_LPT,
         vec![498 * ONE_DAI, 0 * ONE_USDT, 0 * ONE_USDC],
         dave(),
-    )
-    .expect("Should successfully remove liquidity");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully remove liquidity. Err: {err:?}"));
     // "LP user2 removed 498596320225563082252 shares by given tokens, and fee is 597500435701476809 shares",
     // "Exchange swap got 119500087140295361 shares, No referral fee, from remove_liquidity_by_tokens",
     // -- DIFF --
@@ -475,7 +473,7 @@ fn test_02(mut session: Session) {
 
     let last_total_shares = last_total_shares - 498596320224035614380 + 119500087140112295;
     let (current_share_price, current_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap, None);
+        share_price_and_total_shares(&mut session, stable_swap);
     assert!(
         current_share_price > last_share_price,
         "Incorrect share price"
@@ -498,7 +496,7 @@ fn test_02(mut session: Session) {
         BOB,
     );
 
-    stable_swap::add_liquidity(
+    handle_ink_error(stable_swap::add_liquidity(
         &mut session,
         stable_swap,
         EVA,
@@ -509,8 +507,8 @@ fn test_02(mut session: Session) {
             100_000_000_000 * ONE_USDC,
         ],
         eva(),
-    )
-    .expect("Should successfully add liquidity");
+    ))
+    .unwrap_or_else(|err| panic!("Should successfully add liquidity. Err: {err:?}"));
     // "Mint 299997911758886758506069372942 shares for user3, fee is 895808190595468286848457 shares",
     // "Exchange swap got 179161638119093657369691 shares, No referral fee, from add_liquidity",
     // -- DIFF --

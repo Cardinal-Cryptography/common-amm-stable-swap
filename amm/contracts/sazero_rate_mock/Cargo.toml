@@ -1,5 +1,5 @@
 [package]
-name = "mock_sazero_rate_contract"
+name = "sazero_rate_mock_contract"
 version = "0.1.0"
 authors = ["Cardinal Cryptography"]
 edition = "2021"
@@ -16,9 +16,14 @@ scale-info = { version = "2.9", default-features = false, features = [
 
 
 traits = { path = "../../traits", default-features = false }
+amm-helpers = { path = "../../../helpers", default-features = false }
+primitive-types = { version = "0.12.1", default-features = false, features = [
+    "codec",
+] }
+sp-arithmetic = { version = "18.0.0", default-features = false }
 
 [lib]
-name = "mock_sazero_rate_contract"
+name = "sazero_rate_mock_contract"
 path = "lib.rs"
 doctest = false
 
@@ -29,5 +34,6 @@ std = [
     "scale/std",
     "scale-info/std",
     "traits/std",
+    "amm-helpers/std",
 ]
 ink-as-dependency = []

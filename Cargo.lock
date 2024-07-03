@@ -606,16 +606,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f665ee40bc4a3c5590afb1e9677db74a508659dfd71e126420da8274909a0167"
 
 [[package]]
-name = "mock_sazero_rate_contract"
-version = "0.1.0"
-dependencies = [
- "ink",
- "parity-scale-codec",
- "scale-info",
- "traits",
-]
-
-[[package]]
 name = "num-traits"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -824,6 +814,19 @@ name = "ryu"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad4cc8da4ef723ed60bced201181d83791ad433213d8c24efffda1eec85d741"
+
+[[package]]
+name = "sazero_rate_mock_contract"
+version = "0.1.0"
+dependencies = [
+ "amm-helpers",
+ "ink",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-arithmetic",
+ "traits",
+]
 
 [[package]]
 name = "scale-bits"
