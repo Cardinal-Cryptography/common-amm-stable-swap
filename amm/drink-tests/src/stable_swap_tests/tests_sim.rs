@@ -177,6 +177,7 @@ fn test_02(mut session: Session) {
         BOB,
     );
 
+    // add more liquidity with balanced tokens (charlie)
     handle_ink_error(stable_swap::add_liquidity(
         &mut session,
         stable_swap,
@@ -194,6 +195,7 @@ fn test_02(mut session: Session) {
 
     let last_total_shares = last_total_shares + 1500 * ONE_LPT;
 
+    // remove by shares (charlie)
     handle_ink_error(stable_swap::remove_liquidity_by_shares(
         &mut session,
         stable_swap,
@@ -232,6 +234,7 @@ fn test_02(mut session: Session) {
         BOB,
     );
 
+    // add more liquidity with imbalanced tokens (dave)
     handle_ink_error(stable_swap::add_liquidity(
         &mut session,
         stable_swap,
@@ -241,6 +244,8 @@ fn test_02(mut session: Session) {
         dave(),
     ))
     .unwrap_or_else(|err| panic!("Should successfully add liquidity. Err: {err:?}"));
+    // "Mint 699699997426210330025 shares for user2, fee is 299999998348895348 shares",
+    // "Exchange swap got 59999999669779069 shares",
 
     assert_eq!(
         stable_swap::reserves(&mut session, stable_swap),
@@ -272,6 +277,7 @@ fn test_02(mut session: Session) {
     );
     let last_total_shares = current_total_shares;
 
+    // remove by tokens (charlie)
     handle_ink_error(stable_swap::remove_liquidity_by_amounts(
         &mut session,
         stable_swap,
@@ -281,7 +287,8 @@ fn test_02(mut session: Session) {
         charlie(),
     ))
     .unwrap_or_else(|err| panic!("Should successfully remove liquidity. Err: {err:?}"));
-
+    // "LP charlie removed 502598511257512352631 shares by given tokens, and fee is 598899301432400519 shares",
+    // "Exchange swap got 119779860286480103 shares",
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
         1200 * ONE_LPT - 502598511257512352631,
@@ -318,8 +325,7 @@ fn test_02(mut session: Session) {
         699699997426210330025,
         "Incorrect users share"
     );
-    let (current_share_price, current_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap);
+    let (current_share_price, _) = share_price_and_total_shares(&mut session, stable_swap);
     assert!(
         current_share_price > last_share_price,
         "Incorrect share price"
@@ -327,6 +333,7 @@ fn test_02(mut session: Session) {
     let last_share_price = current_share_price;
     let last_total_shares = last_total_shares - 502598511257512352631 + 119779860286480103;
 
+    // tansfer some LPT to from charlie to dave
     _ = psp22_utils::transfer(&mut session, stable_swap, dave(), 100 * ONE_LPT, CHARLIE);
 
     assert_eq!(
@@ -346,6 +353,7 @@ fn test_02(mut session: Session) {
         "Incorrect share price and/or total shares"
     );
 
+    // dave remove by shares trigger slippage
     let res = handle_ink_error(stable_swap::remove_liquidity_by_shares(
         &mut session,
         stable_swap,
@@ -367,6 +375,7 @@ fn test_02(mut session: Session) {
         "Incorrect share price and/or total shares"
     );
 
+    // dave remove by tokens trigger slippage
     let res = handle_ink_error(stable_swap::remove_liquidity_by_amounts(
         &mut session,
         stable_swap,
@@ -399,6 +408,7 @@ fn test_02(mut session: Session) {
         "Incorrect user balance"
     );
 
+    // dave remove by share
     handle_ink_error(stable_swap::remove_liquidity_by_shares(
         &mut session,
         stable_swap,
@@ -408,6 +418,8 @@ fn test_02(mut session: Session) {
         dave(),
     ))
     .unwrap_or_else(|err| panic!("Should successfully remove liquidity. Err: {err:?}"));
+    // "LP dave removed 498596320225563082252 shares by given tokens, and fee is 597500435701476809 shares",
+    // "Exchange swap got 119500087140295361 shares",
 
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
@@ -444,10 +456,10 @@ fn test_02(mut session: Session) {
     .unwrap_or_else(|err| panic!("Should successfully remove liquidity. Err: {err:?}"));
     // "LP user2 removed 498596320225563082252 shares by given tokens, and fee is 597500435701476809 shares",
     // "Exchange swap got 119500087140295361 shares, No referral fee, from remove_liquidity_by_tokens",
-    /* -- DIFF --
-        "LP user2 removed 498596320224035614380 shares by given tokens, and fee is 597500435700561479 shares",
-        "Exchange swap got 119500087140112295 shares, No referral fee (not implemented)",
-    */
+    // -- DIFF --
+    // "LP dave removed 498596320224035614380 shares by given tokens, and fee is 597500435700561479 shares",
+    // "Exchange swap got 119500087140112295 shares, No referral fee (not implemented)",
+    //
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
         1100 * ONE_LPT - 502598511257512352631,
@@ -470,7 +482,6 @@ fn test_02(mut session: Session) {
         current_total_shares, last_total_shares,
         "Incorrect total shares"
     );
-    let last_share_price = current_share_price;
 
     transfer_and_increase_allowance(
         &mut session,
@@ -500,10 +511,10 @@ fn test_02(mut session: Session) {
     .unwrap_or_else(|err| panic!("Should successfully add liquidity. Err: {err:?}"));
     // "Mint 299997911758886758506069372942 shares for user3, fee is 895808190595468286848457 shares",
     // "Exchange swap got 179161638119093657369691 shares, No referral fee, from add_liquidity",
-    /* -- DIFF --
-        "Mint 299997911757966485300035937427 shares for user3, fee is 895808191250701043141970 shares",
-        "Exchange swap got 179161638250140208628394 shares, No referral fee, from add_liquidity",
-    */
+    // -- DIFF --
+    // "Mint 299997911757966485300035937427 shares for eva, fee is 895808191250701043141970 shares",
+    // "Exchange swap got 179161638250140208628394 shares, No referral fee (not implemented)",
+    //
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, eva()),
         299997911757966485300035937427,
