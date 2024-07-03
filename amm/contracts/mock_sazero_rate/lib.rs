@@ -3,11 +3,11 @@
 #[ink::contract]
 mod mock_sazero_rate {
     #[ink(storage)]
-    pub struct MockSazeroRateMockContract {
+    pub struct MockSazeroRateContract {
         rate: u128,
     }
 
-    impl MockSazeroRateMockContract {
+    impl MockSazeroRateContract {
         #[ink(constructor)]
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
@@ -20,7 +20,7 @@ mod mock_sazero_rate {
         }
     }
 
-    impl traits::RateProvider for MockSazeroRateMockContract {
+    impl traits::RateProvider for MockSazeroRateContract {
         #[ink(message)]
         fn get_rate(&mut self) -> u128 {
             self.rate
