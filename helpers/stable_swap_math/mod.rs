@@ -348,9 +348,6 @@ fn compute_lp_amount_for_deposit(
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
     if pool_token_supply == 0 {
-        if deposit_amounts.contains(&0) {
-            return Err(MathError::DivByZero(8));
-        }
         Ok((
             compute_d(deposit_amounts, amp_coef)?
                 .try_into()
