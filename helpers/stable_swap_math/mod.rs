@@ -341,101 +341,89 @@ pub fn rated_swap_from(
 /// Compute the amount of LP tokens to mint after a deposit
 /// return <lp_amount_to_mint, lp_fees_part>
 fn compute_lp_amount_for_deposit(
-    deposit_amounts: &Vec<u128>,
+    deposit_amounts: &[u128],
     old_reserves: &Vec<u128>,
     pool_token_supply: u128,
     fees: Option<&Fees>,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
-    if pool_token_supply == 0 {
-        if deposit_amounts.contains(&0) {
-            return Err(MathError::DivByZero(8));
-        }
-        Ok((
-            compute_d(deposit_amounts, amp_coef)?
+    // Initial invariant
+    let d_0 = compute_d(old_reserves, amp_coef)?;
+    let n_coins = old_reserves.len() as u16;
+    let mut new_reserves = old_reserves
+        .iter()
+        .zip(deposit_amounts.iter())
+        .map(|(reserve, &amount)| {
+            reserve
+                .checked_add(amount)
+                .ok_or(MathError::AddOverflow(14))
+        })
+        .collect::<Result<Vec<u128>, MathError>>()?;
+    // Invariant after change
+    let d_1 = compute_d(&new_reserves, amp_coef)?;
+    if let Some(_fees) = fees {
+        // Recalculate the invariant accounting for fees
+        for i in 0..new_reserves.len() {
+            let ideal_reserve: u128 = d_1
+                .checked_mul(old_reserves[i].into())
+                .ok_or(MathError::MulOverflow(17))?
+                .checked_div(d_0)
+                .ok_or(MathError::DivByZero(9))?
                 .try_into()
-                .map_err(|_| MathError::CastOverflow(1))?,
-            0,
+                .map_err(|_| MathError::CastOverflow(2))?;
+            let difference = if ideal_reserve > new_reserves[i] {
+                ideal_reserve
+                    .checked_sub(new_reserves[i])
+                    .ok_or(MathError::SubUnderflow(16))?
+            } else {
+                new_reserves[i]
+                    .checked_sub(ideal_reserve)
+                    .ok_or(MathError::SubUnderflow(17))?
+            };
+            let fee = _fees.normalized_trade_fee(n_coins, difference)?;
+            new_reserves[i] = new_reserves[i]
+                .checked_sub(fee)
+                .ok_or(MathError::SubUnderflow(18))?;
+        }
+        let d_2: U256 = compute_d(&new_reserves, amp_coef)?;
+        let mint_shares: u128 = U256::from(pool_token_supply)
+            .checked_mul(d_2.checked_sub(d_0).ok_or(MathError::SubUnderflow(19))?)
+            .ok_or(MathError::MulOverflow(18))?
+            .checked_div(d_0)
+            .ok_or(MathError::DivByZero(10))?
+            .try_into()
+            .map_err(|_| MathError::CastOverflow(3))?;
+
+        let diff_shares: u128 = U256::from(pool_token_supply)
+            .checked_mul(d_1.checked_sub(d_0).ok_or(MathError::SubUnderflow(20))?)
+            .ok_or(MathError::MulOverflow(19))?
+            .checked_div(d_0)
+            .ok_or(MathError::DivByZero(11))?
+            .try_into()
+            .map_err(|_| MathError::CastOverflow(4))?;
+        // d1 > d2 > d0,
+        // (d2-d0) => mint_shares (charged fee),
+        // (d1-d0) => diff_shares (without fee),
+        // (d1-d2) => fee part,
+        // diff_shares = mint_shares + fee part
+        Ok((
+            mint_shares,
+            diff_shares
+                .checked_sub(mint_shares)
+                .ok_or(MathError::SubUnderflow(21))?,
         ))
     } else {
-        // Initial invariant
-        let d_0 = compute_d(old_reserves, amp_coef)?;
-        let n_coins = old_reserves.len() as u16;
-        let mut new_reserves = old_reserves
-            .iter()
-            .zip(deposit_amounts.iter())
-            .map(|(reserve, &amount)| {
-                reserve
-                    .checked_add(amount)
-                    .ok_or(MathError::AddOverflow(14))
-            })
-            .collect::<Result<Vec<u128>, MathError>>()?;
-        // Invariant after change
-        let d_1 = compute_d(&new_reserves, amp_coef)?;
-        if let Some(_fees) = fees {
-            // Recalculate the invariant accounting for fees
-            for i in 0..new_reserves.len() {
-                let ideal_reserve: u128 = d_1
-                    .checked_mul(old_reserves[i].into())
-                    .ok_or(MathError::MulOverflow(17))?
-                    .checked_div(d_0)
-                    .ok_or(MathError::DivByZero(9))?
-                    .try_into()
-                    .map_err(|_| MathError::CastOverflow(2))?;
-                let difference = if ideal_reserve > new_reserves[i] {
-                    ideal_reserve
-                        .checked_sub(new_reserves[i])
-                        .ok_or(MathError::SubUnderflow(16))?
-                } else {
-                    new_reserves[i]
-                        .checked_sub(ideal_reserve)
-                        .ok_or(MathError::SubUnderflow(17))?
-                };
-                let fee = _fees.normalized_trade_fee(n_coins, difference)?;
-                new_reserves[i] = new_reserves[i]
-                    .checked_sub(fee)
-                    .ok_or(MathError::SubUnderflow(18))?;
-            }
-            let d_2: U256 = compute_d(&new_reserves, amp_coef)?;
-            let mint_shares: u128 = U256::from(pool_token_supply)
-                .checked_mul(d_2.checked_sub(d_0).ok_or(MathError::SubUnderflow(19))?)
-                .ok_or(MathError::MulOverflow(18))?
-                .checked_div(d_0)
-                .ok_or(MathError::DivByZero(10))?
-                .try_into()
-                .map_err(|_| MathError::CastOverflow(3))?;
-
-            let diff_shares: u128 = U256::from(pool_token_supply)
-                .checked_mul(d_1.checked_sub(d_0).ok_or(MathError::SubUnderflow(20))?)
-                .ok_or(MathError::MulOverflow(19))?
-                .checked_div(d_0)
-                .ok_or(MathError::DivByZero(11))?
-                .try_into()
-                .map_err(|_| MathError::CastOverflow(4))?;
-            // d1 > d2 > d0,
-            // (d2-d0) => mint_shares (charged fee),
-            // (d1-d0) => diff_shares (without fee),
-            // (d1-d2) => fee part,
-            // diff_shares = mint_shares + fee part
-            Ok((
-                mint_shares,
-                diff_shares
-                    .checked_sub(mint_shares)
-                    .ok_or(MathError::SubUnderflow(21))?,
-            ))
-        } else {
-            // Calc without fees
-            let mint_shares: u128 = U256::from(pool_token_supply)
-                .checked_mul(d_1.checked_sub(d_0).ok_or(MathError::SubUnderflow(22))?)
-                .ok_or(MathError::MulOverflow(20))?
-                .checked_div(d_0)
-                .ok_or(MathError::DivByZero(12))?
-                .try_into()
-                .map_err(|_| MathError::CastOverflow(5))?;
-            // d1 > d0,
-            // (d1-d0) => mint_shares
-            Ok((mint_shares, 0))
-        }
+        // Calc without fees
+        let mint_shares: u128 = U256::from(pool_token_supply)
+            .checked_mul(d_1.checked_sub(d_0).ok_or(MathError::SubUnderflow(22))?)
+            .ok_or(MathError::MulOverflow(20))?
+            .checked_div(d_0)
+            .ok_or(MathError::DivByZero(12))?
+            .try_into()
+            .map_err(|_| MathError::CastOverflow(5))?;
+        // d1 > d0,
+        // (d1-d0) => mint_shares
+        Ok((mint_shares, 0))
     }
 }
 
