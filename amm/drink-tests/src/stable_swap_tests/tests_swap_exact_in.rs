@@ -32,16 +32,16 @@ fn setup_test_swap_exact_in(
         bob(),
     );
 
-    let swap_result = handle_ink_error(stable_swap::swap_exact_in(
+    let swap_result = stable_swap::swap_exact_in(
         session,
         stable_swap,
         BOB,
-        tokens[0],        // in
-        tokens[1],        // out
+        tokens[0],      // in
+        tokens[1],      // out
         swap_amount_in, // amount_in
         0,              // min_token_out
         bob(),
-    ));
+    );
 
     if expected_swap_amount_out_total_result.is_err() {
         match swap_result {
@@ -93,9 +93,7 @@ fn setup_test_swap_exact_in(
         [0, expected_protocol_fee_part].to_vec(),
         bob(),
     )
-    .result
-    .unwrap()
-    .unwrap();
+    .expect("Should remove lp");
     assert_eq!(
         total_lp_required - lp_fee_part,
         protocol_fee_lp,
@@ -110,11 +108,11 @@ fn test_01(mut session: Session) {
         &mut session,
         vec![6, 6],                       // decimals
         vec![100000000000, 100000000000], // initial reserves
-        1000,                         // A
-        6,                            // fee BPS
-        2000,                         // protocol fee BPS
-        10000000000,                  // swap_amount_in
-        Ok(9999495232),               // expected out (with fee)
+        1000,                             // A
+        6,                                // fee BPS
+        2000,                             // protocol fee BPS
+        10000000000,                      // swap_amount_in
+        Ok(9999495232),                   // expected out (with fee)
     );
 }
 

@@ -1,5 +1,5 @@
-mod tests_rated;
 mod tests_add_remove_lp;
+mod tests_rated;
 mod tests_swap_exact_in;
 mod tests_swap_received;
 
@@ -19,6 +19,8 @@ use ink_wrapper_types::{Connection, ToAccountId};
 pub const FEE_BPS_DENOM: u128 = 10_000;
 
 pub const FEE_RECEIVER: AccountId32 = AccountId32::new([42u8; 32]);
+
+const RATE_PRECISION: u128 = 10u128.pow(12);
 
 pub fn fee_receiver() -> ink_primitives::AccountId {
     AsRef::<[u8; 32]>::as_ref(&FEE_RECEIVER).clone().into()
@@ -88,14 +90,24 @@ pub fn setup_stable_swap_with_tokens(
 pub fn share_price_and_total_shares(
     session: &mut Session<MinimalRuntime>,
     stable_swap: AccountId,
+    token_rates: Option<Vec<u128>>,
 ) -> (u128, u128) {
     let total_shares = psp22_utils::total_supply(session, stable_swap);
     let reserves = stable_swap::reserves(session, stable_swap);
+    let token_rates: Vec<u128> = if let Some(rates) = token_rates {
+        rates
+    } else {
+        reserves.iter().map(|_| RATE_PRECISION).collect()
+    };
     let sum_token = stable_swap::tokens(session, stable_swap)
         .iter()
         .zip(reserves.iter())
-        .fold(0, |acc, (&token, reserve)| {
-            acc + reserve * 10u128.pow((18 - psp22_utils::token_decimals(session, token)).into())
+        .zip(token_rates.iter())
+        .fold(0, |acc, ((&token, reserve), rate)| {
+            acc + reserve
+                * 10u128.pow((18 - psp22_utils::token_decimals(session, token)).into())
+                * rate
+                / RATE_PRECISION
         });
 
     (

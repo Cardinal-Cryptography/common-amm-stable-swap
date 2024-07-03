@@ -2,7 +2,7 @@
 mod psp22;
 #[cfg(test)]
 #[allow(unused_imports)]
-mod sazero_rate_mock_contract;
+mod mock_sazero_rate_contract;
 #[cfg(test)]
 mod stable_pool_contract;
 #[cfg(test)]

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::*;
 
 use anyhow::Result;
@@ -81,9 +82,9 @@ pub mod stable_swap {
         min_share_amount: u128,
         amounts: Vec<u128>,
         to: AccountId,
-    ) -> ContractResult<Result<Result<(u128, u128), StablePoolError>, InkLangError>> {
-        let _ = session.set_actor(caller);
-        session
+    ) -> Result<(u128, u128), StablePoolError> {
+        _ = session.set_actor(caller);
+        handle_ink_error(session
             .execute(
                 stable_pool_contract::Instance::from(stable_pool).add_liquidity(
                     min_share_amount,
@@ -91,7 +92,7 @@ pub mod stable_swap {
                     to,
                 ),
             )
-            .unwrap()
+            .unwrap())
     }
 
     pub fn remove_liquidity_by_amounts(
@@ -101,9 +102,9 @@ pub mod stable_swap {
         max_share_amount: u128,
         amounts: Vec<u128>,
         to: AccountId,
-    ) -> ContractResult<Result<Result<(u128, u128), StablePoolError>, InkLangError>> {
-        let _ = session.set_actor(caller);
-        session
+    ) -> Result<(u128, u128), StablePoolError> {
+        _ = session.set_actor(caller);
+        handle_ink_error(session
             .execute(
                 stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_amounts(
                     max_share_amount,
@@ -111,7 +112,7 @@ pub mod stable_swap {
                     to,
                 ),
             )
-            .unwrap()
+            .unwrap())
     }
 
     pub fn remove_liquidity_by_shares(
@@ -121,17 +122,19 @@ pub mod stable_swap {
         shares_amount: u128,
         min_amounts: Vec<u128>,
         to: AccountId,
-    ) -> ContractResult<Result<Result<Vec<u128>, StablePoolError>, InkLangError>> {
-        let _ = session.set_actor(caller);
-        session
-            .execute(
-                stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_shares(
-                    shares_amount,
-                    min_amounts,
-                    to,
-                ),
-            )
-            .unwrap()
+    ) -> Result<Vec<u128>, StablePoolError> {
+        _ = session.set_actor(caller);
+        handle_ink_error(
+            session
+                .execute(
+                    stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_shares(
+                        shares_amount,
+                        min_amounts,
+                        to,
+                    ),
+                )
+                .unwrap(),
+        )
     }
 
     pub fn swap_exact_in(
@@ -143,21 +146,21 @@ pub mod stable_swap {
         token_in_amount: u128,
         min_token_out_amount: u128,
         to: AccountId,
-    ) -> ContractResult<
-        Result<Result<(u128, u128), StablePoolError>, ink_wrapper_types::InkLangError>,
-    > {
-        let _ = session.set_actor(caller);
-        session
-            .execute(
-                stable_pool_contract::Instance::from(stable_pool).swap_exact_in(
-                    token_in,
-                    token_out,
-                    token_in_amount,
-                    min_token_out_amount,
-                    to,
-                ),
-            )
-            .unwrap()
+    ) -> Result<(u128, u128), StablePoolError> {
+        _ = session.set_actor(caller);
+        handle_ink_error(
+            session
+                .execute(
+                    stable_pool_contract::Instance::from(stable_pool).swap_exact_in(
+                        token_in,
+                        token_out,
+                        token_in_amount,
+                        min_token_out_amount,
+                        to,
+                    ),
+                )
+                .unwrap(),
+        )
     }
 
     pub fn swap_exact_out(
@@ -169,21 +172,21 @@ pub mod stable_swap {
         token_out_amount: u128,
         max_token_in_amount: u128,
         to: AccountId,
-    ) -> ContractResult<
-        Result<Result<(u128, u128), StablePoolError>, ink_wrapper_types::InkLangError>,
-    > {
-        let _ = session.set_actor(caller);
-        session
-            .execute(
-                stable_pool_contract::Instance::from(stable_pool).swap_exact_out(
-                    token_in,
-                    token_out,
-                    token_out_amount,
-                    max_token_in_amount,
-                    to,
-                ),
-            )
-            .unwrap()
+    ) -> Result<(u128, u128), StablePoolError> {
+        _ = session.set_actor(caller);
+        handle_ink_error(
+            session
+                .execute(
+                    stable_pool_contract::Instance::from(stable_pool).swap_exact_out(
+                        token_in,
+                        token_out,
+                        token_out_amount,
+                        max_token_in_amount,
+                        to,
+                    ),
+                )
+                .unwrap(),
+        )
     }
 
     pub fn swap_received(
@@ -194,59 +197,58 @@ pub mod stable_swap {
         token_out: AccountId,
         min_token_out_amount: u128,
         to: AccountId,
-    ) -> ContractResult<
-        Result<Result<(u128, u128), StablePoolError>, ink_wrapper_types::InkLangError>,
-    > {
-        let _ = session.set_actor(caller);
-        session
-            .execute(
-                stable_pool_contract::Instance::from(stable_pool).swap_received(
-                    token_in,
-                    token_out,
-                    min_token_out_amount,
-                    to,
-                ),
-            )
-            .unwrap()
+    ) -> Result<(u128, u128), StablePoolError> {
+        _ = session.set_actor(caller);
+        handle_ink_error(
+            session
+                .execute(
+                    stable_pool_contract::Instance::from(stable_pool).swap_received(
+                        token_in,
+                        token_out,
+                        min_token_out_amount,
+                        to,
+                    ),
+                )
+                .unwrap(),
+        )
     }
 
     pub fn reserves(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> Vec<u128> {
-        session
-            .query(stable_pool_contract::Instance::from(stable_pool).reserves())
-            .unwrap()
-            .result
-            .unwrap()
+        handle_ink_error(
+            session
+                .query(stable_pool_contract::Instance::from(stable_pool).reserves())
+                .unwrap(),
+        )
     }
 
     pub fn amp_coef(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> u128 {
-        session
-            .query(stable_pool_contract::Instance::from(stable_pool).amp_coef())
-            .unwrap()
-            .result
-            .unwrap()
+        handle_ink_error(
+            session
+                .query(stable_pool_contract::Instance::from(stable_pool).amp_coef())
+                .unwrap(),
+        )
     }
 
     pub fn fees(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> (u16, u16) {
-        session
-            .query(stable_pool_contract::Instance::from(stable_pool).fees())
-            .unwrap()
-            .result
-            .unwrap()
+        handle_ink_error(
+            session
+                .query(stable_pool_contract::Instance::from(stable_pool).fees())
+                .unwrap(),
+        )
     }
 
     pub fn tokens(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> Vec<AccountId> {
-        session
-            .query(stable_pool_contract::Instance::from(stable_pool).tokens())
-            .unwrap()
-            .result
-            .unwrap()
+        handle_ink_error(
+            session
+                .query(stable_pool_contract::Instance::from(stable_pool).tokens())
+                .unwrap(),
+        )
     }
 }
 
 pub mod psp22_utils {
     use super::*;
-    use psp22::{Instance as PSP22, PSP22 as _, PSP22Metadata as _};
-    
+    use psp22::{Instance as PSP22, PSP22Metadata as _, PSP22 as _};
 
     /// Uploads and creates a PSP22 instance with 1B*10^18 issuance and given names.
     /// Returns its AccountId casted to PSP22 interface.
