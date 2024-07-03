@@ -11,4 +11,7 @@ pub mod stable_pool {
     pub const MIN_AMP: u128 = 1;
     /// Max amplification coefficient.
     pub const MAX_AMP: u128 = 1_000_000;
+
+    /// Min reserve
+    pub const MIN_RESERVE: u128 = TOKEN_TARGET_PRECISION;
 }

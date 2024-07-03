@@ -5,7 +5,9 @@ mod token_rate;
 pub mod stable_pool {
     use crate::token_rate::TokenRate;
     use amm_helpers::{
-        constants::stable_pool::{MAX_AMP, MIN_AMP, RATE_PRECISION, TOKEN_TARGET_DECIMALS},
+        constants::stable_pool::{
+            MAX_AMP, MIN_AMP, MIN_RESERVE, RATE_PRECISION, TOKEN_TARGET_DECIMALS,
+        },
         ensure,
         stable_swap_math::{self as math, fees::Fees},
     };
@@ -380,6 +382,7 @@ pub mod stable_pool {
             self.pool.reserves[token_id] = self.pool.reserves[token_id]
                 .checked_sub(amount)
                 .ok_or(MathError::SubUnderflow(101))?;
+            self.check_min_reserve(token_id, self.pool.reserves[token_id])?;
             Ok(())
         }
 
@@ -556,6 +559,17 @@ pub mod stable_pool {
             ensure!(amount > 0, StablePoolError::InsufficientInputAmount);
             Ok(amount)
         }
+
+        fn check_min_reserve(&self, token_id: usize, reserve: u128) -> Result<(), StablePoolError> {
+            if self.pool.precisions[token_id]
+                .checked_mul(reserve)
+                .ok_or(MathError::MulOverflow(115))?
+                < MIN_RESERVE
+            {
+                return Err(StablePoolError::MinReserve);
+            }
+            Ok(())
+        }
     }
 
     impl StablePool for StablePoolContract {
@@ -566,6 +580,14 @@ pub mod stable_pool {
             amounts: Vec<u128>,
             to: AccountId,
         ) -> Result<(u128, u128), StablePoolError> {
+            //check amounts if it is initial liquidity supply
+            if self.total_supply() == 0 {
+                amounts
+                    .iter()
+                    .enumerate()
+                    .try_for_each(|(id, &amount)| self.check_min_reserve(id, amount))?;
+            }
+
             // calc lp tokens (shares_to_mint, fee)
             let (shares, fee_part) = self.get_mint_liquidity_for_amounts(amounts.clone())?;
 
