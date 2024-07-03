@@ -3,7 +3,7 @@ use drink::{self, runtime::MinimalRuntime, session::Session};
 use super::*;
 
 /// Tests swap of token at index 0 to token at index 1.
-fn setup_test_swap_received(
+fn test_swap_received(
     session: &mut Session<MinimalRuntime>,
     token_decimals: Vec<u8>,
     initial_reserves: Vec<u128>,
@@ -34,15 +34,15 @@ fn setup_test_swap_received(
 
     let _ = psp22_utils::transfer(session, tokens[0], stable_swap, swap_amount_in, BOB);
 
-    let swap_result = handle_ink_error(stable_swap::swap_received(
+    let swap_result = stable_swap::swap_received(
         session,
         stable_swap,
         BOB,
         tokens[0], // in
         tokens[1], // out
-        0,       // min_token_out
+        0,         // min_token_out
         bob(),
-    ));
+    );
 
     if expected_swap_amount_out_total_result.is_err() {
         match swap_result {
@@ -94,9 +94,7 @@ fn setup_test_swap_received(
         [0, expected_protocol_fee_part].to_vec(),
         bob(),
     )
-    .result
-    .unwrap()
-    .unwrap();
+    .expect("Should remove lp");
     assert_eq!(
         total_lp_required - lp_fee_part,
         protocol_fee_lp,
@@ -107,22 +105,22 @@ fn setup_test_swap_received(
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L744
 #[drink::test]
 fn test_01(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![6, 6],                       // decimals
         vec![100000000000, 100000000000], // initial reserves
-        1000,                         // A
-        6,                            // fee BPS
-        2000,                         // protocol fee BPS
-        10000000000,                  // swap_amount_in
-        Ok(9999495232),               // expected out (with fee)
+        1000,                             // A
+        6,                                // fee BPS
+        2000,                             // protocol fee BPS
+        10000000000,                      // swap_amount_in
+        Ok(9999495232),                   // expected out (with fee)
     );
 }
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L763
 #[drink::test]
 fn test_02(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![12, 18],
         vec![100000000000000000, 100000000000000000000000],
@@ -137,7 +135,7 @@ fn test_02(mut session: Session) {
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L782
 #[drink::test]
 fn test_03(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![6, 6],
         vec![100000000000, 100000000000],
@@ -152,7 +150,7 @@ fn test_03(mut session: Session) {
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L801
 #[drink::test]
 fn test_04(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![12, 18],
         vec![100000000000000000, 100000000000000000000000],
@@ -167,7 +165,7 @@ fn test_04(mut session: Session) {
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L820
 #[drink::test]
 fn test_05(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![6, 6],
         vec![100000000000, 100000000000],
@@ -180,9 +178,10 @@ fn test_05(mut session: Session) {
 }
 
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L839
+// Test that swapping 0.000000000001000000 gives 0.000000000000 (token precision cut)
 #[drink::test]
-fn test_06(mut session: Session) {
-    setup_test_swap_received(
+fn test_06_a(mut session: Session) {
+    test_swap_received(
         &mut session,
         vec![18, 12],
         vec![100000000000000000000000, 100000000000000000],
@@ -194,10 +193,40 @@ fn test_06(mut session: Session) {
     );
 }
 
+// Test that swapping (with disabled fees) 0.000000000001000000 gives 0.000000000000
+#[drink::test]
+fn test_06_b(mut session: Session) {
+    test_swap_received(
+        &mut session,
+        vec![18, 12],
+        vec![100000000000000000000000, 100000000000000000],
+        1000,
+        0,
+        0,
+        1000000,
+        Ok(0),
+    );
+}
+
+/// Test that swapping (with disabled fees) 0.000000000001000001 gives 0.000000000001
+#[drink::test]
+fn test_06_c(mut session: Session) {
+    test_swap_received(
+        &mut session,
+        vec![18, 12],
+        vec![100000000000000000000000, 100000000000000000],
+        1000,
+        0,
+        0,
+        1000001,
+        Ok(1),
+    );
+}
+
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L858
 #[drink::test]
 fn test_07(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![6, 6],
         vec![100000000000, 100000000000],
@@ -212,7 +241,7 @@ fn test_07(mut session: Session) {
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L877
 #[drink::test]
 fn test_08(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![12, 18],
         vec![100000000000000000, 100000000000000000000000],
@@ -227,7 +256,7 @@ fn test_08(mut session: Session) {
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L896
 #[drink::test]
 fn test_09(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![6, 6],
         vec![100000000000, 100000000000],
@@ -242,7 +271,7 @@ fn test_09(mut session: Session) {
 // ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/src/stable_swap/mod.rs#L915
 #[drink::test]
 fn test_10(mut session: Session) {
-    setup_test_swap_received(
+    test_swap_received(
         &mut session,
         vec![12, 18],
         vec![100000000000000000, 100000000000000000000000],
