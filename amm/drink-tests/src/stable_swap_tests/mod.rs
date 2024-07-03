@@ -1,5 +1,5 @@
 mod tests_rated;
-mod tests_sim;
+mod tests_add_remove_lp;
 mod tests_swap_exact_in;
 mod tests_swap_received;
 
