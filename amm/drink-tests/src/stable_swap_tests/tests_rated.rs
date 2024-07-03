@@ -1,4 +1,4 @@
-use crate::sazero_rate_mock_contract;
+use crate::mock_sazero_rate_contract;
 use crate::stable_pool_contract;
 use crate::utils::*;
 
@@ -37,11 +37,11 @@ fn setup_rated_swap_with_tokens(
         .upload_code(stable_pool_contract::upload())
         .expect("Upload stable_stable_pair_contract code");
     session
-        .upload_code(sazero_rate_mock_contract::upload())
+        .upload_code(mock_sazero_rate_contract::upload())
         .expect("Upload sazero_rate_mock_contract code");
     let _ = session.set_actor(caller.clone());
 
-    let instance = sazero_rate_mock_contract::Instance::new();
+    let instance = mock_sazero_rate_contract::Instance::new();
 
     let rate_mock_address = session
         .instantiate(instance)
