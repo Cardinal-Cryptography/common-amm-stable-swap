@@ -37,6 +37,8 @@ fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError>
 }
 
 /// Computes stable swap invariant (D)
+// [nit] invariant:  A n^n SUM{x_i} + D = D A n^n + D^{n+1} / (n^n PROD{x_i})
+// where A = amp_coef, x_i = amounts[i], n = amounts.len()
 fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
     // SUM{x_i}
     let amount_sum = amounts.iter().try_fold(U256::from(0), |acc, &amount| {
@@ -66,19 +68,21 @@ fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
         // Computes next D unitl satisfying precision is reached
         for _ in 0..MAX_ITERATIONS {
             let d_next = compute_d_next(d, n, amounts, ann_sum, ann_sub_one, n_add_one)?;
-            if d_next > d {
-                if d_next.checked_sub(d).ok_or(MathError::SubUnderflow(2))? <= 1.into() {
-                    return Ok(d);
-                }
-            } else if d.checked_sub(d_next).ok_or(MathError::SubUnderflow(3))? <= 1.into() {
+            // [nit] Maybe like this?
+            if d_next.abs_diff(d) <= 1.into() {
                 return Ok(d);
             }
             d = d_next;
         }
+        // [audit] Shouldn't we return precision error here?
+        // [audit] See https://github.com/curvefi/stableswap-ng/blob/ddc91d870d9104716af12bd94215bc6c0ba27acc/contracts/main/CurveStableSwapNGMath.vy#L137
         Ok(d)
     }
 }
 
+// [nit] Add comment like:
+// Computes next step's approximation of D in Newton-Raphson method.
+// Returns d_next, or error if any math error occurred.
 fn compute_d_next(
     d_prev: U256,
     n: u32,
@@ -193,6 +197,7 @@ fn compute_y(
         }
         y_prev = y;
     }
+    // [audit] Same - maybe return err if we haven't converged
     Ok(y.as_u128())
 }
 
@@ -382,15 +387,8 @@ fn compute_lp_amount_for_deposit(
                     .ok_or(MathError::DivByZero(9))?
                     .try_into()
                     .map_err(|_| MathError::CastOverflow(2))?;
-                let difference = if ideal_reserve > new_reserves[i] {
-                    ideal_reserve
-                        .checked_sub(new_reserves[i])
-                        .ok_or(MathError::SubUnderflow(16))?
-                } else {
-                    new_reserves[i]
-                        .checked_sub(ideal_reserve)
-                        .ok_or(MathError::SubUnderflow(17))?
-                };
+                // [nit]
+                let difference = ideal_reserve.abs_diff(new_reserves[i]);
                 let fee = _fees.normalized_trade_fee(n_coins, difference)?;
                 new_reserves[i] = new_reserves[i]
                     .checked_sub(fee)
@@ -471,9 +469,8 @@ pub fn compute_amounts_given_lp(
     let mut amounts = Vec::with_capacity(reserves.len());
     for &reserve in reserves {
         amounts.push(
-            U256::from(reserve)
-                .checked_mul(lp_amount.into())
-                .ok_or(MathError::MulOverflow(21))?
+            // [nit]
+            casted_mul(reserve, lp_amount)
                 .checked_div(pool_token_supply.into())
                 .ok_or(MathError::DivByZero(13))?
                 .try_into()
@@ -518,15 +515,8 @@ fn compute_lp_amount_for_withdraw(
                 .checked_div(d_0)
                 .ok_or(MathError::DivByZero(14))?
                 .as_u128();
-            let difference = if ideal_u128 > new_reserves[i] {
-                ideal_u128
-                    .checked_sub(new_reserves[i])
-                    .ok_or(MathError::SubUnderflow(25))?
-            } else {
-                new_reserves[i]
-                    .checked_sub(ideal_u128)
-                    .ok_or(MathError::SubUnderflow(26))?
-            };
+            // [nit]
+            let difference = ideal_u128.abs_diff(new_reserves[i]);
             let fee = _fees.normalized_trade_fee(n_coins, difference)?;
             // new_u128 is for calculation D2, the one with fee charged
             new_reserves[i] = new_reserves[i]

@@ -287,6 +287,9 @@ pub mod stable_pool {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
             for rate in self.pool.token_rates.iter_mut() {
+                // [audit] then we first update rate successfully, then rate changed
+                // will be set to true and no further rate.update_rate calls will be done in this loop.
+                // Not sure if this is what we meant - maybe bitwise `or` operator (`|`) should be used?
                 rate_changed = rate_changed || rate.update_rate(current_time);
             }
             if rate_changed {
@@ -303,6 +306,7 @@ pub mod stable_pool {
         /// Scaled rates are rates multiplied by precision. They are assumed to fit in u128.
         /// If TOKEN_TARGET_DECIMALS is 18 and RATE_DECIMALS is 12, then rates not exceeding ~340282366 should fit.
         /// That's because if precision <= 10^18 and rate <= 10^12 * 340282366, then rate * precision < 2^128.
+        /// [nit] add assumption comment that rates should be updated prior to calling this function.
         fn get_scaled_rates(&self) -> Result<Vec<u128>, MathError> {
             self.pool
                 .token_rates
@@ -345,6 +349,7 @@ pub mod stable_pool {
             Ok((token_in_id, token_out_id))
         }
 
+        // [nit] add assumption comment saying, that rates should be updated prior to calling this function
         fn mint_protocol_fee(&mut self, fee: u128, token_id: usize) -> Result<(), StablePoolError> {
             if let Some(fee_to) = self.fee_to() {
                 let protocol_fee = self.pool.fees.protocol_trade_fee(fee)?;
@@ -718,6 +723,7 @@ pub mod stable_pool {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
             for rate in self.pool.token_rates.iter_mut() {
+                // [audit] same there - shouldn't it be bitwise or?
                 rate_changed = rate_changed || rate.update_rate_no_cache(current_time);
             }
             if rate_changed {

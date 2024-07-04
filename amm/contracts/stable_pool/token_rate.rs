@@ -45,17 +45,22 @@ impl TokenRate {
         }
     }
 
+    // [nit] Some docs would be helpful here. This method returns if the update has been done, right?
+    // But what if we're Self::External, we are outdated, but the returned rate is the same as it was previously?
+    // Currently, we'll return true, which might be confusing.
     pub fn update_rate(&mut self, current_time: u64) -> bool {
         match self {
             Self::External(external) => external.update_rate(current_time),
-            _ => false,
+            // [nit] Exhaustive match would be more future-proof.
+            Self::Constant(_) => false,
         }
     }
 
     pub fn update_rate_no_cache(&mut self, current_time: u64) -> bool {
         match self {
             Self::External(external) => external.update_rate_no_cache(current_time),
-            _ => false,
+            // [nit] Exhaustive match would be more future-proof.
+            Self::Constant(_) => false,
         }
     }
 }
