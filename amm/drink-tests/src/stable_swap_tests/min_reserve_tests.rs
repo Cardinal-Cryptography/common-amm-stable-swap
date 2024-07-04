@@ -82,6 +82,103 @@ fn test_min_reserve_withdraw_liquidity_by_shares(
     assert_eq!(expected_result, res, "Unexpected result");
 }
 
+/// Test if min reserve check works swapping first token to the second token  
+fn test_min_reserve_swap_exact_in(
+    session: &mut Session<MinimalRuntime>,
+    token_decimals: Vec<u8>,
+    initial_reserves: Vec<u128>,
+    swap_amount_in: u128,
+    expected_result: Result<(u128, u128), StablePoolError>,
+) {
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        session,
+        token_decimals,
+        initial_reserves.clone().iter().map(|a| a * 10).collect(), // increase tokens supply so there's enough tokens for swapping
+        1000,
+        25,
+        6,
+        BOB,
+    );
+    _ = stable_swap::add_liquidity(session, stable_swap, BOB, 1, initial_reserves, bob());
+
+    let res = stable_swap::swap_exact_in(
+        session,
+        stable_swap,
+        BOB,
+        tokens[0],
+        tokens[1], // min withdraw amounts
+        swap_amount_in,
+        1,
+        bob(),
+    );
+    assert_eq!(expected_result, res, "Unexpected result");
+}
+
+/// Test if min reserve check works swapping first token to the second token  
+fn test_min_reserve_swap_received(
+    session: &mut Session<MinimalRuntime>,
+    token_decimals: Vec<u8>,
+    initial_reserves: Vec<u128>,
+    swap_amount_in: u128,
+    expected_result: Result<(u128, u128), StablePoolError>,
+) {
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        session,
+        token_decimals,
+        initial_reserves.clone().iter().map(|a| a * 10).collect(), // increase tokens supply so there's enough tokens for swapping
+        1000,
+        25,
+        6,
+        BOB,
+    );
+    _ = stable_swap::add_liquidity(session, stable_swap, BOB, 1, initial_reserves, bob());
+
+    _ = psp22_utils::transfer(session, tokens[0], stable_swap, swap_amount_in, BOB).expect("Transfer failed");
+
+    let res = stable_swap::swap_received(
+        session,
+        stable_swap,
+        BOB,
+        tokens[0],
+        tokens[1], // min withdraw amounts
+        1,
+        bob(),
+    );
+    assert_eq!(expected_result, res, "Unexpected result");
+}
+
+/// Test if min reserve check works swapping first token to the second token  
+fn test_min_reserve_swap_exact_out(
+    session: &mut Session<MinimalRuntime>,
+    token_decimals: Vec<u8>,
+    initial_reserves: Vec<u128>,
+    swap_amount_out: u128,
+    expected_result: Result<(u128, u128), StablePoolError>,
+) {
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        session,
+        token_decimals,
+        initial_reserves.clone().iter().map(|a| a * 10).collect(), // increase tokens supply so there's enough tokens for swapping
+        1000,
+        25,
+        6,
+        BOB,
+    );
+    _ = stable_swap::add_liquidity(session, stable_swap, BOB, 1, initial_reserves, bob());
+
+    let res = stable_swap::swap_exact_out(
+        session,
+        stable_swap,
+        BOB,
+        tokens[0],
+        tokens[1], // min withdraw amounts
+        swap_amount_out,
+        u128::MAX,
+        bob(),
+    );
+    assert_eq!(expected_result, res, "Unexpected result");
+}
+
 #[drink::test]
 fn test_01(session: &mut Session) {
     // one 1 usdt, 1 usdc
@@ -290,5 +387,83 @@ fn test_17(session: &mut Session) {
         vec![2_000_000u128, 2_000_000_000_000_000_000u128],
         4000000000000000000 / 4, // 25%
         Ok(vec![500_000u128, 500_000_000_000_000_000u128]),
+    );
+}
+
+#[drink::test]
+fn test_18(session: &mut Session) {
+    // reserves one 2 usdt, 2 dai
+    // swap 1 usdt, expect less than 1 dai (min reserve holds)
+    test_min_reserve_swap_exact_in(
+        &mut session,
+        vec![USDT_DEC, DAI_DEC],
+        vec![2_000_000u128, 2_000_000_000_000_000_000u128],
+        1_000_000u128,
+        Ok((997167942595869932, 2499167775929498)),
+    );
+}
+
+#[drink::test]
+fn test_19(session: &mut Session) {
+    // reserves one 2 usdt, 2 dai
+    // swap 2 usdt, expect more than 1 dai (min reserve check trigged)
+    test_min_reserve_swap_exact_in(
+        &mut session,
+        vec![USDT_DEC, DAI_DEC],
+        vec![2_000_000u128, 2_000_000_000_000_000_000u128],
+        2_000_000u128,
+        Err(StablePoolError::MinReserve()),
+    );
+}
+
+#[drink::test]
+fn test_20(session: &mut Session) {
+    // reserves one 2 usdt, 2 dai
+    // swap 1 usdt, expect less than 1 dai (min reserve holds)
+    test_min_reserve_swap_received(
+        &mut session,
+        vec![USDT_DEC, DAI_DEC],
+        vec![2_000_000u128, 2_000_000_000_000_000_000u128],
+        1_000_000u128,
+        Ok((997167942595869932, 2499167775929498)),
+    );
+}
+
+#[drink::test]
+fn test_21(session: &mut Session) {
+    // reserves one 2 usdt, 2 dai
+    // swap 2 usdt, expect more than 1 dai (min reserve check trigged)
+    test_min_reserve_swap_received(
+        &mut session,
+        vec![USDT_DEC, DAI_DEC],
+        vec![2_000_000u128, 2_000_000_000_000_000_000u128],
+        2_000_000u128,
+        Err(StablePoolError::MinReserve()),
+    );
+}
+
+#[drink::test]
+fn test_22(session: &mut Session) {
+    // reserves one 2 usdt, 2 dai
+    // expect less than 1 dai (min reserve holds)
+    test_min_reserve_swap_exact_out(
+        &mut session,
+        vec![USDT_DEC, DAI_DEC],
+        vec![2_000_000u128, 2_000_000_000_000_000_000u128],
+        997167942595869932u128,
+        Ok((1_000_000u128, 2499167775929498)),
+    );
+}
+
+#[drink::test]
+fn test_23(session: &mut Session) {
+    // reserves one 2 usdt, 2 dai
+    // expect more than 1 dai (min reserve check trigged)
+    test_min_reserve_swap_exact_out(
+        &mut session,
+        vec![USDT_DEC, DAI_DEC],
+        vec![2_000_000u128, 2_000_000_000_000_000_000u128],
+        1_100_000_000_000_000_000u128,
+        Err(StablePoolError::MinReserve()),
     );
 }
