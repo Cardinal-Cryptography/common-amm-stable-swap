@@ -24,6 +24,11 @@ pub fn fee_receiver() -> ink_primitives::AccountId {
     AsRef::<[u8; 32]>::as_ref(&FEE_RECEIVER).clone().into()
 }
 
+pub const USDT_DEC: u8 = 6;
+pub const USDC_DEC: u8 = 6;
+pub const DAI_DEC: u8 = 18;
+pub const LPT_DEC: u8 = 18;
+
 pub const ONE_LPT: u128 = 1000000000000000000;
 pub const ONE_DAI: u128 = 1000000000000000000;
 pub const ONE_USDT: u128 = 1000000;
