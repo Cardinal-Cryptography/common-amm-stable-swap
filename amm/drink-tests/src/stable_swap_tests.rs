@@ -7,7 +7,7 @@ use ink_wrapper_types::{Connection, ToAccountId};
 
 const FEE_BPS_DENOM: u128 = 10_000;
 
-fn setup_stable_swap(
+pub fn setup_stable_swap(
     session: &mut Session<MinimalRuntime>,
     token_decimals: [u8; 2],
     token_supply: [u128; 2],
