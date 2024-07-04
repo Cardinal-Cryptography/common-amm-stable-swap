@@ -51,11 +51,11 @@ fn test_02(session: &mut Session) {
 
 #[drink::test]
 fn test_03(session: &mut Session) {
-    // one 0.1 usdt, 0.1 usdc
+    // one 1 usdt, 0.1 usdc
     test_min_initial_reserve(
         &mut session,
         [USDT_DEC, USDC_DEC],
-        [100_000u128, 100_000u128],
+        [1_000_000u128, 100_000u128],
         Err(StablePoolError::MinReserve()),
     );
 }
