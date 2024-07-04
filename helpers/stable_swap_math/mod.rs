@@ -37,7 +37,8 @@ fn amount_from_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError>
 }
 
 /// Computes stable swap invariant (D)
-// [nit] invariant:  A n^n SUM{x_i} + D = D A n^n + D^{n+1} / (n^n PROD{x_i})
+// [nit] Mb add a comment like:
+// invariant: A n^n SUM{x_i} + D = D A n^n + D^{n+1} / (n^n PROD{x_i})
 // where A = amp_coef, x_i = amounts[i], n = amounts.len()
 fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
     // SUM{x_i}
@@ -93,7 +94,7 @@ fn compute_d_next(
 ) -> Result<U256, MathError> {
     let mut d_prod = d_prev;
     // [nit]
-    // maybe instead d_prod = d_prev^(n+1) / (n^n * Prod{amounts_i})
+    // I'd prefer having a comment this way: d_prod = d_prev^(n+1) / (n^n * Prod{amounts_i})
     for amount in amounts {
         // [audit]: I'm still not sure how to best multiply and divide by n^n
         // In curve, they've changed this 6 months ago to dividing by n^n at the end:

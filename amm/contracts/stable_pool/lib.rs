@@ -399,7 +399,6 @@ pub mod stable_pool {
             Ok(())
         }
 
-
         /// This method is for internal use only
         /// - calculates token_out amount
         /// - calculates swap fee
