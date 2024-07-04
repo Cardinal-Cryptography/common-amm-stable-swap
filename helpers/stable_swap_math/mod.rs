@@ -92,9 +92,16 @@ fn compute_d_next(
     n_add_one: u32,
 ) -> Result<U256, MathError> {
     let mut d_prod = d_prev;
-    // d_prod = ... * [d_prev / (x_(i) * n)] * ...
-    // where i in (0,n)
+    // [nit]
+    // maybe instead d_prod = d_prev^(n+1) / (n^n * Prod{amounts_i})
     for amount in amounts {
+        // [audit]: I'm still not sure how to best multiply and divide by n^n
+        // In curve, they've changed this 6 months ago to dividing by n^n at the end:
+        // https://github.com/curvefi/stableswap-ng/commit/7ac164bb7d9cf800d50adf549f10539684db69b8
+        // (supposedly after some large audit).
+        // I think it makes sense, as for n <= 8, the value of n^n is not too big, so we don't save much
+        // by dividing product by it when iterating (as it is currently), but we might
+        // run into some precision issues instead, when amount*n ~ d_prod.
         d_prod = d_prod
             .checked_mul(d_prev)
             .ok_or(MathError::MulOverflow(3))?
@@ -188,12 +195,10 @@ fn compute_y(
     let mut y = y_prev;
     for _ in 0..MAX_ITERATIONS {
         y = compute_y_next(y_prev, b, c, d)?;
-        if y > y_prev {
-            if y.checked_sub(y_prev).ok_or(MathError::SubUnderflow(4))? <= 1.into() {
-                return Ok(y.as_u128());
-            }
-        } else if y_prev.checked_sub(y).ok_or(MathError::SubUnderflow(5))? <= 1.into() {
-            return Ok(y.as_u128());
+        // [nit]
+        if y.abs_diff(y_prev) <= 1.into() {
+            return Ok(y.as_u128()); // [nit] I'm not an expert in ink!, but this will panic if y
+            // is not u128. Maybe try_into() and return Math error explicitly? (And all .as_u128() too) ?
         }
         y_prev = y;
     }

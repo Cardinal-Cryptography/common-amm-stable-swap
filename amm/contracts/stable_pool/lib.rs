@@ -349,7 +349,7 @@ pub mod stable_pool {
             Ok((token_in_id, token_out_id))
         }
 
-        // [nit] add assumption comment saying, that rates should be updated prior to calling this function
+        // [nit] add assumption comment saying that rates should be updated prior to calling this function
         fn mint_protocol_fee(&mut self, fee: u128, token_id: usize) -> Result<(), StablePoolError> {
             if let Some(fee_to) = self.fee_to() {
                 let protocol_fee = self.pool.fees.protocol_trade_fee(fee)?;
@@ -399,12 +399,12 @@ pub mod stable_pool {
             Ok(())
         }
 
+
         /// This method is for internal use only
         /// - calculates token_out amount
         /// - calculates swap fee
         /// - mints protocol fee
         /// - updates reserves
-        /// It assumes that rates have been updated.
         /// Returns (token_out_amount, swap_fee)
         fn _swap_exact_in(
             &mut self,
