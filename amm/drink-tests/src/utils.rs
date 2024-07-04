@@ -40,6 +40,12 @@ pub fn upload_all(session: &mut Session<MinimalRuntime>) {
     session
         .upload_code(stable_pool_contract::upload())
         .expect("Upload stable_pool_contract code");
+    session
+        .upload_code(mock_sazero_rate_contract::upload())
+        .expect("Upload mock_rate_contract code");
+    session
+        .upload_code(psp22::upload())
+        .expect("Upload psp22 code");
 }
 
 pub mod stable_swap {
