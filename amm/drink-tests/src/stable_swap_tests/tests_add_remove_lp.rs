@@ -1,4 +1,5 @@
 use drink::{self, session::Session};
+use stable_pool_contract::MathError;
 
 use super::*;
 
@@ -12,11 +13,11 @@ fn test_01(mut session: Session) {
     let initial_supply = initial_reserves
         .iter()
         .map(|amount| amount * 100_000_000_000)
-        .collect();
+        .collect::<Vec<u128>>();
     let (stable_swap, tokens) = setup_stable_swap_with_tokens(
         &mut session,
         vec![18, 6, 6],
-        initial_supply,
+        initial_supply.clone(),
         10_000,
         25,
         2000,
@@ -81,7 +82,7 @@ fn test_01(mut session: Session) {
     let balances: Vec<u128> = tokens
         .iter()
         .map(|&token| psp22_utils::balance_of(&mut session, token, charlie()))
-        .collect();
+        .collect::<Vec<u128>>();
     assert_eq!(
         balances,
         vec![100 * ONE_DAI, 100 * ONE_USDT, 100 * ONE_USDC],
@@ -166,7 +167,7 @@ fn test_01(mut session: Session) {
     let balances: Vec<u128> = tokens
         .iter()
         .map(|&token| psp22_utils::balance_of(&mut session, token, charlie()))
-        .collect();
+        .collect::<Vec<u128>>();
     assert_eq!(
         balances,
         vec![101 * ONE_DAI, 600 * ONE_USDT, 101 * ONE_USDC],
@@ -397,5 +398,443 @@ fn test_01(mut session: Session) {
         psp22_utils::total_supply(&mut session, stable_swap),
         last_total_shares,
         "Incorrect total shares"
+    );
+}
+
+/// Test withdrawing all liquidity with all shares
+#[drink::test]
+fn test_02(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect::<Vec<u128>>();
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![18, 6, 6],
+        initial_supply.clone(),
+        10_000,
+        25,
+        2000,
+        BOB,
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    // remove by shares
+    _ = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        stable_swap,
+        BOB,
+        300000 * ONE_LPT,
+        vec![1 * ONE_DAI, 1 * ONE_USDT, 1 * ONE_USDC],
+        bob(),
+    )
+    .expect("Should successfully remove liquidity");
+
+    assert_eq!(psp22_utils::balance_of(&mut session, stable_swap, bob()), 0);
+    assert_eq!(psp22_utils::total_supply(&mut session, stable_swap), 0);
+    let balances: Vec<u128> = tokens
+        .iter()
+        .map(|&token| psp22_utils::balance_of(&mut session, token, bob()))
+        .collect::<Vec<u128>>();
+    assert_eq!(balances, initial_supply, "Incorrect Users tokens balances");
+}
+
+/// Test withdrawing all liquidity by amounts
+#[drink::test]
+fn test_03(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect::<Vec<u128>>();
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![18, 6, 6],
+        initial_supply.clone(),
+        10_000,
+        25,
+        2000,
+        BOB,
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    _ = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        300000 * ONE_LPT,
+        initial_reserves,
+        bob(),
+    )
+    .expect("Should successfully remove liquidity");
+
+    assert_eq!(psp22_utils::balance_of(&mut session, stable_swap, bob()), 0);
+    assert_eq!(psp22_utils::total_supply(&mut session, stable_swap), 0);
+    let balances: Vec<u128> = tokens
+        .iter()
+        .map(|&token| psp22_utils::balance_of(&mut session, token, bob()))
+        .collect::<Vec<u128>>();
+    assert_eq!(balances, initial_supply, "Incorrect Users tokens balances");
+}
+
+/// Test withdrawing all liquidity with shares - 1
+#[drink::test]
+fn test_04(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect::<Vec<u128>>();
+    let initial_supply_sub_reserves = initial_supply
+        .iter()
+        .zip(initial_reserves.iter())
+        .map(|(supply, reserve)| supply - reserve)
+        .collect::<Vec<u128>>();
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![18, 6, 6],
+        initial_supply.clone(),
+        10_000,
+        25,
+        2000,
+        BOB,
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    let err = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        stable_swap,
+        BOB,
+        300000 * ONE_LPT - 1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect_err("Liquidity withdraw should fail");
+    assert_eq!(
+        err,
+        StablePoolError::InsufficientOutputAmount(),
+        "Should return appropriate error"
+    );
+
+    let err = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        300000 * ONE_LPT - 1,
+        initial_reserves,
+        bob(),
+    )
+    .expect_err("Liquidity withdraw should fail");
+    assert_eq!(
+        err,
+        StablePoolError::InsufficientLiquidityBurned(),
+        "Should return appropriate error"
+    );
+
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, stable_swap, bob()),
+        300000 * ONE_LPT
+    );
+    assert_eq!(
+        psp22_utils::total_supply(&mut session, stable_swap),
+        300000 * ONE_LPT
+    );
+    let balances: Vec<u128> = tokens
+        .iter()
+        .map(|&token| psp22_utils::balance_of(&mut session, token, bob()))
+        .collect::<Vec<u128>>();
+    assert_eq!(
+        balances, initial_supply_sub_reserves,
+        "Incorrect Users tokens balances"
+    );
+}
+
+/// Test withdrawing single token whole reserve
+#[drink::test]
+fn test_05(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect::<Vec<u128>>();
+    let initial_supply_sub_reserves = initial_supply
+        .iter()
+        .zip(initial_reserves.iter())
+        .map(|(supply, reserve)| supply - reserve)
+        .collect::<Vec<u128>>();
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![18, 6, 6],
+        initial_supply.clone(),
+        10_000,
+        25,
+        2000,
+        BOB,
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    let err = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        300000 * ONE_LPT,
+        vec![initial_reserves[0], 0, 0],
+        bob(),
+    )
+    .expect_err("Liquidity withdraw should fail");
+
+    assert_eq!(
+        err,
+        StablePoolError::MathError(MathError::DivByZero(1)),
+        "Should return appropriate error"
+    );
+
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, stable_swap, bob()),
+        300000 * ONE_LPT
+    );
+    assert_eq!(
+        psp22_utils::total_supply(&mut session, stable_swap),
+        300000 * ONE_LPT
+    );
+    let balances: Vec<u128> = tokens
+        .iter()
+        .map(|&token| psp22_utils::balance_of(&mut session, token, bob()))
+        .collect::<Vec<u128>>();
+    assert_eq!(
+        balances, initial_supply_sub_reserves,
+        "Incorrect Users tokens balances"
+    );
+}
+
+/// Test withdrawing all liquidity with shares - 1 (with different initial reserves)
+#[drink::test]
+fn test_06(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let initial_reserves = vec![543257 * ONE_DAI, 123123 * ONE_USDT, 32178139 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect::<Vec<u128>>();
+    let initial_supply_sub_reserves = initial_supply
+        .iter()
+        .zip(initial_reserves.iter())
+        .map(|(supply, reserve)| supply - reserve)
+        .collect::<Vec<u128>>();
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![18, 6, 6],
+        initial_supply.clone(),
+        10_000,
+        25,
+        2000,
+        BOB,
+    );
+
+    let (shares, _) = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    let err = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        stable_swap,
+        BOB,
+        shares - 1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect_err("Liquidity withdraw should fail");
+    assert_eq!(
+        err,
+        StablePoolError::InsufficientOutputAmount(),
+        "Should return appropriate error"
+    );
+
+    let err = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        shares - 1,
+        initial_reserves,
+        bob(),
+    )
+    .expect_err("Liquidity withdraw should fail");
+    assert_eq!(
+        err,
+        StablePoolError::InsufficientLiquidityBurned(),
+        "Should return appropriate error"
+    );
+
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, stable_swap, bob()),
+        shares
+    );
+    assert_eq!(psp22_utils::total_supply(&mut session, stable_swap), shares);
+    let balances: Vec<u128> = tokens
+        .iter()
+        .map(|&token| psp22_utils::balance_of(&mut session, token, bob()))
+        .collect::<Vec<u128>>();
+    assert_eq!(
+        balances, initial_supply_sub_reserves,
+        "Incorrect Users tokens balances"
+    );
+}
+
+/// Test withdrawing single token whole reserve (with different initial reserves)
+#[drink::test]
+fn test_07(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let initial_reserves = vec![543257 * ONE_DAI, 123123 * ONE_USDT, 32178139 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect::<Vec<u128>>();
+    let initial_supply_sub_reserves = initial_supply
+        .iter()
+        .zip(initial_reserves.iter())
+        .map(|(supply, reserve)| supply - reserve)
+        .collect::<Vec<u128>>();
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![18, 6, 6],
+        initial_supply.clone(),
+        10_000,
+        25,
+        2000,
+        BOB,
+    );
+
+    let (shares, _) = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    let err = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        shares,
+        vec![initial_reserves[0], 0, 0],
+        bob(),
+    )
+    .expect_err("Liquidity withdraw should fail");
+    assert_eq!(
+        err,
+        StablePoolError::MathError(MathError::DivByZero(1)),
+        "Should return appropriate error"
+    );
+
+    let err = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        shares,
+        vec![0, initial_reserves[1], 0],
+        bob(),
+    )
+    .expect_err("Liquidity withdraw should fail");
+    assert_eq!(
+        err,
+        StablePoolError::MathError(MathError::DivByZero(1)),
+        "Should return appropriate error"
+    );
+
+    let err = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        shares,
+        vec![0, 0, initial_reserves[2]],
+        bob(),
+    )
+    .expect_err("Liquidity withdraw should fail");
+    assert_eq!(
+        err,
+        StablePoolError::MathError(MathError::DivByZero(1)),
+        "Should return appropriate error"
+    );
+
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, stable_swap, bob()),
+        shares
+    );
+    assert_eq!(psp22_utils::total_supply(&mut session, stable_swap), shares);
+    let balances: Vec<u128> = tokens
+        .iter()
+        .map(|&token| psp22_utils::balance_of(&mut session, token, bob()))
+        .collect::<Vec<u128>>();
+    assert_eq!(
+        balances, initial_supply_sub_reserves,
+        "Incorrect Users tokens balances"
     );
 }
