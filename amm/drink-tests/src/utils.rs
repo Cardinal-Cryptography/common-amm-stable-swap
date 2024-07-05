@@ -90,15 +90,17 @@ pub mod stable_swap {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError> {
         _ = session.set_actor(caller);
-        handle_ink_error(session
-            .execute(
-                stable_pool_contract::Instance::from(stable_pool).add_liquidity(
-                    min_share_amount,
-                    amounts,
-                    to,
-                ),
-            )
-            .unwrap())
+        handle_ink_error(
+            session
+                .execute(
+                    stable_pool_contract::Instance::from(stable_pool).add_liquidity(
+                        min_share_amount,
+                        amounts,
+                        to,
+                    ),
+                )
+                .unwrap(),
+        )
     }
 
     pub fn remove_liquidity_by_amounts(
@@ -110,15 +112,17 @@ pub mod stable_swap {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError> {
         _ = session.set_actor(caller);
-        handle_ink_error(session
-            .execute(
-                stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_amounts(
-                    max_share_amount,
-                    amounts,
-                    to,
-                ),
-            )
-            .unwrap())
+        handle_ink_error(
+            session
+                .execute(
+                    stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_amounts(
+                        max_share_amount,
+                        amounts,
+                        to,
+                    ),
+                )
+                .unwrap(),
+        )
     }
 
     pub fn remove_liquidity_by_shares(
