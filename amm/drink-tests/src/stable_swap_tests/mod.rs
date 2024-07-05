@@ -121,7 +121,7 @@ pub fn share_price_and_total_shares(
             .checked_mul(100000000.into())
             .unwrap()
             .checked_div(total_shares.into())
-            .unwrap_or(100000000.into())
+            .unwrap_or(0.into()) // return 0 if total shares 0
             .as_u128(),
         total_shares,
     )
