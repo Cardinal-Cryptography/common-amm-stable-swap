@@ -17,51 +17,47 @@ const ONE_SAZERO: u128 = 10u128.pow(SAZERO_DEC as u32);
 
 const EXPIRE_TS: u64 = 24 * 3600 * 1000; // 24h
 
+fn deploy_rate_provider(session: &mut Session<MinimalRuntime>, salt: Vec<u8>) -> AccountId {
+    let instance = mock_sazero_rate_contract::Instance::new().with_salt(salt);
+    session
+        .instantiate(instance)
+        .unwrap()
+        .result
+        .to_account_id()
+        .into()
+}
+
 fn setup_rated_swap_with_tokens(
     session: &mut Session<MinimalRuntime>,
     caller: drink::AccountId32,
+    rate_providers: Vec<Option<AccountId>>,
     initial_token_supply: u128,
     init_amp_coef: u128,
     rate_expiration_duration_ms: u64,
     trade_fee: u16,
     protocol_fee: u16,
-) -> (AccountId, AccountId, AccountId, AccountId) {
-    //upload and deploy rate mock
-    session
-        .upload_code(stable_pool_contract::upload())
-        .expect("Upload stable_stable_pair_contract code");
-    session
-        .upload_code(mock_sazero_rate_contract::upload())
-        .expect("Upload sazero_rate_mock_contract code");
+) -> (AccountId, Vec<AccountId>) {
     let _ = session.set_actor(caller.clone());
 
-    let instance = mock_sazero_rate_contract::Instance::new();
+    let tokens: Vec<AccountId> = rate_providers
+        .iter()
+        .enumerate()
+        .map(|(i, _)| {
+            psp22_utils::setup_with_amounts(
+                session,
+                format!("Token{i}"),
+                WAZERO_DEC,
+                initial_token_supply * ONE_WAZERO,
+                caller.clone(),
+            )
+            .into()
+        })
+        .collect();
 
-    let wazero = psp22_utils::setup_with_amounts(
-        session,
-        "wAZERO".to_string(),
-        WAZERO_DEC,
-        initial_token_supply * ONE_WAZERO,
-        caller.clone(),
-    );
-    let sazero = psp22_utils::setup_with_amounts(
-        session,
-        "SAZERO".to_string(),
-        SAZERO_DEC,
-        initial_token_supply * ONE_SAZERO,
-        caller.clone(),
-    );
-
-    let rate_mock_address = session
-        .instantiate(instance)
-        .unwrap()
-        .result
-        .to_account_id()
-        .into();
     let instance = stable_pool_contract::Instance::new_rated(
-        vec![sazero.into(), wazero.into()],
-        vec![SAZERO_DEC, WAZERO_DEC],
-        vec![Some(rate_mock_address), None],
+        tokens.clone(),
+        vec![WAZERO_DEC; rate_providers.len()],
+        rate_providers,
         rate_expiration_duration_ms,
         init_amp_coef,
         caller.to_account_id(),
@@ -77,7 +73,7 @@ fn setup_rated_swap_with_tokens(
         .to_account_id()
         .into();
 
-    for token in [sazero, wazero] {
+    for token in tokens.clone() {
         psp22_utils::increase_allowance(
             session,
             token.into(),
@@ -88,19 +84,13 @@ fn setup_rated_swap_with_tokens(
         .unwrap();
     }
 
-    (rated_swap, sazero.into(), wazero.into(), rate_mock_address)
+    (rated_swap, tokens)
 }
 
-fn set_sazero_rate(
-    session: &mut Session<MinimalRuntime>,
-    mock_sazero_rate_contract: AccountId,
-    rate: u128,
-) {
+fn set_mock_rate(session: &mut Session<MinimalRuntime>, mock_rate_contract: AccountId, rate: u128) {
     _ = handle_ink_error(
         session
-            .execute(
-                mock_sazero_rate_contract::Instance::from(mock_sazero_rate_contract).set_rate(rate),
-            )
+            .execute(mock_sazero_rate_contract::Instance::from(mock_rate_contract).set_rate(rate))
             .unwrap(),
     );
 }
@@ -112,21 +102,26 @@ fn test_01(mut session: Session) {
     seed_account(&mut session, DAVE);
     seed_account(&mut session, EVA);
 
+    upload_all(&mut session);
+
     let now = get_timestamp(&mut session);
     set_timestamp(&mut session, now);
     let initial_token_supply: u128 = 1_000_000_000;
-    let (rated_swap, sazero, wazero, mock_sazero_rate) = setup_rated_swap_with_tokens(
+    let mock_sazero_rate = deploy_rate_provider(&mut session, vec![0]);
+    let (rated_swap, tokens) = setup_rated_swap_with_tokens(
         &mut session,
         BOB,
+        vec![Some(mock_sazero_rate), None],
         initial_token_supply,
         10000,
         EXPIRE_TS,
         25,
         2000,
     );
+    let [sazero, wazero]: [AccountId; 2] = tokens.try_into().unwrap();
 
-    set_timestamp(&mut session, now * EXPIRE_TS);
-    set_sazero_rate(&mut session, mock_sazero_rate, 2 * RATE_PRECISION);
+    set_timestamp(&mut session, now + EXPIRE_TS + 1);
+    set_mock_rate(&mut session, mock_sazero_rate, 2 * RATE_PRECISION);
 
     _ = stable_swap::add_liquidity(
         &mut session,
@@ -136,7 +131,7 @@ fn test_01(mut session: Session) {
         vec![50000 * ONE_SAZERO, 100000 * ONE_WAZERO],
         bob(),
     )
-    .expect("Should successfully swap. Err: {err:?}");
+    .expect("Should successfully add LP");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, bob()),
         200000 * ONE_LPT,
@@ -214,19 +209,386 @@ fn test_01(mut session: Session) {
     );
     assert_eq!(last_share_price, 100000000, "Incorrect share price");
 
-    // let err = stable_swap::remove_liquidity_by_shares(
-    //     &mut session,
-    //     rated_swap.into(),
-    //     BOB,
-    //     200000 * ONE_LPT,
-    //     vec![1 * ONE_SAZERO, 1 * ONE_WAZERO],
-    //     bob(),
-    // )
-    // .expect_err("Should return an error");
+    // --- DIFF ----
+    // Allow withdrawing all liquidity from the pool
 
-    // assert_eq!(
-    //     err,
-    //     StablePoolError::MinReserve(),
-    //     "Should return correct error"
-    // )
+    _ = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        rated_swap.into(),
+        BOB,
+        200000 * ONE_LPT,
+        vec![1 * ONE_SAZERO, 1 * ONE_WAZERO],
+        bob(),
+    )
+    .expect("Should successfully remove liquidity");
+
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, rated_swap, bob()),
+        0,
+        "Incorrect user share"
+    );
+
+    let (last_share_price, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![2 * RATE_PRECISION, RATE_PRECISION]),
+    );
+
+    // no shares left
+    assert_eq!(last_total_shares, 0, "Incorrect total shares");
+    assert_eq!(last_share_price, 0, "Incorrect share price");
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/tests/test_rated_pool.rs#L116
+#[drink::test]
+fn test_02(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    upload_all(&mut session);
+
+    let now = get_timestamp(&mut session);
+    set_timestamp(&mut session, now);
+    let mock_token_2_rate = deploy_rate_provider(&mut session, vec![0]);
+
+    let initial_token_supply: u128 = 1_000_000_000;
+    let (rated_swap, tokens) = setup_rated_swap_with_tokens(
+        &mut session,
+        BOB,
+        vec![None, Some(mock_token_2_rate), None],
+        initial_token_supply,
+        10000,
+        EXPIRE_TS,
+        25,
+        2000,
+    );
+
+    set_timestamp(&mut session, now + EXPIRE_TS);
+    set_mock_rate(&mut session, mock_token_2_rate, 2 * RATE_PRECISION);
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        rated_swap.into(),
+        BOB,
+        1,
+        vec![100000 * ONE_WAZERO, 50000 * ONE_WAZERO, 100000 * ONE_WAZERO],
+        bob(),
+    )
+    .expect("Should successfully add LP");
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, rated_swap, bob()),
+        300000 * ONE_LPT,
+        "Incorrect user share"
+    );
+    let (last_share_price, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, RATE_PRECISION]),
+    );
+    assert_eq!(
+        last_total_shares,
+        300000 * ONE_LPT,
+        "Incorrect total shares"
+    );
+    assert_eq!(last_share_price, 100000000, "Incorrect share price");
+
+    transfer_and_increase_allowance(
+        &mut session,
+        rated_swap,
+        tokens,
+        CHARLIE,
+        vec![
+            100000 * ONE_WAZERO,
+            100000 * ONE_WAZERO,
+            100000 * ONE_WAZERO,
+        ],
+        BOB,
+    );
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        rated_swap.into(),
+        CHARLIE,
+        1,
+        vec![100000 * ONE_WAZERO, 50000 * ONE_WAZERO, 100000 * ONE_WAZERO],
+        charlie(),
+    )
+    .expect("Should successfully add LP");
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, rated_swap, charlie()),
+        300000 * ONE_LPT,
+        "Incorrect user share"
+    );
+    let (last_share_price, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, RATE_PRECISION]),
+    );
+    assert_eq!(
+        last_total_shares,
+        600000 * ONE_LPT,
+        "Incorrect total shares"
+    );
+    assert_eq!(last_share_price, 100000000, "Incorrect share price");
+
+    _ = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        rated_swap.into(),
+        CHARLIE,
+        300000 * ONE_LPT,
+        vec![1 * ONE_WAZERO, 1 * ONE_WAZERO, 1 * ONE_WAZERO],
+        charlie(),
+    )
+    .expect("Should successfully remove LP");
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, rated_swap, charlie()),
+        0,
+        "Incorrect user share"
+    );
+    let (last_share_price, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, RATE_PRECISION]),
+    );
+    assert_eq!(
+        last_total_shares,
+        300000 * ONE_LPT,
+        "Incorrect total shares"
+    );
+    assert_eq!(last_share_price, 100000000, "Incorrect share price");
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/tests/test_rated_pool.rs#L197
+#[drink::test]
+fn test_03(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    upload_all(&mut session);
+
+    let now = get_timestamp(&mut session);
+    set_timestamp(&mut session, now);
+    let mock_token_2_rate = deploy_rate_provider(&mut session, vec![0]);
+    let mock_token_3_rate = deploy_rate_provider(&mut session, vec![1]);
+
+    let initial_token_supply: u128 = 1_000_000_000;
+    let (rated_swap, tokens) = setup_rated_swap_with_tokens(
+        &mut session,
+        BOB,
+        vec![None, Some(mock_token_2_rate), Some(mock_token_3_rate)],
+        initial_token_supply,
+        10000,
+        EXPIRE_TS,
+        25,
+        2000,
+    );
+
+    set_timestamp(&mut session, now + EXPIRE_TS);
+    set_mock_rate(&mut session, mock_token_2_rate, 2 * RATE_PRECISION);
+    set_mock_rate(&mut session, mock_token_3_rate, 4 * RATE_PRECISION);
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        rated_swap.into(),
+        BOB,
+        1,
+        vec![100000 * ONE_WAZERO, 50000 * ONE_WAZERO, 25000 * ONE_WAZERO],
+        bob(),
+    )
+    .expect("Should successfully add LP");
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, rated_swap, bob()),
+        300000 * ONE_LPT,
+        "Incorrect user share"
+    );
+    let (last_share_price, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, 4 * RATE_PRECISION]),
+    );
+    assert_eq!(
+        last_total_shares,
+        300000 * ONE_LPT,
+        "Incorrect total shares"
+    );
+    assert_eq!(last_share_price, 100000000, "Incorrect share price");
+
+    transfer_and_increase_allowance(
+        &mut session,
+        rated_swap,
+        tokens,
+        CHARLIE,
+        vec![
+            100000 * ONE_WAZERO,
+            100000 * ONE_WAZERO,
+            100000 * ONE_WAZERO,
+        ],
+        BOB,
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        rated_swap.into(),
+        CHARLIE,
+        1,
+        vec![100000 * ONE_WAZERO, 50000 * ONE_WAZERO, 25000 * ONE_WAZERO],
+        charlie(),
+    )
+    .expect("Should successfully add LP");
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, rated_swap, charlie()),
+        300000 * ONE_LPT,
+        "Incorrect user share"
+    );
+    let (last_share_price, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, 4 * RATE_PRECISION]),
+    );
+    assert_eq!(
+        last_total_shares,
+        600000 * ONE_LPT,
+        "Incorrect total shares"
+    );
+    assert_eq!(last_share_price, 100000000, "Incorrect share price");
+
+    _ = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        rated_swap.into(),
+        CHARLIE,
+        300000 * ONE_LPT,
+        vec![1 * ONE_WAZERO, 1 * ONE_WAZERO, 1 * ONE_WAZERO],
+        charlie(),
+    )
+    .expect("Should successfully remove LP");
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, rated_swap, charlie()),
+        0,
+        "Incorrect user share"
+    );
+    let (last_share_price, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, 4 * RATE_PRECISION]),
+    );
+    assert_eq!(
+        last_total_shares,
+        300000 * ONE_LPT,
+        "Incorrect total shares"
+    );
+    assert_eq!(last_share_price, 100000000, "Incorrect share price");
+}
+
+// ref https://github.com/ref-finance/ref-contracts/blob/d241d7aeaa6250937b160d56e5c4b5b48d9d97f7/ref-exchange/tests/test_rated_pool.rs#L303
+#[drink::test]
+fn test_04(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    upload_all(&mut session);
+
+    let initial_token_supply: u128 = 1_000_000_000;
+    let (rated_swap, tokens) = setup_rated_swap_with_tokens(
+        &mut session,
+        BOB,
+        vec![None, None],
+        initial_token_supply,
+        10000,
+        EXPIRE_TS,
+        25,
+        2000,
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        rated_swap.into(),
+        BOB,
+        1,
+        vec![100000 * ONE_WAZERO, 100000 * ONE_WAZERO],
+        bob(),
+    )
+    .expect("Should successfully add LP");
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, rated_swap, bob()),
+        200000 * ONE_LPT,
+        "Incorrect user share"
+    );
+    let (_, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![RATE_PRECISION, RATE_PRECISION]),
+    );
+    assert_eq!(
+        last_total_shares,
+        200000 * ONE_LPT,
+        "Incorrect total shares"
+    );
+
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, tokens[0], charlie()),
+        0,
+        "Incorrect user token balance"
+    );
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, tokens[1], charlie()),
+        0,
+        "Incorrect user token balance"
+    );
+    transfer_and_increase_allowance(
+        &mut session,
+        rated_swap,
+        tokens.clone(),
+        CHARLIE,
+        vec![ONE_WAZERO, 0],
+        BOB,
+    );
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, tokens[0], charlie()),
+        ONE_WAZERO,
+        "Incorrect user token balance"
+    );
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, tokens[1], charlie()),
+        0,
+        "Incorrect user token balance"
+    );
+    let (amount_out, fee) = stable_swap::swap_exact_in(
+        &mut session,
+        rated_swap.into(),
+        CHARLIE,
+        tokens[0],
+        tokens[1],
+        ONE_WAZERO,
+        1,
+        charlie(),
+    )
+    .expect("Should swap");
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, tokens[0], charlie()),
+        0,
+        "Incorrect user token balance"
+    );
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, tokens[1], charlie()),
+        997499999501,
+        "Incorrect user token balance"
+    );
+
+    let (_, last_total_shares) = share_price_and_total_shares(
+        &mut session,
+        rated_swap,
+        Some(vec![RATE_PRECISION, RATE_PRECISION]),
+    );
+    assert_eq!(
+        last_total_shares,
+        200000 * ONE_LPT + 499999994249708, // -- DIFF -- 499999994999720 [058346]
+        "Incorrect total shares"
+    );
+    assert_eq!(
+        stable_swap::reserves(&mut session, rated_swap),
+        vec![100001 * ONE_WAZERO, 99999 * ONE_WAZERO + 2500000499],
+        "Incorrect reserves"
+    );
 }
