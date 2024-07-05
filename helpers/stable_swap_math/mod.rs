@@ -9,7 +9,7 @@ use primitive_types::U256;
 
 use fees::Fees;
 
-/// Max number of iterations for curve computation using Newton–Raphson method
+/// Max number of iterations performed in Newton–Raphson method
 const MAX_ITERATIONS: u8 = 255;
 
 fn amount_to_rated(amount: u128, scaled_rate: u128) -> Result<u128, MathError> {
@@ -47,11 +47,10 @@ fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
         Ok(0.into())
     } else {
         let n = amounts.len() as u32;
+        // n^n
+        let nn = n.checked_pow(n).ok_or(MathError::MulOverflow(1))?;
         // A * n^n
-        let ann: U256 = casted_mul(
-            amp_coef,
-            n.checked_pow(n).ok_or(MathError::MulOverflow(1))?.into(),
-        );
+        let ann: U256 = casted_mul(amp_coef, nn.into());
         // A * n^n * SUM{x_i}
         let ann_sum = ann
             .checked_mul(amount_sum)
@@ -65,43 +64,37 @@ fn compute_d(amounts: &Vec<u128>, amp_coef: u128) -> Result<U256, MathError> {
         let mut d = amount_sum;
         // Computes next D unitl satisfying precision is reached
         for _ in 0..MAX_ITERATIONS {
-            let d_next = compute_d_next(d, n, amounts, ann_sum, ann_sub_one, n_add_one)?;
-            if d_next > d {
-                if d_next.checked_sub(d).ok_or(MathError::SubUnderflow(2))? <= 1.into() {
-                    return Ok(d);
-                }
-            } else if d.checked_sub(d_next).ok_or(MathError::SubUnderflow(3))? <= 1.into() {
+            let d_next = compute_d_next(d, n, nn, amounts, ann_sum, ann_sub_one, n_add_one)?;
+            if d_next.abs_diff(d) <= 1.into() {
                 return Ok(d);
             }
             d = d_next;
         }
-        Ok(d)
+        Err(MathError::Precision(1))
     }
 }
 
+/// Computes next step's approximation of D in Newton-Raphson method.
+/// Returns d_next, or error if any math error occurred.
 fn compute_d_next(
     d_prev: U256,
     n: u32,
+    nn: u32,
     amounts: &Vec<u128>,
     ann_sum: U256,
     ann_sub_one: U256,
     n_add_one: u32,
 ) -> Result<U256, MathError> {
     let mut d_prod = d_prev;
-    // d_prod = ... * [d_prev / (x_(i) * n)] * ...
-    // where i in (0,n)
-    for amount in amounts {
+    // d_prod = d_prev^(n+1) / (n^n * Prod{amounts_i})
+    for &amount in amounts {
         d_prod = d_prod
             .checked_mul(d_prev)
             .ok_or(MathError::MulOverflow(3))?
-            .checked_div(
-                amount
-                    .checked_mul(n.into())
-                    .ok_or(MathError::MulOverflow(4))?
-                    .into(),
-            )
+            .checked_div(amount.into())
             .ok_or(MathError::DivByZero(1))?;
     }
+    d_prod = d_prod.checked_div(nn.into()).unwrap();
     let numerator = d_prev
         .checked_mul(
             d_prod
@@ -128,7 +121,7 @@ fn compute_d_next(
 /// Returns new reserve of `y` tokens
 /// given new reserve of `x` tokens
 ///
-/// NOTICE: it does not check if `token_x_id` != `token_y_id` and if tokens' `id`s are out of bounds
+/// NOTE: it does not check if `token_x_id` != `token_y_id` and if tokens' `id`s are out of bounds
 fn compute_y(
     new_reserve_x: u128,
     reserves: &Vec<u128>,
@@ -181,19 +174,14 @@ fn compute_y(
         .ok_or(MathError::AddOverflow(6))?; // d will be subtracted later
 
     let mut y_prev = d;
-    let mut y = y_prev;
     for _ in 0..MAX_ITERATIONS {
-        y = compute_y_next(y_prev, b, c, d)?;
-        if y > y_prev {
-            if y.checked_sub(y_prev).ok_or(MathError::SubUnderflow(4))? <= 1.into() {
-                return Ok(y.as_u128());
-            }
-        } else if y_prev.checked_sub(y).ok_or(MathError::SubUnderflow(5))? <= 1.into() {
-            return Ok(y.as_u128());
+        let y = compute_y_next(y_prev, b, c, d)?;
+        if y.abs_diff(y_prev) <= 1.into() {
+            return Ok(y.try_into().map_err(|_| MathError::CastOverflow(11))?);
         }
         y_prev = y;
     }
-    Ok(y.as_u128())
+    Err(MathError::Precision(2))
 }
 
 fn compute_y_next(y_prev: U256, b: U256, c: U256, d: U256) -> Result<U256, MathError> {
@@ -382,15 +370,7 @@ fn compute_lp_amount_for_deposit(
                     .ok_or(MathError::DivByZero(9))?
                     .try_into()
                     .map_err(|_| MathError::CastOverflow(2))?;
-                let difference = if ideal_reserve > new_reserves[i] {
-                    ideal_reserve
-                        .checked_sub(new_reserves[i])
-                        .ok_or(MathError::SubUnderflow(16))?
-                } else {
-                    new_reserves[i]
-                        .checked_sub(ideal_reserve)
-                        .ok_or(MathError::SubUnderflow(17))?
-                };
+                let difference = ideal_reserve.abs_diff(new_reserves[i]);
                 let fee = _fees.normalized_trade_fee(n_coins, difference)?;
                 new_reserves[i] = new_reserves[i]
                     .checked_sub(fee)
@@ -471,9 +451,7 @@ pub fn compute_amounts_given_lp(
     let mut amounts = Vec::with_capacity(reserves.len());
     for &reserve in reserves {
         amounts.push(
-            U256::from(reserve)
-                .checked_mul(lp_amount.into())
-                .ok_or(MathError::MulOverflow(21))?
+            casted_mul(reserve, lp_amount)
                 .checked_div(pool_token_supply.into())
                 .ok_or(MathError::DivByZero(13))?
                 .try_into()
@@ -512,23 +490,16 @@ fn compute_lp_amount_for_withdraw(
     // Recalculate the invariant accounting for fees
     if let Some(_fees) = fees {
         for i in 0..new_reserves.len() {
-            let ideal_u128 = d_1
+            let ideal_reserve: u128 = d_1
                 .checked_mul(old_reserves[i].into())
                 .ok_or(MathError::MulOverflow(22))?
                 .checked_div(d_0)
                 .ok_or(MathError::DivByZero(14))?
-                .as_u128();
-            let difference = if ideal_u128 > new_reserves[i] {
-                ideal_u128
-                    .checked_sub(new_reserves[i])
-                    .ok_or(MathError::SubUnderflow(25))?
-            } else {
-                new_reserves[i]
-                    .checked_sub(ideal_u128)
-                    .ok_or(MathError::SubUnderflow(26))?
-            };
+                .try_into()
+                .map_err(|_| MathError::CastOverflow(7))?;
+            let difference = ideal_reserve.abs_diff(new_reserves[i]);
             let fee = _fees.normalized_trade_fee(n_coins, difference)?;
-            // new_u128 is for calculation D2, the one with fee charged
+            // new_reserves is for calculation D2, the one with fee charged
             new_reserves[i] = new_reserves[i]
                 .checked_sub(fee)
                 .ok_or(MathError::SubUnderflow(27))?;
@@ -545,14 +516,15 @@ fn compute_lp_amount_for_withdraw(
             .ok_or(MathError::MulOverflow(23))?
             .checked_div(d_0)
             .ok_or(MathError::DivByZero(15))?
-            .as_u128();
+            .try_into()
+            .map_err(|_| MathError::CastOverflow(8))?;
         let diff_shares = U256::from(pool_token_supply)
             .checked_mul(d_0.checked_sub(d_1).ok_or(MathError::SubUnderflow(29))?)
             .ok_or(MathError::MulOverflow(24))?
             .checked_div(d_0)
             .ok_or(MathError::DivByZero(16))?
-            .as_u128();
-
+            .try_into()
+            .map_err(|_| MathError::CastOverflow(9))?;
         Ok((
             burn_shares,
             burn_shares
@@ -565,7 +537,8 @@ fn compute_lp_amount_for_withdraw(
             .ok_or(MathError::MulOverflow(25))?
             .checked_div(d_0)
             .ok_or(MathError::DivByZero(17))?
-            .as_u128();
+            .try_into()
+            .map_err(|_| MathError::CastOverflow(10))?;
         Ok((burn_shares, 0))
     }
 }
