@@ -7,7 +7,7 @@ mod token_rate;
 /// The rate oracle contract must implement [`RateProvider`](trait@traits::RateProvider).
 /// 
 /// IMPORTANT:
-/// This stableswap implementation is meant for yield-bearing assets which adjusts
+/// This stableswap implementation is NOT meant for yield-bearing assets which adjusts
 /// its total supply to try and maintain a stable price a.k.a. rebasing tokens.
 #[ink::contract]
 pub mod stable_pool {
