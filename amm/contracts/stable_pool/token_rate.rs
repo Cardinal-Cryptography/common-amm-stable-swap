@@ -37,7 +37,9 @@ impl TokenRate {
         rate
     }
 
-    // To make sure the rate is up-to-date, the caller should call `update_rate` before calling this method.
+    /// Returns cached rate.
+    /// 
+    /// NOTE: To make sure the rate is up-to-date, the caller should call `update_rate` before calling this method.
     pub fn get_rate(&self) -> u128 {
         match self {
             Self::Constant(rate) => *rate,
@@ -45,17 +47,23 @@ impl TokenRate {
         }
     }
 
+    /// Update rate.
+    /// 
+    /// Returns `true` if the rate was expired and value of the new rate is different than the previous.
     pub fn update_rate(&mut self, current_time: u64) -> bool {
         match self {
             Self::External(external) => external.update_rate(current_time),
-            _ => false,
+            Self::Constant(_) => false,
         }
     }
 
+    /// Update rate without expiry check.
+    /// 
+    /// Returns `true` if value of the new rate is different than the previous.
     pub fn update_rate_no_cache(&mut self, current_time: u64) -> bool {
         match self {
             Self::External(external) => external.update_rate_no_cache(current_time),
-            _ => false,
+            Self::Constant(_) => false,
         }
     }
 }
@@ -102,8 +110,9 @@ impl ExternalTokenRate {
     }
 
     fn update(&mut self, current_time: u64) -> bool {
+        let old_rate = self.cached_token_rate;
         self.cached_token_rate = Self::query_rate(self.token_rate_contract);
         self.last_token_rate_update_ts = current_time;
-        true
+        old_rate != self.cached_token_rate
     }
 }
