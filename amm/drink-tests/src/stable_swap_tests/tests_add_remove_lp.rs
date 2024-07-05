@@ -9,13 +9,14 @@ fn test_01(mut session: Session) {
     seed_account(&mut session, DAVE);
     seed_account(&mut session, EVA);
     let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect();
     let (stable_swap, tokens) = setup_stable_swap_with_tokens(
         &mut session,
         vec![18, 6, 6],
-        initial_reserves
-            .iter()
-            .map(|amount| amount * 100_000_000_000)
-            .collect(),
+        initial_supply,
         10_000,
         25,
         2000,
@@ -200,7 +201,7 @@ fn test_01(mut session: Session) {
     let last_share_price = current_share_price;
     let last_total_shares = last_total_shares - 502598511257512352631 + 119779860286480103;
 
-    // tansfer some LPT to from charlie to dave
+    // transfer some LPT to from charlie to dave
     _ = psp22_utils::transfer(&mut session, stable_swap, dave(), 100 * ONE_LPT, CHARLIE);
 
     assert_eq!(

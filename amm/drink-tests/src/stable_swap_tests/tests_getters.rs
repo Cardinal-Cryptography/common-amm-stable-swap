@@ -4,13 +4,17 @@ use super::*;
 #[drink::test]
 fn test_01(mut session: Session) {
     let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply: Vec<u128> = initial_reserves.iter().map(|amount| amount * 10).collect();
+    let amp_coef = 10_000u128;
+    let trade_fee = 25u16;
+    let protocol_fee = 2000u16;
     let (stable_swap, tokens) = setup_stable_swap_with_tokens(
         &mut session,
         vec![18, 6, 6],
-        initial_reserves.iter().map(|amount| amount * 10).collect(),
-        10_000,
-        25,
-        2000,
+        initial_supply.clone(),
+        amp_coef,
+        trade_fee,
+        protocol_fee,
         BOB,
     );
 
@@ -36,12 +40,12 @@ fn test_01(mut session: Session) {
     );
     assert_eq!(
         stable_swap::amp_coef(&mut session, stable_swap),
-        10_000,
+        amp_coef,
         "Incorrect A"
     );
     assert_eq!(
         stable_swap::fees(&mut session, stable_swap),
-        (25, 2000),
+        (trade_fee, protocol_fee),
         "Incorrect fees"
     );
     assert_eq!(
@@ -61,9 +65,10 @@ fn test_01(mut session: Session) {
         .collect();
     assert_eq!(
         balances,
-        initial_reserves
+        initial_supply
             .iter()
-            .map(|amount| amount * 9)
+            .zip(initial_reserves)
+            .map(|(init_token_supply, init_reserve)| init_token_supply - init_reserve)
             .collect::<Vec<u128>>(),
         "Incorrect Users tokens balances"
     );
