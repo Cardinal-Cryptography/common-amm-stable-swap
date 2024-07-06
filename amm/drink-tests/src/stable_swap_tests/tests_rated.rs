@@ -137,11 +137,8 @@ fn test_01(mut session: Session) {
         200000 * ONE_LPT,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![2 * RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         200000 * ONE_LPT,
@@ -171,11 +168,8 @@ fn test_01(mut session: Session) {
         200000 * ONE_LPT,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![2 * RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         400000 * ONE_LPT,
@@ -197,11 +191,8 @@ fn test_01(mut session: Session) {
         0,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![2 * RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         200000 * ONE_LPT,
@@ -228,11 +219,8 @@ fn test_01(mut session: Session) {
         "Incorrect user share"
     );
 
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![2 * RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
 
     // no shares left
     assert_eq!(last_total_shares, 0, "Incorrect total shares");
@@ -281,11 +269,8 @@ fn test_02(mut session: Session) {
         300000 * ONE_LPT,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         300000 * ONE_LPT,
@@ -319,11 +304,8 @@ fn test_02(mut session: Session) {
         300000 * ONE_LPT,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         600000 * ONE_LPT,
@@ -345,11 +327,8 @@ fn test_02(mut session: Session) {
         0,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         300000 * ONE_LPT,
@@ -402,11 +381,8 @@ fn test_03(mut session: Session) {
         300000 * ONE_LPT,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, 4 * RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         300000 * ONE_LPT,
@@ -441,11 +417,8 @@ fn test_03(mut session: Session) {
         300000 * ONE_LPT,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, 4 * RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         600000 * ONE_LPT,
@@ -467,11 +440,8 @@ fn test_03(mut session: Session) {
         0,
         "Incorrect user share"
     );
-    let (last_share_price, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![RATE_PRECISION, 2 * RATE_PRECISION, 4 * RATE_PRECISION]),
-    );
+    let (last_share_price, last_total_shares) =
+        share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         300000 * ONE_LPT,
@@ -515,11 +485,7 @@ fn test_04(mut session: Session) {
         200000 * ONE_LPT,
         "Incorrect user share"
     );
-    let (_, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (_, last_total_shares) = share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         200000 * ONE_LPT,
@@ -554,7 +520,8 @@ fn test_04(mut session: Session) {
         0,
         "Incorrect user token balance"
     );
-    let (amount_out, fee) = stable_swap::swap_exact_in(
+
+    _ = stable_swap::swap_exact_in(
         &mut session,
         rated_swap.into(),
         CHARLIE,
@@ -576,11 +543,7 @@ fn test_04(mut session: Session) {
         "Incorrect user token balance"
     );
 
-    let (_, last_total_shares) = share_price_and_total_shares(
-        &mut session,
-        rated_swap,
-        Some(vec![RATE_PRECISION, RATE_PRECISION]),
-    );
+    let (_, last_total_shares) = share_price_and_total_shares(&mut session, rated_swap);
     assert_eq!(
         last_total_shares,
         200000 * ONE_LPT + 499999994249708, // -- DIFF -- 499999994999720 [058346]

@@ -247,6 +247,14 @@ pub mod stable_swap {
         )
     }
 
+    pub fn token_rates(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> Vec<u128> {
+        handle_ink_error(
+            session
+                .query(stable_pool_contract::Instance::from(stable_pool).token_rates())
+                .unwrap(),
+        )
+    }
+
     pub fn tokens(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> Vec<AccountId> {
         handle_ink_error(
             session

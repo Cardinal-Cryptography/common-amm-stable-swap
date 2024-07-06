@@ -96,15 +96,11 @@ pub fn setup_stable_swap_with_tokens(
 pub fn share_price_and_total_shares(
     session: &mut Session<MinimalRuntime>,
     stable_swap: AccountId,
-    token_rates: Option<Vec<u128>>,
 ) -> (u128, u128) {
     let total_shares = psp22_utils::total_supply(session, stable_swap);
     let reserves = stable_swap::reserves(session, stable_swap);
-    let token_rates: Vec<u128> = if let Some(rates) = token_rates {
-        rates
-    } else {
-        reserves.iter().map(|_| RATE_PRECISION).collect()
-    };
+    let token_rates = stable_swap::token_rates(session, stable_swap);
+
     let sum_token = stable_swap::tokens(session, stable_swap)
         .iter()
         .zip(reserves.iter())

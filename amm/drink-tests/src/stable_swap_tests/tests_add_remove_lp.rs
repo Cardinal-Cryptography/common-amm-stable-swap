@@ -35,7 +35,7 @@ fn test_01(mut session: Session) {
     .expect("Should successfully add liquidity");
 
     let (last_share_price, last_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap, None);
+        share_price_and_total_shares(&mut session, stable_swap);
 
     transfer_and_increase_allowance(
         &mut session,
@@ -58,7 +58,7 @@ fn test_01(mut session: Session) {
     .expect("Should successfully add liquidity");
 
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares + 1500 * ONE_LPT)
     );
 
@@ -89,7 +89,7 @@ fn test_01(mut session: Session) {
         "Incorrect Users tokens balances"
     );
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares - 300 * ONE_LPT)
     );
     let last_total_shares = last_total_shares - 300 * ONE_LPT;
@@ -133,7 +133,7 @@ fn test_01(mut session: Session) {
     );
 
     let (current_share_price, current_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap, None);
+        share_price_and_total_shares(&mut session, stable_swap);
     assert!(
         current_share_price > last_share_price,
         "Incorrect share price"
@@ -194,7 +194,7 @@ fn test_01(mut session: Session) {
         699699997426210330025,
         "Incorrect users share"
     );
-    let (current_share_price, _) = share_price_and_total_shares(&mut session, stable_swap, None);
+    let (current_share_price, _) = share_price_and_total_shares(&mut session, stable_swap);
     assert!(
         current_share_price > last_share_price,
         "Incorrect share price"
@@ -217,7 +217,7 @@ fn test_01(mut session: Session) {
     );
 
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares),
         "Incorrect share price and/or total shares"
     );
@@ -240,7 +240,7 @@ fn test_01(mut session: Session) {
     );
 
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares),
         "Incorrect share price and/or total shares"
     );
@@ -263,7 +263,7 @@ fn test_01(mut session: Session) {
     );
 
     assert_eq!(
-        share_price_and_total_shares(&mut session, stable_swap, None),
+        share_price_and_total_shares(&mut session, stable_swap),
         (last_share_price, last_total_shares),
         "Incorrect share price and/or total shares"
     );
@@ -304,7 +304,7 @@ fn test_01(mut session: Session) {
     );
 
     let (current_share_price, current_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap, None);
+        share_price_and_total_shares(&mut session, stable_swap);
     assert_eq!(
         current_share_price, last_share_price,
         "Incorrect share price"
@@ -344,7 +344,7 @@ fn test_01(mut session: Session) {
 
     let last_total_shares = last_total_shares - 498596320224035614380 + 119500087140112295;
     let (current_share_price, current_total_shares) =
-        share_price_and_total_shares(&mut session, stable_swap, None);
+        share_price_and_total_shares(&mut session, stable_swap);
     assert!(
         current_share_price > last_share_price,
         "Incorrect share price"
