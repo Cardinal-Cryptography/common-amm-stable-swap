@@ -3,7 +3,7 @@ use ink::primitives::AccountId;
 use ink::LangError;
 use psp22::PSP22Error;
 
-use crate::MathError;
+use crate::{MathError, Ownable2StepError};
 
 #[ink::trait_definition]
 pub trait StablePoolView {
@@ -180,9 +180,6 @@ pub trait StablePool {
     // --- OWNER RESTRICTED FUNCTIONS --- //
 
     #[ink(message)]
-    fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError>;
-
-    #[ink(message)]
     fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;
 
     /// Set fees
@@ -202,6 +199,7 @@ pub trait StablePool {
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum StablePoolError {
+    Ownable2StepError(Ownable2StepError),
     MathError(MathError),
     PSP22Error(PSP22Error),
     LangError(LangError),
@@ -217,7 +215,6 @@ pub enum StablePoolError {
     IncorrectTokenCount,
     TooLargeTokenDecimal,
     InvalidFee,
-    OnlyOwner,
 }
 
 impl From<PSP22Error> for StablePoolError {
@@ -235,5 +232,11 @@ impl From<LangError> for StablePoolError {
 impl From<MathError> for StablePoolError {
     fn from(error: MathError) -> Self {
         StablePoolError::MathError(error)
+    }
+}
+
+impl From<Ownable2StepError> for StablePoolError {
+    fn from(error: Ownable2StepError) -> Self {
+        StablePoolError::Ownable2StepError(error)
     }
 }
