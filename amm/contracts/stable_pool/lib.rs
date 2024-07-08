@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 mod token_rate;
-/// Stabelswap implementation based on the CurveFi stableswap model.
+/// StableSwap implementation based on the CurveFi stableswap model.
 /// 
 /// This pool contract supports PSP22 tokens which value increases at some
 /// on-chain discoverable rate in terms of some other token, e.g. AZERO x sAZERO.
