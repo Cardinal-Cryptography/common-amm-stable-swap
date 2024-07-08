@@ -38,7 +38,7 @@ impl TokenRate {
     }
 
     /// Returns cached rate.
-    /// 
+    ///
     /// NOTE: To make sure the rate is up-to-date, the caller should call `update_rate` before calling this method.
     pub fn get_rate(&self) -> u128 {
         match self {
@@ -48,7 +48,7 @@ impl TokenRate {
     }
 
     /// Update rate.
-    /// 
+    ///
     /// Returns `true` if the rate was expired and value of the new rate is different than the previous.
     pub fn update_rate(&mut self, current_time: u64) -> bool {
         match self {
@@ -58,7 +58,7 @@ impl TokenRate {
     }
 
     /// Update rate without expiry check.
-    /// 
+    ///
     /// Returns `true` if value of the new rate is different than the previous.
     pub fn update_rate_no_cache(&mut self, current_time: u64) -> bool {
         match self {
