@@ -1,6 +1,7 @@
-use crate::math::{casted_mul, MathError};
-
-pub const FEE_DENOM: u32 = 1_000_000_000;
+use crate::{
+    constants::stable_pool::{FEE_DENOM, MAX_PROTOCOL_FEE, MAX_TRADE_FEE},
+    math::{casted_mul, MathError},
+};
 
 #[ink::storage_item]
 #[derive(Debug, Default)]
@@ -14,7 +15,7 @@ impl Fees {
     /// - trade_fee given as an integer with 1e9 precision. The the maximum is 1% (10000000)
     /// - protocol_fee given as an integer with 1e9 precision. The maximum is 50% (500000000)
     pub fn new(trade_fee: u32, protocol_fee: u32) -> Option<Self> {
-        if trade_fee > FEE_DENOM / 100 || protocol_fee > FEE_DENOM / 2 {
+        if trade_fee > MAX_TRADE_FEE || protocol_fee > MAX_PROTOCOL_FEE {
             None
         } else {
             Some(Self {
