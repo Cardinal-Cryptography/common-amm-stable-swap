@@ -295,7 +295,7 @@ pub mod stable_pool {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
             for rate in self.pool.token_rates.iter_mut() {
-                rate_changed = rate.update_rate(current_time) || rate_changed;
+                rate_changed = rate.update_rate(current_time) | rate_changed;
             }
             if rate_changed {
                 Self::env().emit_event(RatesUpdated {
@@ -308,10 +308,11 @@ pub mod stable_pool {
             self.pool.fee_receiver
         }
 
-        // Scaled rates are rates multiplied by precision. They are assumed to fit in u128.
-        // If TOKEN_TARGET_DECIMALS is 18 and RATE_DECIMALS is 12, then rates not exceeding ~340282366 should fit.
-        // That's because if precision <= 10^18 and rate <= 10^12 * 340282366, then rate * precision < 2^128.
-        // NOTE: Rates should be updated prior ro calling this function
+        /// Scaled rates are rates multiplied by precision. They are assumed to fit in u128.
+        /// If TOKEN_TARGET_DECIMALS is 18 and RATE_DECIMALS is 12, then rates not exceeding ~340282366 should fit.
+        /// That's because if precision <= 10^18 and rate <= 10^12 * 340282366, then rate * precision < 2^128.
+        ///
+        /// NOTE: Rates should be updated prior to calling this function
         fn get_scaled_rates(&self) -> Result<Vec<u128>, MathError> {
             self.pool
                 .token_rates
@@ -354,7 +355,8 @@ pub mod stable_pool {
             Ok((token_in_id, token_out_id))
         }
         /// Calculates lpt equivalent of the protocol fee and mints it to the `fee_to` if one is set.
-        /// NOTE: Rates should be updated prior ro calling this function
+        ///
+        /// NOTE: Rates should be updated prior to calling this function
         fn mint_protocol_fee(&mut self, fee: u128, token_id: usize) -> Result<(), StablePoolError> {
             if let Some(fee_to) = self.fee_to() {
                 let protocol_fee = self.pool.fees.protocol_trade_fee(fee)?;
@@ -721,7 +723,7 @@ pub mod stable_pool {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
             for rate in self.pool.token_rates.iter_mut() {
-                rate_changed = rate.update_rate_no_cache(current_time) || rate_changed;
+                rate_changed = rate.update_rate_no_cache(current_time) | rate_changed;
             }
             if rate_changed {
                 Self::env().emit_event(RatesUpdated {
@@ -828,8 +830,6 @@ pub mod stable_pool {
             self.pool.tokens.clone()
         }
 
-        // This can output values lower than the actual balances of these tokens, which stems from roundings.
-        // However an invariant holds that each balance is at least the value returned by this function.
         #[ink(message)]
         fn reserves(&self) -> Vec<u128> {
             self.pool.reserves.clone()
