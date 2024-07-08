@@ -13,8 +13,9 @@ pub mod stable_pool {
     pub const MAX_AMP: u128 = 1_000_000;
 
     /// Given as an integer with 1e9 precision (1%)
-    pub const MAX_TRADE_FEE: u32 = 10000000;
+    pub const MAX_TRADE_FEE: u32 = 10_000_000;
     /// Given as an integer with 1e9 precision (50%)
-    pub const MAX_PROTOCOL_FEE: u32 = 500000000;
+    pub const MAX_PROTOCOL_FEE: u32 = 500_000_000;
+    /// Fee denominator
     pub const FEE_DENOM: u32 = 1_000_000_000;
 }
