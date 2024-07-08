@@ -348,7 +348,7 @@ fn compute_lp_amount_for_deposit(
     } else {
         // Initial invariant
         let d_0 = compute_d(old_reserves, amp_coef)?;
-        let n_coins = old_reserves.len() as u16;
+        let n_coins = old_reserves.len() as u32;
         let mut new_reserves = old_reserves
             .iter()
             .zip(deposit_amounts.iter())
@@ -471,7 +471,7 @@ fn compute_lp_amount_for_withdraw(
     fees: Option<&Fees>,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
-    let n_coins = old_reserves.len() as u16;
+    let n_coins = old_reserves.len() as u32;
     // Initial invariant, D0
     let d_0 = compute_d(old_reserves, amp_coef)?;
 
@@ -572,8 +572,7 @@ mod tests {
         let amp_coef: u128 = 1_000_000_000_000;
         let reserve_0: u128 = 400_000_000_000;
         let reserve_1: u128 = 500_000_000_000;
-        let d = compute_d(&Vec::from([reserve_0, reserve_1]), amp_coef)
-            .unwrap_or_else(|err| panic!("Should compute: {err:?}"));
+        let d = compute_d(&Vec::from([reserve_0, reserve_1]), amp_coef).expect("Should compute D");
         assert_eq!(
             d,
             (reserve_0 + reserve_1).into(),
@@ -586,8 +585,7 @@ mod tests {
         let amp_coef: u128 = 1;
         let reserve_0: u128 = 400_000_000_000;
         let reserve_1: u128 = 500_000_000_000;
-        let d = compute_d(&Vec::from([reserve_0, reserve_1]), amp_coef)
-            .unwrap_or_else(|err| panic!("Should compute: {err:?}"));
+        let d = compute_d(&Vec::from([reserve_0, reserve_1]), amp_coef).expect("Should compute D");
         assert!(
             d < (reserve_0 + reserve_1).into(),
             "Invariant should be less than const sum invariant"
@@ -613,7 +611,7 @@ mod tests {
             1,
             amp_coef,
         )
-        .unwrap_or_else(|err| panic!("Should compute y. Err: {err:?}"));
+        .expect("Should compute y.");
         assert_eq!(
             reserve_1_after,
             reserve_1 + reserve_delta,
@@ -635,7 +633,7 @@ mod tests {
             1,
             amp_coef,
         )
-        .unwrap_or_else(|err| panic!("Should compute y. Err: {err:?}"));
+        .expect("Should compute y.");
         assert!(
             reserve_1_after > reserve_1 + reserve_delta,
             "Destination reserve change should be greater than in const sum swap"
@@ -655,8 +653,8 @@ mod tests {
         let token_in = 10000000000;
         // ref https://github.com/ref-finance/ref-contracts/blob/be5c0e33465c13a05dab6e5e9ff9f8af414e16a7/ref-exchange/src/stable_swap/mod.rs#L744
         let expect_token_out = 9999495232;
-        let (amount_out, fee) = swap_to(0, token_in, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        let (amount_out, fee) =
+            swap_to(0, token_in, 1, &reserves, &fees, amp_coef).expect("Should return swap result");
         assert_eq!(amount_out, expect_token_out, "Incorrect swap ammount");
         assert_eq!(fee, 0, "Fee should nbe 0");
     }
@@ -669,7 +667,7 @@ mod tests {
         let token_out = 9999495232;
         let expect_token_in = 10000000000;
         let (amount_in, fee) = swap_from(0, token_out, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+            .expect("Should return swap result");
         assert_eq!(amount_in, expect_token_in, "Incorrect swap ammount");
         assert_eq!(fee, 0, "Fee should nbe 0");
     }
@@ -677,14 +675,14 @@ mod tests {
     #[test]
     fn swap_to_computation_with_fees() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0).unwrap(); // 10% fee
+        let fees = Fees::new(10000000, 0).unwrap(); // 1% fee
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_in = 10000000000;
         let expect_token_out = 9999495232;
-        let expect_fee = expect_token_out / 10;
+        let expect_fee = expect_token_out / 100;
         let expect_token_out_minus_fee = expect_token_out - expect_fee;
-        let (amount_out, fee) = swap_to(0, token_in, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+        let (amount_out, fee) =
+            swap_to(0, token_in, 1, &reserves, &fees, amp_coef).expect("Should return swap result");
         assert_eq!(
             amount_out, expect_token_out_minus_fee,
             "Incorrect swap ammount"
@@ -695,15 +693,15 @@ mod tests {
     #[test]
     fn swap_from_computation_with_fees() {
         let amp_coef: u128 = 1000;
-        let fees = Fees::new(1000, 0).unwrap(); // 10% fee
+        let fees = Fees::new(10000000, 0).unwrap(); // 1% fee
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_out = 9999495232;
-        let expect_fee: u128 = 9999495232 / 10;
+        let expect_fee: u128 = 9999495232 / 100;
         let token_out_minus_expect_fee = token_out - expect_fee;
         let expect_token_in = 10000000000;
         let (amount_in, fee) =
             swap_from(0, token_out_minus_expect_fee, 1, &reserves, &fees, amp_coef)
-                .unwrap_or_else(|_| panic!("Should return SwapResult"));
+                .expect("Should return swap result");
         assert_eq!(amount_in, expect_token_in, "Incorrect swap ammount");
         assert_eq!(fee, expect_fee, "Incorrect total fee ammount");
     }
@@ -715,9 +713,9 @@ mod tests {
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_in: u128 = 62463425433;
         let (amount_out, fee_out) = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+            .expect("Should return swap result");
         let (amount_in, fee_in) = swap_from(0, amount_out, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+            .expect("Should return swap result");
         assert_eq!(amount_in, token_0_in, "Incorrect swap amount");
         assert_eq!(fee_out, fee_in, "Incorrect fee amount");
     }
@@ -730,9 +728,9 @@ mod tests {
         let token_0_out: u128 = 62463425433;
 
         let (amount_in, fee_in) = swap_from(0, token_0_out, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+            .expect("Should return swap result");
         let (amount_out, fee_out) = swap_to(0, amount_in, 1, &reserves, &fees, amp_coef)
-            .unwrap_or_else(|_| panic!("Should return SwapResult"));
+            .expect("Should return swap result");
         assert_eq!(amount_out, token_0_out, "Incorrect swap amount");
         assert_eq!(fee_in, fee_out, "Incorrect fee amount");
     }
@@ -744,8 +742,8 @@ mod tests {
         let reserves: Vec<u128> = Vec::from([500_000_000_000, 500_000_000_000]);
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
-        let withdraw_amounts_by_share = compute_amounts_given_lp(share, &reserves, token_supply)
-            .unwrap_or_else(|_| panic!("Should work"));
+        let withdraw_amounts_by_share =
+            compute_amounts_given_lp(share, &reserves, token_supply).expect("Compute LPT failed");
         let (share_by_withdraw_amounts, fee_part) = compute_lp_amount_for_withdraw(
             &withdraw_amounts_by_share,
             &reserves,
@@ -753,7 +751,7 @@ mod tests {
             Some(&fees),
             amp_coef,
         )
-        .unwrap_or_else(|_| panic!("Should work"));
+        .expect("Compute LPT failed");
         assert_eq!(fee_part, 0, "Fee should be 0");
         assert_eq!(
             share_by_withdraw_amounts, share,
@@ -769,7 +767,7 @@ mod tests {
         let token_supply = compute_d(&reserves, amp_coef).unwrap().as_u128();
         let share = token_supply / 20; // 5%
         let deposit_amounts = compute_amounts_given_lp(share, &reserves, token_supply)
-            .unwrap_or_else(|_| panic!("Should mint liquidity"));
+            .expect("Should mint liquidity");
         let (share_by_deposit, fee_part) = compute_lp_amount_for_deposit(
             &deposit_amounts,
             &reserves,
@@ -777,7 +775,7 @@ mod tests {
             Some(&fees),
             amp_coef,
         )
-        .unwrap_or_else(|_| panic!("Should mint liquidity"));
+        .expect("Should mint liquidity");
         assert_eq!(fee_part, 0, "Fee should be 0");
         assert_eq!(share, share_by_deposit, "Deposit amounts differ.");
     }

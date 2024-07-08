@@ -58,8 +58,8 @@ pub mod stable_swap {
         tokens_decimals: Vec<u8>,
         init_amp_coef: u128,
         caller: drink::AccountId32,
-        trade_fee_bps: u16,
-        protocol_fee_bps: u16,
+        trade_fee: u32,
+        protocol_fee: u32,
         fee_receiver: Option<AccountId>,
     ) -> stable_pool_contract::Instance {
         let _ = session.set_actor(caller.clone());
@@ -68,8 +68,8 @@ pub mod stable_swap {
             tokens_decimals,
             init_amp_coef,
             caller.to_account_id(),
-            trade_fee_bps,
-            protocol_fee_bps,
+            trade_fee,
+            protocol_fee,
             fee_receiver,
         );
 
@@ -90,15 +90,17 @@ pub mod stable_swap {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError> {
         _ = session.set_actor(caller);
-        handle_ink_error(session
-            .execute(
-                stable_pool_contract::Instance::from(stable_pool).add_liquidity(
-                    min_share_amount,
-                    amounts,
-                    to,
-                ),
-            )
-            .unwrap())
+        handle_ink_error(
+            session
+                .execute(
+                    stable_pool_contract::Instance::from(stable_pool).add_liquidity(
+                        min_share_amount,
+                        amounts,
+                        to,
+                    ),
+                )
+                .unwrap(),
+        )
     }
 
     pub fn remove_liquidity_by_amounts(
@@ -110,15 +112,17 @@ pub mod stable_swap {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError> {
         _ = session.set_actor(caller);
-        handle_ink_error(session
-            .execute(
-                stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_amounts(
-                    max_share_amount,
-                    amounts,
-                    to,
-                ),
-            )
-            .unwrap())
+        handle_ink_error(
+            session
+                .execute(
+                    stable_pool_contract::Instance::from(stable_pool).remove_liquidity_by_amounts(
+                        max_share_amount,
+                        amounts,
+                        to,
+                    ),
+                )
+                .unwrap(),
+        )
     }
 
     pub fn remove_liquidity_by_shares(
@@ -235,7 +239,7 @@ pub mod stable_swap {
         )
     }
 
-    pub fn fees(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> (u16, u16) {
+    pub fn fees(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> (u32, u32) {
         handle_ink_error(
             session
                 .query(stable_pool_contract::Instance::from(stable_pool).fees())

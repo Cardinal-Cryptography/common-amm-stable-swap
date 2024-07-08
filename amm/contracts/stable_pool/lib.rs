@@ -112,8 +112,8 @@ pub mod stable_pool {
 
     #[ink(event)]
     pub struct FeeChanged {
-        trade_fee_bps: u16,
-        protocol_fee_bps: u16,
+        trade_fee: u32,
+        protocol_fee: u32,
     }
 
     #[ink::storage_item]
@@ -208,8 +208,8 @@ pub mod stable_pool {
             tokens_decimals: Vec<u8>,
             init_amp_coef: u128,
             owner: AccountId,
-            trade_fee_bps: u16,
-            protocol_fee_bps: u16,
+            trade_fee: u32,
+            protocol_fee: u32,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
             let token_rates = vec![TokenRate::new_constant(RATE_PRECISION); tokens.len()];
@@ -219,7 +219,7 @@ pub mod stable_pool {
                 token_rates,
                 init_amp_coef,
                 owner,
-                Fees::new(trade_fee_bps, protocol_fee_bps),
+                Fees::new(trade_fee, protocol_fee),
                 fee_receiver,
             )
         }
@@ -233,8 +233,8 @@ pub mod stable_pool {
             rate_expiration_duration_ms: u64,
             init_amp_coef: u128,
             owner: AccountId,
-            trade_fee_bps: u16,
-            protocol_fee_bps: u16,
+            trade_fee: u32,
+            protocol_fee: u32,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
             let current_time = Self::env().block_timestamp();
@@ -256,7 +256,7 @@ pub mod stable_pool {
                 token_rates,
                 init_amp_coef,
                 owner,
-                Fees::new(trade_fee_bps, protocol_fee_bps),
+                Fees::new(trade_fee, protocol_fee),
                 fee_receiver,
             )
         }
@@ -799,17 +799,13 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_fees(
-            &mut self,
-            trade_fee_bps: u16,
-            protocol_fee_bps: u16,
-        ) -> Result<(), StablePoolError> {
+        fn set_fees(&mut self, trade_fee: u32, protocol_fee: u32) -> Result<(), StablePoolError> {
             self.ensure_owner()?;
             self.pool.fees =
-                Fees::new(trade_fee_bps, protocol_fee_bps).ok_or(StablePoolError::InvalidFee)?;
+                Fees::new(trade_fee, protocol_fee).ok_or(StablePoolError::InvalidFee)?;
             self.env().emit_event(FeeChanged {
-                trade_fee_bps,
-                protocol_fee_bps,
+                trade_fee,
+                protocol_fee,
             });
             Ok(())
         }
@@ -845,11 +841,8 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn fees(&self) -> (u16, u16) {
-            (
-                self.pool.fees.trade_fee_bps,
-                self.pool.fees.protocol_fee_bps,
-            )
+        fn fees(&self) -> (u32, u32) {
+            (self.pool.fees.trade_fee, self.pool.fees.protocol_fee)
         }
 
         #[ink(message)]

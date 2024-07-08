@@ -19,9 +19,9 @@ pub trait StablePoolView {
     #[ink(message)]
     fn amp_coef(&self) -> u128;
 
-    /// Returns current trade and protocol fees in BPS.
+    /// Returns current trade and protocol fees in 1e9 precision.
     #[ink(message)]
-    fn fees(&self) -> (u16, u16);
+    fn fees(&self) -> (u32, u32);
 
     /// Updates cached token rates if expired and
     /// returns current tokens rates with precision of 12 decimal places.
@@ -185,11 +185,14 @@ pub trait StablePool {
     #[ink(message)]
     fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;
 
+    /// Set fees
+    /// - trade_fee given as an integer with 1e9 precision. The the maximum is 1% (10000000)
+    /// - protocol_fee given as an integer with 1e9 precision. The maximum is 50% (500000000)
     #[ink(message)]
     fn set_fees(
         &mut self,
-        trade_fee_bps: u16,
-        protocol_fee_bps: u16,
+        trade_fee: u32,
+        protocol_fee: u32,
     ) -> Result<(), StablePoolError>;
 
     #[ink(message)]
