@@ -295,7 +295,7 @@ pub mod stable_pool {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
             for rate in self.pool.token_rates.iter_mut() {
-                rate_changed = rate.update_rate(current_time) || rate_changed;
+                rate_changed = rate.update_rate(current_time) | rate_changed;
             }
             if rate_changed {
                 Self::env().emit_event(RatesUpdated {
@@ -723,7 +723,7 @@ pub mod stable_pool {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
             for rate in self.pool.token_rates.iter_mut() {
-                rate_changed = rate.update_rate_no_cache(current_time) || rate_changed;
+                rate_changed = rate.update_rate_no_cache(current_time) | rate_changed;
             }
             if rate_changed {
                 Self::env().emit_event(RatesUpdated {
