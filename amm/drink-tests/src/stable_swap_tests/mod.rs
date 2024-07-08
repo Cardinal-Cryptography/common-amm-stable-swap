@@ -12,6 +12,7 @@ use drink::{self, runtime::MinimalRuntime, session::Session, AccountId32};
 use ink_primitives::AccountId;
 use ink_wrapper_types::{Connection, ToAccountId};
 
+/// Fee denominator. Fees are expressed in 1e9 precision (1_000_000_000 is 100%)
 pub const FEE_DENOM: u128 = 1_000_000_000;
 
 pub const RATE_PRECISION: u128 = 10u128.pow(12);
