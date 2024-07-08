@@ -355,7 +355,7 @@ pub mod stable_pool {
             Ok((token_in_id, token_out_id))
         }
         /// Calculates lpt equivalent of the protocol fee and mints it to the `fee_to` if one is set.
-        /// 
+        ///
         /// NOTE: Rates should be updated prior to calling this function
         fn mint_protocol_fee(&mut self, fee: u128, token_id: usize) -> Result<(), StablePoolError> {
             if let Some(fee_to) = self.fee_to() {
@@ -834,8 +834,6 @@ pub mod stable_pool {
             self.pool.tokens.clone()
         }
 
-        // This can output values lower than the actual balances of these tokens, which stems from roundings.
-        // However an invariant holds that each balance is at least the value returned by this function.
         #[ink(message)]
         fn reserves(&self) -> Vec<u128> {
             self.pool.reserves.clone()
