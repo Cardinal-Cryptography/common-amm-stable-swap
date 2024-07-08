@@ -21,4 +21,7 @@ pub mod stable_pool {
     pub const MAX_PROTOCOL_FEE: u32 = 500_000_000;
     /// Fee denominator
     pub const FEE_DENOM: u32 = 1_000_000_000;
+
+    /// Maximum number coins (PSP22 token contracts) in the pool.
+    pub const MAX_COINS: usize = 8;
 }

@@ -2,8 +2,10 @@
 mod token_rate;
 /// Stabelswap implementation based on the CurveFi stableswap model.
 ///
-/// This pool contract supports PSP22 tokens which value increases at some
-/// on-chain discoverable rate in terms of some other token, e.g. AZERO x sAZERO.
+/// This pool contract supports up to 8 PSP22 tokens.
+///
+/// Supports tokens which value increases at some on-chain discoverable rate
+/// in terms of some other token, e.g. AZERO x sAZERO.
 /// The rate oracle contract must implement [`RateProvider`](trait@traits::RateProvider).
 ///
 /// IMPORTANT:
@@ -13,7 +15,9 @@ mod token_rate;
 pub mod stable_pool {
     use crate::token_rate::TokenRate;
     use amm_helpers::{
-        constants::stable_pool::{MAX_AMP, MIN_AMP, RATE_PRECISION, TOKEN_TARGET_DECIMALS},
+        constants::stable_pool::{
+            MAX_AMP, MAX_COINS, MIN_AMP, RATE_PRECISION, TOKEN_TARGET_DECIMALS,
+        },
         ensure,
         stable_swap_math::{self as math, fees::Fees},
     };
@@ -172,7 +176,7 @@ pub mod stable_pool {
             ensure!(
                 token_count == tokens_decimals.len()
                     && token_count == token_rates.len()
-                    && token_count > 1,
+                    && (2..=MAX_COINS).contains(&token_count),
                 StablePoolError::IncorrectTokenCount
             );
 
