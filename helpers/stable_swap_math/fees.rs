@@ -77,3 +77,51 @@ fn u128_ratio(amount: u128, num: u32, denom: u32) -> Result<u128, MathError> {
         .try_into()
         .map_err(|_| MathError::CastOverflow(61))
 }
+#[cfg(test)]
+mod tests {
+    use crate::constants::stable_pool::{MAX_PROTOCOL_FEE, MAX_TRADE_FEE};
+
+    use super::Fees;
+
+    #[test]
+    fn test_max_fees() {
+        _ = Fees::new(MAX_TRADE_FEE, MAX_PROTOCOL_FEE).expect("Should instantiate fee");
+        assert!(
+            Fees::new(MAX_TRADE_FEE + 1, MAX_PROTOCOL_FEE).is_none(),
+            "Should fail to instantiate fee"
+        );
+        assert!(
+            Fees::new(MAX_TRADE_FEE, MAX_PROTOCOL_FEE + 1).is_none(),
+            "Should fail to instantiate fee"
+        );
+    }
+
+    #[test]
+    fn test_fees() {
+        let fees = Fees::new(MAX_TRADE_FEE, MAX_PROTOCOL_FEE).expect("Should instantiate fee");
+        let amount_gross: u128 = 1_000_000;
+        let expected_trade_fee: u128 = amount_gross / 100; // 1%
+        let expected_protocol_fee: u128 = expected_trade_fee / 2; // 50%
+        let trade_fee_from_gross = fees
+            .trade_fee_from_gross(amount_gross)
+            .expect("Should compute fee");
+        let trade_fee_from_net = fees
+            .trade_fee_from_net(amount_gross - expected_trade_fee)
+            .expect("Should compute fee");
+        assert_eq!(
+            expected_trade_fee, trade_fee_from_gross,
+            "Trade fee should be 1%"
+        );
+        assert_eq!(
+            expected_trade_fee, trade_fee_from_net,
+            "Trade fee should be 1%"
+        );
+        let protocol_fee = fees
+            .protocol_trade_fee(expected_trade_fee)
+            .expect("Should compute protocol fee");
+        assert_eq!(
+            expected_protocol_fee, protocol_fee,
+            "Protocol fee should be 50%"
+        );
+    }
+}
