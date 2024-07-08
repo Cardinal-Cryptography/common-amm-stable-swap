@@ -67,10 +67,13 @@ pub fn setup_stable_swap_with_tokens(
         tokens.clone(),
         token_decimals,
         amp_coef,
-        bob(),
         trade_fee,
         protocol_trade_fee,
         Some(fee_receiver()),
+        // for the sake of tests, BOB is granted all access roles
+        bob(),
+        bob(),
+        bob(),
     );
 
     let stable_swap: stable_pool_contract::Instance = session

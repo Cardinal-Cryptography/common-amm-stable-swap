@@ -177,10 +177,16 @@ pub trait StablePool {
     #[ink(message)]
     fn force_update_rate(&mut self);
 
-    // --- OWNER RESTRICTED FUNCTIONS --- //
+    // --- ACCESS RESTRICTED FUNCTIONS --- //
 
     #[ink(message)]
-    fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError>;
+    fn set_fee_setter(&mut self, new_fee_setter: AccountId) -> Result<(), StablePoolError>;
+
+    #[ink(message)]
+    fn set_fee_receiver_setter(&mut self, new_fee_receiver_setter: AccountId) -> Result<(), StablePoolError>;
+
+    #[ink(message)]
+    fn set_amp_coef_setter(&mut self, new_amp_coef_setter: AccountId) -> Result<(), StablePoolError>;
 
     #[ink(message)]
     fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;

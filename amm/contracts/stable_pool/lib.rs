@@ -97,9 +97,19 @@ pub mod stable_pool {
     }
 
     #[ink(event)]
-    pub struct OwnerChanged {
+    pub struct FeeSetterChanged {
         #[ink(topic)]
-        pub new_owner: AccountId,
+        pub new_fee_setter: AccountId,
+    }
+    #[ink(event)]
+    pub struct FeeReceiverSetterChanged {
+        #[ink(topic)]
+        pub new_fee_receiver_setter: AccountId,
+    }
+    #[ink(event)]
+    pub struct AmpCoefSetterChanged {
+        #[ink(topic)]
+        pub new_amp_coef_setter: AccountId,
     }
 
     #[ink(event)]
@@ -137,11 +147,16 @@ pub mod stable_pool {
         fees: Fees,
         /// Who receives protocol fees (if any).
         fee_receiver: Option<AccountId>,
+        ///
+        fee_setter: AccountId,
+        ///
+        fee_receiver_setter: AccountId,
+        ///
+        amp_coef_setter: AccountId,
     }
 
     #[ink(storage)]
     pub struct StablePoolContract {
-        owner: AccountId,
         pool: StablePoolData,
         psp22: PSP22Data,
     }
@@ -160,9 +175,11 @@ pub mod stable_pool {
             tokens_decimals: Vec<u8>,
             token_rates: Vec<TokenRate>,
             amp_coef: u128,
-            owner: AccountId,
             fees: Option<Fees>,
             fee_receiver: Option<AccountId>,
+            fee_setter: AccountId,
+            fee_receiver_setter: AccountId,
+            amp_coef_setter: AccountId,
         ) -> Result<Self, StablePoolError> {
             validate_amp_coef(amp_coef)?;
             let mut unique_tokens = tokens.clone();
@@ -192,7 +209,6 @@ pub mod stable_pool {
                 })
                 .collect();
             Ok(Self {
-                owner,
                 pool: StablePoolData {
                     tokens,
                     reserves: vec![0; token_count],
@@ -201,6 +217,9 @@ pub mod stable_pool {
                     amp_coef,
                     fees: fees.ok_or(StablePoolError::InvalidFee)?,
                     fee_receiver,
+                    fee_setter,
+                    fee_receiver_setter,
+                    amp_coef_setter,
                 },
                 psp22: PSP22Data::default(),
             })
@@ -211,10 +230,12 @@ pub mod stable_pool {
             tokens: Vec<AccountId>,
             tokens_decimals: Vec<u8>,
             init_amp_coef: u128,
-            owner: AccountId,
             trade_fee: u32,
             protocol_fee: u32,
             fee_receiver: Option<AccountId>,
+            fee_setter: AccountId,
+            fee_receiver_setter: AccountId,
+            amp_coef_setter: AccountId,
         ) -> Result<Self, StablePoolError> {
             let token_rates = vec![TokenRate::new_constant(RATE_PRECISION); tokens.len()];
             Self::new_pool(
@@ -222,9 +243,11 @@ pub mod stable_pool {
                 tokens_decimals,
                 token_rates,
                 init_amp_coef,
-                owner,
                 Fees::new(trade_fee, protocol_fee),
                 fee_receiver,
+                fee_setter,
+                fee_receiver_setter,
+                amp_coef_setter,
             )
         }
 
@@ -236,10 +259,12 @@ pub mod stable_pool {
             external_rates: Vec<Option<AccountId>>,
             rate_expiration_duration_ms: u64,
             init_amp_coef: u128,
-            owner: AccountId,
             trade_fee: u32,
             protocol_fee: u32,
             fee_receiver: Option<AccountId>,
+            fee_setter: AccountId,
+            fee_receiver_setter: AccountId,
+            amp_coef_setter: AccountId,
         ) -> Result<Self, StablePoolError> {
             let current_time = Self::env().block_timestamp();
             let token_rates: Vec<TokenRate> = external_rates
@@ -259,9 +284,11 @@ pub mod stable_pool {
                 tokens_decimals,
                 token_rates,
                 init_amp_coef,
-                owner,
                 Fees::new(trade_fee, protocol_fee),
                 fee_receiver,
+                fee_setter,
+                fee_receiver_setter,
+                amp_coef_setter,
             )
         }
 
@@ -330,11 +357,8 @@ pub mod stable_pool {
                 .collect()
         }
 
-        fn ensure_owner(&self) -> Result<(), StablePoolError> {
-            ensure!(
-                self.env().caller() == self.owner,
-                StablePoolError::OnlyOwner
-            );
+        fn ensure_access(&self, role: AccountId) -> Result<(), StablePoolError> {
+            ensure!(self.env().caller() == role, StablePoolError::OnlyOwner);
             Ok(())
         }
 
@@ -784,10 +808,36 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
-            self.ensure_owner()?;
-            self.owner = new_owner;
-            self.env().emit_event(OwnerChanged { new_owner });
+        fn set_fee_setter(&mut self, new_fee_setter: AccountId) -> Result<(), StablePoolError> {
+            self.ensure_access(self.pool.fee_setter)?;
+            self.pool.fee_setter = new_fee_setter;
+            self.env().emit_event(FeeSetterChanged { new_fee_setter });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn set_fee_receiver_setter(
+            &mut self,
+            new_fee_receiver_setter: AccountId,
+        ) -> Result<(), StablePoolError> {
+            self.ensure_access(self.pool.fee_receiver_setter)?;
+            self.pool.fee_receiver_setter = new_fee_receiver_setter;
+            self.env().emit_event(FeeReceiverSetterChanged {
+                new_fee_receiver_setter,
+            });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn set_amp_coef_setter(
+            &mut self,
+            new_amp_coef_setter: AccountId,
+        ) -> Result<(), StablePoolError> {
+            self.ensure_access(self.pool.amp_coef_setter)?;
+            self.pool.amp_coef_setter = new_amp_coef_setter;
+            self.env().emit_event(AmpCoefSetterChanged {
+                new_amp_coef_setter,
+            });
             Ok(())
         }
 
@@ -796,7 +846,7 @@ pub mod stable_pool {
             &mut self,
             fee_receiver: Option<AccountId>,
         ) -> Result<(), StablePoolError> {
-            self.ensure_owner()?;
+            self.ensure_access(self.pool.fee_receiver_setter)?;
             self.pool.fee_receiver = fee_receiver;
             self.env().emit_event(FeeReceiverChanged {
                 new_fee_receiver: fee_receiver,
@@ -806,7 +856,7 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn set_fees(&mut self, trade_fee: u32, protocol_fee: u32) -> Result<(), StablePoolError> {
-            self.ensure_owner()?;
+            self.ensure_access(self.pool.fee_setter)?;
             self.pool.fees =
                 Fees::new(trade_fee, protocol_fee).ok_or(StablePoolError::InvalidFee)?;
             self.env().emit_event(FeeChanged {
@@ -818,7 +868,7 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError> {
-            self.ensure_owner()?;
+            self.ensure_access(self.pool.amp_coef_setter)?;
             validate_amp_coef(amp_coef)?;
             self.pool.amp_coef = amp_coef;
             self.env().emit_event(AmpCoefChanged {

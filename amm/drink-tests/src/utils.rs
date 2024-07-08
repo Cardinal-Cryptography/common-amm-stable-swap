@@ -54,23 +54,28 @@ pub mod stable_swap {
 
     pub fn setup(
         session: &mut Session<MinimalRuntime>,
+        caller: drink::AccountId32,
         tokens: Vec<AccountId>,
         tokens_decimals: Vec<u8>,
         init_amp_coef: u128,
-        caller: drink::AccountId32,
         trade_fee: u32,
         protocol_fee: u32,
         fee_receiver: Option<AccountId>,
+        fee_setter: AccountId,
+        fee_receiver_setter: AccountId,
+        amp_coef_setter: AccountId,
     ) -> stable_pool_contract::Instance {
         let _ = session.set_actor(caller.clone());
         let instance = stable_pool_contract::Instance::new_stable(
             tokens,
             tokens_decimals,
             init_amp_coef,
-            caller.to_account_id(),
             trade_fee,
             protocol_fee,
             fee_receiver,
+            fee_setter,
+            fee_receiver_setter,
+            amp_coef_setter,
         );
 
         session
