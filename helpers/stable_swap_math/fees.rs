@@ -12,8 +12,9 @@ pub struct Fees {
 
 impl Fees {
     /// Crate new fee instance.
-    /// - trade_fee given as an integer with 1e9 precision restricted to [`MAX_TRADE_FEE`](const@MAX_TRADE_FEE)
-    /// - protocol_fee given as an integer with 1e9 precision restricted to [`MAX_PROTOCOL_FEE`](const@MAX_PROTOCOL_FEE)
+    /// - `trade_fee` given as an integer with 1e9 precision restricted to [`MAX_TRADE_FEE`](const@MAX_TRADE_FEE)
+    /// - `protocol_fee` given as an integer with 1e9 precision restricted to [`MAX_PROTOCOL_FEE`](const@MAX_PROTOCOL_FEE).
+    ///    Taken as part of the `trade_fee`
     pub fn new(trade_fee: u32, protocol_fee: u32) -> Option<Self> {
         if trade_fee > MAX_TRADE_FEE || protocol_fee > MAX_PROTOCOL_FEE {
             None
