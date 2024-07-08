@@ -482,7 +482,7 @@ fn compute_lp_amount_for_withdraw(
         .map(|(reserve, &amount)| {
             reserve
                 .checked_sub(amount)
-                .ok_or(MathError::AddOverflow(14))
+                .ok_or(MathError::SubUnderflow(14))
         })
         .collect::<Result<Vec<u128>, MathError>>()?;
     let d_1 = compute_d(&new_reserves, amp_coef)?;
