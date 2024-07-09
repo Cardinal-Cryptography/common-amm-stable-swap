@@ -1,4 +1,4 @@
-use ink::{prelude::string::String, primitives::AccountId};
+use ink::primitives::AccountId;
 use scale::{Decode, Encode};
 
 /// Implement this trait to enable two-step ownership trasfer process in your contract.
@@ -7,8 +7,11 @@ use scale::{Decode, Encode};
 /// * current owner (Alice) calls `self.transfer_ownership(bob)`,
 /// * the contract still has the owner: Alice and a pending owner: bob,
 /// * when Bob claims the ownership by calling `self.accept_ownership()` he becomes the new owner and pending owner is removed.
-///
-/// The methods are all wrapper in `Ownable2StepResult` to make it possible to use them in settings where the `Data` is e.g. behid `Lazy`.
+/// 
+/// The ownership can be also renounced:
+/// * current owner calls `self.transfer_ownership(this_contract_address)`
+/// * current owner calls `self.renounce_ownership()` - transfers the ownership to
+///   this contract's address
 #[ink::trait_definition]
 pub trait Ownable2Step {
     /// Returns the address of the current owner.
@@ -28,6 +31,12 @@ pub trait Ownable2Step {
     #[ink(message)]
     fn accept_ownership(&mut self) -> Ownable2StepResult<()>;
 
+    /// The owner of the contract renounces the ownership.
+    /// To start the process, the owner has to initiate ownership transfer to this contract's address.
+    /// Can anly be caller by the current owner.
+    #[ink(message)]
+    fn renounce_ownership(&mut self) -> Ownable2StepResult<()>;
+
     /// Return error if called by any account other than the owner.
     #[ink(message)]
     fn ensure_owner(&self) -> Ownable2StepResult<()>;
@@ -40,10 +49,10 @@ pub enum Ownable2StepError {
     CallerNotOwner(AccountId),
     /// The caller tried to accept ownership but caller in not the pending owner
     CallerNotPendingOwner(AccountId),
+    /// The owner tried to renounce ownership but the contract's address has not been set as the pending owner.
+    ContractNotPendingOwner(AccountId),
     /// The caller tried to accept ownership but the process hasn't been started
     NoPendingOwner,
-    /// Useful in cases, when the `Data` struct is not accessed directly but inside of `Lazy` or a `Mapping`, means that we failed to access the `Data` struct itself.
-    Custom(String),
 }
 
 pub type Ownable2StepResult<T> = Result<T, Ownable2StepError>;
@@ -83,6 +92,24 @@ impl Ownable2StepData {
         }
 
         self.owner = pending_owner;
+        self.pending_owner = None;
+
+        Ok(())
+    }
+
+    pub fn renounce_ownership(
+        &mut self,
+        caller: AccountId,
+        contract_address: AccountId,
+    ) -> Ownable2StepResult<()> {
+        self.ensure_owner(caller)?;
+        let pending_owner = self
+            .pending_owner
+            .ok_or(Ownable2StepError::NoPendingOwner)?;
+        if pending_owner != contract_address {
+            return Err(Ownable2StepError::ContractNotPendingOwner(pending_owner));
+        }
+        self.owner = contract_address;
         self.pending_owner = None;
 
         Ok(())

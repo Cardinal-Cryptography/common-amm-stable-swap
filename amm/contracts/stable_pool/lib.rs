@@ -110,6 +110,9 @@ pub mod stable_pool {
     }
 
     #[ink(event)]
+    pub struct OwnershipRenounced {}
+
+    #[ink(event)]
     pub struct FeeReceiverChanged {
         #[ink(topic)]
         pub new_fee_receiver: Option<AccountId>,
@@ -1081,6 +1084,14 @@ pub mod stable_pool {
             self.ownable.accept_ownership(new_owner)?;
             self.env()
                 .emit_event(TransferOwnershipAccepted { new_owner });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn renounce_ownership(&mut self) -> Ownable2StepResult<()> {
+            self.ownable
+                .renounce_ownership(self.env().caller(), self.env().account_id())?;
+            self.env().emit_event(OwnershipRenounced {});
             Ok(())
         }
 
