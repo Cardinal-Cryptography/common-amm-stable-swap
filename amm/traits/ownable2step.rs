@@ -7,7 +7,7 @@ use scale::{Decode, Encode};
 /// * current owner (Alice) calls `self.transfer_ownership(bob)`,
 /// * the contract still has the owner: Alice and a pending owner: bob,
 /// * when Bob claims the ownership by calling `self.accept_ownership()` he becomes the new owner and pending owner is removed.
-/// 
+///
 /// The ownership can be also renounced:
 /// * current owner calls `self.transfer_ownership(this_contract_address)`
 /// * current owner calls `self.renounce_ownership()` - transfers the ownership to
@@ -83,9 +83,7 @@ impl Ownable2StepData {
     }
 
     pub fn accept_ownership(&mut self, caller: AccountId) -> Ownable2StepResult<()> {
-        let pending_owner = self
-            .pending_owner
-            .ok_or(Ownable2StepError::NoPendingOwner)?;
+        let pending_owner = self.get_pending_owner()?;
 
         if caller != pending_owner {
             return Err(Ownable2StepError::CallerNotPendingOwner(caller));
@@ -103,9 +101,7 @@ impl Ownable2StepData {
         contract_address: AccountId,
     ) -> Ownable2StepResult<()> {
         self.ensure_owner(caller)?;
-        let pending_owner = self
-            .pending_owner
-            .ok_or(Ownable2StepError::NoPendingOwner)?;
+        let pending_owner = self.get_pending_owner()?;
         if pending_owner != contract_address {
             return Err(Ownable2StepError::ContractNotPendingOwner(pending_owner));
         }
