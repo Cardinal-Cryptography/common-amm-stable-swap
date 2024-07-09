@@ -3,7 +3,7 @@ use ink::primitives::AccountId;
 use ink::LangError;
 use psp22::PSP22Error;
 
-use crate::MathError;
+use crate::{MathError, Ownable2StepError};
 
 #[ink::trait_definition]
 pub trait StablePoolView {
@@ -19,9 +19,9 @@ pub trait StablePoolView {
     #[ink(message)]
     fn amp_coef(&self) -> u128;
 
-    /// Returns current trade and protocol fees in BPS.
+    /// Returns current trade and protocol fees in 1e9 precision.
     #[ink(message)]
-    fn fees(&self) -> (u16, u16);
+    fn fees(&self) -> (u32, u32);
 
     /// Updates cached token rates if expired and
     /// returns current tokens rates with precision of 12 decimal places.
@@ -29,9 +29,9 @@ pub trait StablePoolView {
     fn token_rates(&mut self) -> Vec<u128>;
 
     /// Calculate swap amount of token_out
-    /// given token_in amount
+    /// given token_in amount.
     /// Returns (amount_out, fee)
-    /// fee is applied to token_out
+    /// NOTE: fee is applied to token_out
     #[ink(message)]
     fn get_swap_amount_out(
         &mut self,
@@ -96,7 +96,7 @@ pub trait StablePool {
     /// for this contract.
     /// Returns an error if the minted LP tokens amount is less
     /// than `min_share_amount`.
-    /// Returns (minted_shares, fee_part)
+    /// Returns (minted_share_amount, fee_part)
     #[ink(message)]
     fn add_liquidity(
         &mut self,
@@ -118,7 +118,7 @@ pub trait StablePool {
 
     /// Burns LP tokens and withdraws underlying tokens in balanced amounts to `to` account.
     /// Fails if any of the amounts received is less than in `min_amounts`.
-    /// Returns ([amounts_by_tokens], fee_part)
+    /// Returns (amounts_out, fee_part)
     #[ink(message)]
     fn remove_liquidity_by_shares(
         &mut self,
@@ -150,6 +150,7 @@ pub trait StablePool {
     /// for this contract.
     /// Returns an error if to get token_out_amount of token_out it is required
     /// to spend more than `max_token_in_amount` of token_in.
+    /// NOTE: Fee is applied to `token_out`.
     /// Returns (token_in_amount, fee_amount)
     #[ink(message)]
     fn swap_exact_out(
@@ -162,9 +163,8 @@ pub trait StablePool {
     ) -> Result<(u128, u128), StablePoolError>;
 
     /// Swaps excess reserve balance of `token_in` to `token_out`.
-    ///
     /// Swapped tokens are transferred to the `to` account.
-    /// Returns (amount_out, fees)
+    /// Returns (token_out_amount, fee_amount)
     #[ink(message)]
     fn swap_received(
         &mut self,
@@ -180,16 +180,16 @@ pub trait StablePool {
     // --- OWNER RESTRICTED FUNCTIONS --- //
 
     #[ink(message)]
-    fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError>;
-
-    #[ink(message)]
     fn set_fee_receiver(&mut self, fee_receiver: Option<AccountId>) -> Result<(), StablePoolError>;
 
+    /// Set fees
+    /// - trade_fee given as an integer with 1e9 precision. The the maximum is 1% (10000000)
+    /// - protocol_fee given as an integer with 1e9 precision. The maximum is 50% (500000000)
     #[ink(message)]
     fn set_fees(
         &mut self,
-        trade_fee_bps: u16,
-        protocol_fee_bps: u16,
+        trade_fee: u32,
+        protocol_fee: u32,
     ) -> Result<(), StablePoolError>;
 
     #[ink(message)]
@@ -199,6 +199,7 @@ pub trait StablePool {
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum StablePoolError {
+    Ownable2StepError(Ownable2StepError),
     MathError(MathError),
     PSP22Error(PSP22Error),
     LangError(LangError),
@@ -214,7 +215,6 @@ pub enum StablePoolError {
     IncorrectTokenCount,
     TooLargeTokenDecimal,
     InvalidFee,
-    OnlyOwner,
 }
 
 impl From<PSP22Error> for StablePoolError {
@@ -232,5 +232,11 @@ impl From<LangError> for StablePoolError {
 impl From<MathError> for StablePoolError {
     fn from(error: MathError) -> Self {
         StablePoolError::MathError(error)
+    }
+}
+
+impl From<Ownable2StepError> for StablePoolError {
+    fn from(error: Ownable2StepError) -> Self {
+        StablePoolError::Ownable2StepError(error)
     }
 }

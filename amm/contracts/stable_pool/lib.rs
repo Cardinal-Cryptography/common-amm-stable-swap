@@ -1,11 +1,23 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 mod token_rate;
-
+/// Stabelswap implementation based on the CurveFi stableswap model.
+///
+/// This pool contract supports up to 8 PSP22 tokens.
+///
+/// Supports tokens which value increases at some on-chain discoverable rate
+/// in terms of some other token, e.g. AZERO x sAZERO.
+/// The rate oracle contract must implement [`RateProvider`](trait@traits::RateProvider).
+///
+/// IMPORTANT:
+/// This stableswap implementation is NOT meant for yield-bearing assets which adjusts
+/// its total supply to try and maintain a stable price a.k.a. rebasing tokens.
 #[ink::contract]
 pub mod stable_pool {
     use crate::token_rate::TokenRate;
     use amm_helpers::{
-        constants::stable_pool::{MAX_AMP, MIN_AMP, RATE_PRECISION, TOKEN_TARGET_DECIMALS},
+        constants::stable_pool::{
+            MAX_AMP, MAX_COINS, MIN_AMP, RATE_PRECISION, TOKEN_TARGET_DECIMALS,
+        },
         ensure,
         stable_swap_math::{self as math, fees::Fees},
     };
@@ -15,7 +27,10 @@ pub mod stable_pool {
         {vec, vec::Vec},
     };
     use psp22::{PSP22Data, PSP22Error, PSP22Event, PSP22Metadata, PSP22};
-    use traits::{MathError, StablePool, StablePoolError, StablePoolView};
+    use traits::{
+        MathError, Ownable2Step, Ownable2StepData, Ownable2StepResult, StablePool, StablePoolError,
+        StablePoolView,
+    };
 
     #[ink(event)]
     pub struct AddLiquidity {
@@ -85,10 +100,17 @@ pub mod stable_pool {
     }
 
     #[ink(event)]
-    pub struct OwnerChanged {
-        #[ink(topic)]
+    pub struct TransferOwnershipInitiated {
         pub new_owner: AccountId,
     }
+
+    #[ink(event)]
+    pub struct TransferOwnershipAccepted {
+        pub new_owner: AccountId,
+    }
+
+    #[ink(event)]
+    pub struct OwnershipRenounced {}
 
     #[ink(event)]
     pub struct FeeReceiverChanged {
@@ -104,8 +126,8 @@ pub mod stable_pool {
 
     #[ink(event)]
     pub struct FeeChanged {
-        trade_fee_bps: u16,
-        protocol_fee_bps: u16,
+        trade_fee: u32,
+        protocol_fee: u32,
     }
 
     #[ink::storage_item]
@@ -129,7 +151,7 @@ pub mod stable_pool {
 
     #[ink(storage)]
     pub struct StablePoolContract {
-        owner: AccountId,
+        ownable: Ownable2StepData,
         pool: StablePoolData,
         psp22: PSP22Data,
     }
@@ -164,7 +186,7 @@ pub mod stable_pool {
             ensure!(
                 token_count == tokens_decimals.len()
                     && token_count == token_rates.len()
-                    && token_count > 1,
+                    && (2..=MAX_COINS).contains(&token_count),
                 StablePoolError::IncorrectTokenCount
             );
 
@@ -180,7 +202,7 @@ pub mod stable_pool {
                 })
                 .collect();
             Ok(Self {
-                owner,
+                ownable: Ownable2StepData::new(owner),
                 pool: StablePoolData {
                     tokens,
                     reserves: vec![0; token_count],
@@ -200,8 +222,8 @@ pub mod stable_pool {
             tokens_decimals: Vec<u8>,
             init_amp_coef: u128,
             owner: AccountId,
-            trade_fee_bps: u16,
-            protocol_fee_bps: u16,
+            trade_fee: u32,
+            protocol_fee: u32,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
             let token_rates = vec![TokenRate::new_constant(RATE_PRECISION); tokens.len()];
@@ -211,7 +233,7 @@ pub mod stable_pool {
                 token_rates,
                 init_amp_coef,
                 owner,
-                Fees::new(trade_fee_bps, protocol_fee_bps),
+                Fees::new(trade_fee, protocol_fee),
                 fee_receiver,
             )
         }
@@ -225,8 +247,8 @@ pub mod stable_pool {
             rate_expiration_duration_ms: u64,
             init_amp_coef: u128,
             owner: AccountId,
-            trade_fee_bps: u16,
-            protocol_fee_bps: u16,
+            trade_fee: u32,
+            protocol_fee: u32,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
             let current_time = Self::env().block_timestamp();
@@ -248,7 +270,7 @@ pub mod stable_pool {
                 token_rates,
                 init_amp_coef,
                 owner,
-                Fees::new(trade_fee_bps, protocol_fee_bps),
+                Fees::new(trade_fee, protocol_fee),
                 fee_receiver,
             )
         }
@@ -287,7 +309,7 @@ pub mod stable_pool {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
             for rate in self.pool.token_rates.iter_mut() {
-                rate_changed = rate_changed || rate.update_rate(current_time);
+                rate_changed = rate.update_rate(current_time) | rate_changed;
             }
             if rate_changed {
                 Self::env().emit_event(RatesUpdated {
@@ -303,6 +325,8 @@ pub mod stable_pool {
         /// Scaled rates are rates multiplied by precision. They are assumed to fit in u128.
         /// If TOKEN_TARGET_DECIMALS is 18 and RATE_DECIMALS is 12, then rates not exceeding ~340282366 should fit.
         /// That's because if precision <= 10^18 and rate <= 10^12 * 340282366, then rate * precision < 2^128.
+        ///
+        /// NOTE: Rates should be updated prior to calling this function
         fn get_scaled_rates(&self) -> Result<Vec<u128>, MathError> {
             self.pool
                 .token_rates
@@ -314,14 +338,6 @@ pub mod stable_pool {
                         .ok_or(MathError::MulOverflow(114))
                 })
                 .collect()
-        }
-
-        fn ensure_owner(&self) -> Result<(), StablePoolError> {
-            ensure!(
-                self.env().caller() == self.owner,
-                StablePoolError::OnlyOwner
-            );
-            Ok(())
         }
 
         fn token_id(&self, token: AccountId) -> Result<usize, StablePoolError> {
@@ -344,7 +360,9 @@ pub mod stable_pool {
             let token_out_id = self.token_id(token_out)?;
             Ok((token_in_id, token_out_id))
         }
-
+        /// Calculates lpt equivalent of the protocol fee and mints it to the `fee_to` if one is set.
+        ///
+        /// NOTE: Rates should be updated prior to calling this function
         fn mint_protocol_fee(&mut self, fee: u128, token_id: usize) -> Result<(), StablePoolError> {
             if let Some(fee_to) = self.fee_to() {
                 let protocol_fee = self.pool.fees.protocol_trade_fee(fee)?;
@@ -394,13 +412,6 @@ pub mod stable_pool {
             Ok(())
         }
 
-        /// This method is for internal use only
-        /// - calculates token_out amount
-        /// - calculates swap fee
-        /// - mints protocol fee
-        /// - updates reserves
-        /// It assumes that rates have been updated.
-        /// Returns (token_out_amount, swap_fee)
         fn _swap_exact_in(
             &mut self,
             token_in: AccountId,
@@ -460,13 +471,6 @@ pub mod stable_pool {
             Ok((token_out_amount, fee))
         }
 
-        /// This method is for internal use only
-        /// - calculates token_in amount
-        /// - calculates swap fee
-        /// - mints protocol fee
-        /// - updates reserves
-        /// It assumes that rates have been updated.
-        /// Returns (token_in_amount, swap_fee)
         fn _swap_exact_out(
             &mut self,
             token_in: AccountId,
@@ -533,6 +537,13 @@ pub mod stable_pool {
             Ok((token_in_amount, fee))
         }
 
+        /// Handles PSP22 token transfer,
+        ///
+        /// If `amount` is `Some(amount)`, transfer this amount of `token_id`
+        /// from the caller to this contract.
+        ///
+        /// If `amount` of `None`, calculate the difference between
+        /// this contract balance and recorded reserve of `token_id`.
         fn _transfer_in(
             &self,
             token_id: usize,
@@ -718,7 +729,7 @@ pub mod stable_pool {
             let current_time = self.env().block_timestamp();
             let mut rate_changed = false;
             for rate in self.pool.token_rates.iter_mut() {
-                rate_changed = rate_changed || rate.update_rate_no_cache(current_time);
+                rate_changed = rate.update_rate_no_cache(current_time) | rate_changed;
             }
             if rate_changed {
                 Self::env().emit_event(RatesUpdated {
@@ -775,14 +786,6 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
-            self.ensure_owner()?;
-            self.owner = new_owner;
-            self.env().emit_event(OwnerChanged { new_owner });
-            Ok(())
-        }
-
-        #[ink(message)]
         fn set_fee_receiver(
             &mut self,
             fee_receiver: Option<AccountId>,
@@ -796,17 +799,13 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_fees(
-            &mut self,
-            trade_fee_bps: u16,
-            protocol_fee_bps: u16,
-        ) -> Result<(), StablePoolError> {
+        fn set_fees(&mut self, trade_fee: u32, protocol_fee: u32) -> Result<(), StablePoolError> {
             self.ensure_owner()?;
             self.pool.fees =
-                Fees::new(trade_fee_bps, protocol_fee_bps).ok_or(StablePoolError::InvalidFee)?;
+                Fees::new(trade_fee, protocol_fee).ok_or(StablePoolError::InvalidFee)?;
             self.env().emit_event(FeeChanged {
-                trade_fee_bps,
-                protocol_fee_bps,
+                trade_fee,
+                protocol_fee,
             });
             Ok(())
         }
@@ -829,8 +828,6 @@ pub mod stable_pool {
             self.pool.tokens.clone()
         }
 
-        // This can output values lower than the actual balances of these tokens, which stems from roundings.
-        // However an invariant holds that each balance is at least the value returned by this function.
         #[ink(message)]
         fn reserves(&self) -> Vec<u128> {
             self.pool.reserves.clone()
@@ -842,11 +839,8 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn fees(&self) -> (u16, u16) {
-            (
-                self.pool.fees.trade_fee_bps,
-                self.pool.fees.protocol_fee_bps,
-            )
+        fn fees(&self) -> (u32, u32) {
+            (self.pool.fees.trade_fee, self.pool.fees.protocol_fee)
         }
 
         #[ink(message)]
@@ -1061,6 +1055,49 @@ pub mod stable_pool {
         #[ink(message)]
         fn token_decimals(&self) -> u8 {
             TOKEN_TARGET_DECIMALS
+        }
+    }
+
+    impl Ownable2Step for StablePoolContract {
+        #[ink(message)]
+        fn get_owner(&self) -> Ownable2StepResult<AccountId> {
+            self.ownable.get_owner()
+        }
+
+        #[ink(message)]
+        fn get_pending_owner(&self) -> Ownable2StepResult<AccountId> {
+            self.ownable.get_pending_owner()
+        }
+
+        #[ink(message)]
+        fn transfer_ownership(&mut self, new_owner: AccountId) -> Ownable2StepResult<()> {
+            self.ownable
+                .transfer_ownership(self.env().caller(), new_owner)?;
+            self.env()
+                .emit_event(TransferOwnershipInitiated { new_owner });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn accept_ownership(&mut self) -> Ownable2StepResult<()> {
+            let new_owner = self.env().caller();
+            self.ownable.accept_ownership(new_owner)?;
+            self.env()
+                .emit_event(TransferOwnershipAccepted { new_owner });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn renounce_ownership(&mut self) -> Ownable2StepResult<()> {
+            self.ownable
+                .renounce_ownership(self.env().caller(), self.env().account_id())?;
+            self.env().emit_event(OwnershipRenounced {});
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn ensure_owner(&self) -> Ownable2StepResult<()> {
+            self.ownable.ensure_owner(self.env().caller())
         }
     }
 }
