@@ -27,7 +27,10 @@ pub mod stable_pool {
         {vec, vec::Vec},
     };
     use psp22::{PSP22Data, PSP22Error, PSP22Event, PSP22Metadata, PSP22};
-    use traits::{MathError, StablePool, StablePoolError, StablePoolView};
+    use traits::{
+        MathError, Ownable2Step, Ownable2StepData, Ownable2StepResult, StablePool, StablePoolError,
+        StablePoolView,
+    };
 
     #[ink(event)]
     pub struct AddLiquidity {
@@ -97,10 +100,17 @@ pub mod stable_pool {
     }
 
     #[ink(event)]
-    pub struct OwnerChanged {
-        #[ink(topic)]
+    pub struct TransferOwnershipInitiated {
         pub new_owner: AccountId,
     }
+
+    #[ink(event)]
+    pub struct TransferOwnershipAccepted {
+        pub new_owner: AccountId,
+    }
+
+    #[ink(event)]
+    pub struct OwnershipRenounced {}
 
     #[ink(event)]
     pub struct FeeReceiverChanged {
@@ -141,7 +151,7 @@ pub mod stable_pool {
 
     #[ink(storage)]
     pub struct StablePoolContract {
-        owner: AccountId,
+        ownable: Ownable2StepData,
         pool: StablePoolData,
         psp22: PSP22Data,
     }
@@ -192,7 +202,7 @@ pub mod stable_pool {
                 })
                 .collect();
             Ok(Self {
-                owner,
+                ownable: Ownable2StepData::new(owner),
                 pool: StablePoolData {
                     tokens,
                     reserves: vec![0; token_count],
@@ -328,14 +338,6 @@ pub mod stable_pool {
                         .ok_or(MathError::MulOverflow(114))
                 })
                 .collect()
-        }
-
-        fn ensure_owner(&self) -> Result<(), StablePoolError> {
-            ensure!(
-                self.env().caller() == self.owner,
-                StablePoolError::OnlyOwner
-            );
-            Ok(())
         }
 
         fn token_id(&self, token: AccountId) -> Result<usize, StablePoolError> {
@@ -784,14 +786,6 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_owner(&mut self, new_owner: AccountId) -> Result<(), StablePoolError> {
-            self.ensure_owner()?;
-            self.owner = new_owner;
-            self.env().emit_event(OwnerChanged { new_owner });
-            Ok(())
-        }
-
-        #[ink(message)]
         fn set_fee_receiver(
             &mut self,
             fee_receiver: Option<AccountId>,
@@ -1061,6 +1055,49 @@ pub mod stable_pool {
         #[ink(message)]
         fn token_decimals(&self) -> u8 {
             TOKEN_TARGET_DECIMALS
+        }
+    }
+
+    impl Ownable2Step for StablePoolContract {
+        #[ink(message)]
+        fn get_owner(&self) -> Ownable2StepResult<AccountId> {
+            self.ownable.get_owner()
+        }
+
+        #[ink(message)]
+        fn get_pending_owner(&self) -> Ownable2StepResult<AccountId> {
+            self.ownable.get_pending_owner()
+        }
+
+        #[ink(message)]
+        fn transfer_ownership(&mut self, new_owner: AccountId) -> Ownable2StepResult<()> {
+            self.ownable
+                .transfer_ownership(self.env().caller(), new_owner)?;
+            self.env()
+                .emit_event(TransferOwnershipInitiated { new_owner });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn accept_ownership(&mut self) -> Ownable2StepResult<()> {
+            let new_owner = self.env().caller();
+            self.ownable.accept_ownership(new_owner)?;
+            self.env()
+                .emit_event(TransferOwnershipAccepted { new_owner });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn renounce_ownership(&mut self) -> Ownable2StepResult<()> {
+            self.ownable
+                .renounce_ownership(self.env().caller(), self.env().account_id())?;
+            self.env().emit_event(OwnershipRenounced {});
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn ensure_owner(&self) -> Ownable2StepResult<()> {
+            self.ownable.ensure_owner(self.env().caller())
         }
     }
 }
