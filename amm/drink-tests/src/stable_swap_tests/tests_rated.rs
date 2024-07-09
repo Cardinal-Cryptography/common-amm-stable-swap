@@ -34,8 +34,8 @@ fn setup_rated_swap_with_tokens(
     initial_token_supply: u128,
     init_amp_coef: u128,
     rate_expiration_duration_ms: u64,
-    trade_fee: u16,
-    protocol_fee: u16,
+    trade_fee: u32,
+    protocol_fee: u32,
 ) -> (AccountId, Vec<AccountId>) {
     let _ = session.set_actor(caller.clone());
 
@@ -115,8 +115,8 @@ fn test_01(mut session: Session) {
         initial_token_supply,
         10000,
         EXPIRE_TS,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
     );
     let [sazero, wazero]: [AccountId; 2] = tokens.try_into().unwrap();
 
@@ -248,8 +248,8 @@ fn test_02(mut session: Session) {
         initial_token_supply,
         10000,
         EXPIRE_TS,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
     );
 
     set_timestamp(&mut session, now + EXPIRE_TS);
@@ -359,8 +359,8 @@ fn test_03(mut session: Session) {
         initial_token_supply,
         10000,
         EXPIRE_TS,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
     );
 
     set_timestamp(&mut session, now + EXPIRE_TS);
@@ -467,8 +467,8 @@ fn test_04(mut session: Session) {
         initial_token_supply,
         10000,
         EXPIRE_TS,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
     );
 
     _ = stable_swap::add_liquidity(

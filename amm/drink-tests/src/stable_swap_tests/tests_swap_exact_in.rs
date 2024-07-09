@@ -8,8 +8,8 @@ fn test_swap_exact_in(
     token_decimals: Vec<u8>,
     initial_reserves: Vec<u128>,
     amp_coef: u128,
-    fee_bps: u16,
-    protocol_fee_bps: u16,
+    trade_fee: u32,
+    protocol_fee: u32,
     swap_amount_in: u128,
     expected_swap_amount_out_total_result: Result<u128, StablePoolError>,
 ) {
@@ -19,8 +19,8 @@ fn test_swap_exact_in(
         token_decimals,
         initial_supply,
         amp_coef,
-        fee_bps,
-        protocol_fee_bps,
+        trade_fee,
+        protocol_fee,
         BOB,
     );
     _ = stable_swap::add_liquidity(
@@ -56,9 +56,9 @@ fn test_swap_exact_in(
 
     let (amount_out, fee) = swap_result.unwrap();
     let expected_swap_amount_out_total = expected_swap_amount_out_total_result.unwrap();
-    let expected_fee = expected_swap_amount_out_total * fee_bps as u128 / FEE_BPS_DENOM;
+    let expected_fee = expected_swap_amount_out_total * trade_fee as u128 / FEE_DENOM;
     let expected_swap_amount_out = expected_swap_amount_out_total - expected_fee;
-    let expected_protocol_fee_part = expected_fee * protocol_fee_bps as u128 / FEE_BPS_DENOM;
+    let expected_protocol_fee_part = expected_fee * protocol_fee as u128 / FEE_DENOM;
 
     // check returned amount swapped and fee
     assert_eq!(expected_swap_amount_out, amount_out, "Amount out mismatch");
@@ -119,7 +119,7 @@ fn test_01(mut session: Session) {
         vec![6, 6],                       // decimals
         vec![100000000000, 100000000000], // initial reserves
         1000,                             // A
-        6,                                // fee BPS
+        600_000,                          // fee BPS
         2000,                             // protocol fee BPS
         10000000000,                      // swap_amount_in
         Ok(9999495232),                   // expected out (with fee)
@@ -134,7 +134,7 @@ fn test_02(mut session: Session) {
         vec![12, 18],
         vec![100000000000000000, 100000000000000000000000],
         1000,
-        6,
+        600_000,
         2000,
         10000000000000000,
         Ok(9999495232752197989995),
@@ -149,7 +149,7 @@ fn test_03(mut session: Session) {
         vec![6, 6],
         vec![100000000000, 100000000000],
         1000,
-        6,
+        600_000,
         2000,
         0,
         Err(StablePoolError::InsufficientInputAmount()),
@@ -164,7 +164,7 @@ fn test_04(mut session: Session) {
         vec![12, 18],
         vec![100000000000000000, 100000000000000000000000],
         1000,
-        6,
+        600_000,
         2000,
         0,
         Err(StablePoolError::InsufficientInputAmount()),
@@ -179,7 +179,7 @@ fn test_05(mut session: Session) {
         vec![6, 6],
         vec![100000000000, 100000000000],
         1000,
-        6,
+        600_000,
         2000,
         1,
         Ok(0),
@@ -195,7 +195,7 @@ fn test_06_a(mut session: Session) {
         vec![18, 12],
         vec![100000000000000000000000, 100000000000000000],
         1000,
-        6,
+        600_000,
         2000,
         1000000,
         Ok(0),
@@ -240,7 +240,7 @@ fn test_07(mut session: Session) {
         vec![6, 6],
         vec![100000000000, 100000000000],
         1000,
-        6,
+        600_000,
         2000,
         100000000000,
         Ok(98443663539),
@@ -255,7 +255,7 @@ fn test_08(mut session: Session) {
         vec![12, 18],
         vec![100000000000000000, 100000000000000000000000],
         1000,
-        6,
+        600_000,
         2000,
         100000000000000000,
         Ok(98443663539913153080656),
@@ -270,7 +270,7 @@ fn test_09(mut session: Session) {
         vec![6, 6],
         vec![100000000000, 100000000000],
         1000,
-        6,
+        600_000,
         2000,
         99999000000 + 1, // +1 because of accounting for fee rounding
         Ok(98443167413),
@@ -285,7 +285,7 @@ fn test_10(mut session: Session) {
         vec![12, 18],
         vec![100000000000000000, 100000000000000000000000],
         1000,
-        6,
+        600_000,
         2000,
         99999000000000000,
         Ok(98443167413204135506296),

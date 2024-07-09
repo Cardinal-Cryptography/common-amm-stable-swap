@@ -19,8 +19,8 @@ fn test_01(mut session: Session) {
         vec![18, 6, 6],
         initial_supply.clone(),
         10_000,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
         BOB,
     );
 
@@ -104,7 +104,7 @@ fn test_01(mut session: Session) {
     );
 
     // add more liquidity with imbalanced tokens (dave)
-    _ = stable_swap::add_liquidity(
+    let res = stable_swap::add_liquidity(
         &mut session,
         stable_swap,
         DAVE,
@@ -418,8 +418,8 @@ fn test_02(mut session: Session) {
         vec![18, 6, 6],
         initial_supply.clone(),
         10_000,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
         BOB,
     );
 
@@ -470,8 +470,8 @@ fn test_03(mut session: Session) {
         vec![18, 6, 6],
         initial_supply.clone(),
         10_000,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
         BOB,
     );
 
@@ -526,8 +526,8 @@ fn test_04(mut session: Session) {
         vec![18, 6, 6],
         initial_supply.clone(),
         10_000,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
         BOB,
     );
 
@@ -611,8 +611,8 @@ fn test_05(mut session: Session) {
         vec![18, 6, 6],
         initial_supply.clone(),
         10_000,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
         BOB,
     );
 
@@ -682,8 +682,8 @@ fn test_06(mut session: Session) {
         vec![18, 6, 6],
         initial_supply.clone(),
         10_000,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
         BOB,
     );
 
@@ -764,8 +764,8 @@ fn test_07(mut session: Session) {
         vec![18, 6, 6],
         initial_supply.clone(),
         10_000,
-        25,
-        2000,
+        2_500_000,
+        200_000_000,
         BOB,
     );
 

@@ -6,8 +6,8 @@ fn test_01(mut session: Session) {
     let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
     let initial_supply: Vec<u128> = initial_reserves.iter().map(|amount| amount * 10).collect();
     let amp_coef = 10_000u128;
-    let trade_fee = 25u16;
-    let protocol_fee = 2000u16;
+    let trade_fee = 2_500_000u32;
+    let protocol_fee = 200_000_000u32;
     let (stable_swap, tokens) = setup_stable_swap_with_tokens(
         &mut session,
         vec![18, 6, 6],
