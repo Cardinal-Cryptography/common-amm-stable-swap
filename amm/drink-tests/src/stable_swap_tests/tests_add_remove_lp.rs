@@ -104,7 +104,7 @@ fn test_01(mut session: Session) {
     );
 
     // add more liquidity with imbalanced tokens (dave)
-    let res = stable_swap::add_liquidity(
+    _ = stable_swap::add_liquidity(
         &mut session,
         stable_swap,
         DAVE,
@@ -113,8 +113,15 @@ fn test_01(mut session: Session) {
         dave(),
     )
     .expect("Should successfully add liquidity");
+    // Ref
     // "Mint 699699997426210330025 shares for user2, fee is 299999998348895348 shares",
     // "Exchange swap got 59999999669779069 shares",
+    // -- DIFF --
+    // Common
+    // "Mint 699687497426279107411 shares for dave, fee is 312499998280117962 shares",
+    // "Exchange swap got 62499999656023592 shares, No referral fee (not implemented)",
+    //
+    // The difference is due to the implemented fee precision (1e9 in Common vs 1e4 in Ref)
 
     assert_eq!(
         stable_swap::reserves(&mut session, stable_swap),
@@ -123,12 +130,12 @@ fn test_01(mut session: Session) {
     );
     assert_eq!(
         psp22_utils::total_supply(&mut session, stable_swap),
-        301200 * ONE_LPT + 699699997426210330025 + 59999999669779069,
+        301200 * ONE_LPT + 699687497426279107411 + 62499999656023592,
         "Incorrect total shares"
     );
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, dave()),
-        699699997426210330025,
+        699687497426279107411,
         "Incorrect Users share"
     );
 
@@ -142,7 +149,7 @@ fn test_01(mut session: Session) {
 
     assert_eq!(
         current_total_shares,
-        last_total_shares + 699699997426210330025 + 59999999669779069
+        last_total_shares + 699687497426279107411 + 62499999656023592
     );
     let last_total_shares = current_total_shares;
 
@@ -156,11 +163,12 @@ fn test_01(mut session: Session) {
         charlie(),
     )
     .expect("Should successfully remove liquidity. Err: {err:?}");
-    // "LP charlie removed 502598511257512352631 shares by given tokens, and fee is 598899301432400519 shares",
-    // "Exchange swap got 119779860286480103 shares",
+    // "LP charlie removed 502623448746385017122 shares by given tokens, and fee is 623853418327862983 shares",
+    // "Exchange swap got 124770683665572596 shares, No referral fee (not implemented)",
+
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
-        1200 * ONE_LPT - 502598511257512352631,
+        1200 * ONE_LPT - 502623448746385017122,
         "Incorrect users share"
     );
 
@@ -181,17 +189,17 @@ fn test_01(mut session: Session) {
     );
     assert_eq!(
         psp22_utils::total_supply(&mut session, stable_swap),
-        last_total_shares - 502598511257512352631 + 119779860286480103,
+        last_total_shares - 502623448746385017122 + 124770683665572596,
         "Incorrect total shares"
     );
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
-        1200 * ONE_LPT - 502598511257512352631,
+        1200 * ONE_LPT - 502623448746385017122,
         "Incorrect users share"
     );
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, dave()),
-        699699997426210330025,
+        699687497426279107411,
         "Incorrect users share"
     );
     let (current_share_price, _) = share_price_and_total_shares(&mut session, stable_swap);
@@ -200,19 +208,19 @@ fn test_01(mut session: Session) {
         "Incorrect share price"
     );
     let last_share_price = current_share_price;
-    let last_total_shares = last_total_shares - 502598511257512352631 + 119779860286480103;
+    let last_total_shares = last_total_shares - 502623448746385017122 + 124770683665572596;
 
     // transfer some LPT to from charlie to dave
     _ = psp22_utils::transfer(&mut session, stable_swap, dave(), 100 * ONE_LPT, CHARLIE);
 
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
-        1100 * ONE_LPT - 502598511257512352631,
+        1100 * ONE_LPT - 502623448746385017122,
         "Incorrect user balance"
     );
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, dave()),
-        699699997426210330025 + 100 * ONE_LPT,
+        699687497426279107411 + 100 * ONE_LPT,
         "Incorrect user balance"
     );
 
@@ -270,12 +278,12 @@ fn test_01(mut session: Session) {
 
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
-        1100 * ONE_LPT - 502598511257512352631,
+        1100 * ONE_LPT - 502623448746385017122,
         "Incorrect user balance"
     );
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, dave()),
-        699699997426210330025 + 100 * ONE_LPT,
+        699687497426279107411 + 100 * ONE_LPT,
         "Incorrect user balance"
     );
 
@@ -289,20 +297,17 @@ fn test_01(mut session: Session) {
         dave(),
     )
     .expect("Should successfully remove liquidity");
-    // "LP dave removed 498596320225563082252 shares by given tokens, and fee is 597500435701476809 shares",
-    // "Exchange swap got 119500087140295361 shares",
 
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
-        1100 * ONE_LPT - 502598511257512352631,
+        1100 * ONE_LPT - 502623448746385017122,
         "Incorrect user balance"
     );
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, dave()),
-        699699997426210330025 - 200 * ONE_LPT,
+        699687497426279107411 - 200 * ONE_LPT,
         "Incorrect user balance"
     );
-
     let (current_share_price, current_total_shares) =
         share_price_and_total_shares(&mut session, stable_swap);
     assert_eq!(
@@ -325,24 +330,20 @@ fn test_01(mut session: Session) {
         dave(),
     )
     .expect("Should successfully remove liquidity");
-    // "LP user2 removed 498596320225563082252 shares by given tokens, and fee is 597500435701476809 shares",
-    // "Exchange swap got 119500087140295361 shares, No referral fee, from remove_liquidity_by_tokens",
-    // -- DIFF --
-    // "LP dave removed 498596320224035614380 shares by given tokens, and fee is 597500435700561479 shares",
-    // "Exchange swap got 119500087140112295 shares, No referral fee (not implemented)",
-    //
+    // "LP dave removed 498621166533015126275 shares by given tokens, and fee is 622396225347309589 shares",
+    // "Exchange swap got 124479245069461917 shares, No referral fee (not implemented)",
+
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, charlie()),
-        1100 * ONE_LPT - 502598511257512352631,
+        1100 * ONE_LPT - 502623448746385017122,
         "Incorrect user balance"
     );
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, dave()),
-        699699997426210330025 - 200 * ONE_LPT - 498596320224035614380,
+        699687497426279107411 - 200 * ONE_LPT - 498621166533015126275,
         "Incorrect user balance"
     );
-
-    let last_total_shares = last_total_shares - 498596320224035614380 + 119500087140112295;
+    let last_total_shares = last_total_shares - 498621166533015126275 + 124479245069461917;
     let (current_share_price, current_total_shares) =
         share_price_and_total_shares(&mut session, stable_swap);
     assert!(
@@ -366,8 +367,7 @@ fn test_01(mut session: Session) {
         ],
         BOB,
     );
-
-    stable_swap::add_liquidity(
+    _ = stable_swap::add_liquidity(
         &mut session,
         stable_swap,
         EVA,
@@ -380,20 +380,16 @@ fn test_01(mut session: Session) {
         eva(),
     )
     .expect("Should successfully add liquidity");
-    // "Mint 299997911758886758506069372942 shares for user3, fee is 895808190595468286848457 shares",
-    // "Exchange swap got 179161638119093657369691 shares, No referral fee, from add_liquidity",
-    // -- DIFF --
-    // "Mint 299997911757966485300035937427 shares for eva, fee is 895808191250701043141970 shares",
-    // "Exchange swap got 179161638250140208628394 shares, No referral fee (not implemented)",
-    //
+    // "Mint 299997824748271184577117019598 shares for eva, fee is 933133378066387864612868 shares",
+    // "Exchange swap got 186626675613277572922573 shares, No referral fee (not implemented)",
+
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, eva()),
-        299997911757966485300035937427,
+        299997824748271184577117019598,
         "Incorrect user balance"
     );
-
     let last_total_shares =
-        last_total_shares + 299997911757966485300035937427 + 179161638250140208628394;
+        last_total_shares + 299997824748271184577117019598 + 186626675613277572922573;
     assert_eq!(
         psp22_utils::total_supply(&mut session, stable_swap),
         last_total_shares,
