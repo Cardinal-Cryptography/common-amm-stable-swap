@@ -320,8 +320,10 @@ pub fn rated_swap_from(
         fees,
         amp_coef,
     )?;
-
-    let dy = amount_from_rated(r_dy, rates[token_in_idx])?;
+    // add one in case of rounding error, for the protocol advantage
+    let dy = amount_from_rated(r_dy, rates[token_in_idx])?
+        .checked_add(1)
+        .ok_or(MathError::AddOverflow(13))?;
     let fee = amount_from_rated(r_fee, rates[token_out_idx])?;
     Ok((dy, fee))
 }
