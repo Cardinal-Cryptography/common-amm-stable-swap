@@ -290,13 +290,9 @@ fn swap_from(
         token_in_idx,
         amp_coef,
     )?;
-    // add 1 in case there are any rounding errors
-    // https://github.com/curvefi/curve-contract/blob/b0bbf77f8f93c9c5f4e415bce9cd71f0cdee960e/contracts/pool-templates/base/SwapTemplateBase.vy#L466
     let dy: u128 = y
         .checked_sub(current_reserves[token_in_idx])
-        .ok_or(MathError::SubUnderflow(13))?
-        .checked_add(1)
-        .ok_or(MathError::AddOverflow(12))?;
+        .ok_or(MathError::SubUnderflow(13))?;
 
     Ok((dy, fee))
 }
@@ -323,7 +319,7 @@ pub fn rated_swap_from(
     // add one in case of rounding error, for the protocol advantage
     let dy = amount_from_rated(r_dy, rates[token_in_idx])?
         .checked_add(1)
-        .ok_or(MathError::AddOverflow(13))?;
+        .ok_or(MathError::AddOverflow(12))?;
     let fee = amount_from_rated(r_fee, rates[token_out_idx])?;
     Ok((dy, fee))
 }
