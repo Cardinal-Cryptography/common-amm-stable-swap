@@ -2,6 +2,7 @@ mod tests_add_remove_lp;
 mod tests_getters;
 mod tests_rated;
 mod tests_swap_exact_in;
+mod tests_swap_exact_out;
 mod tests_swap_received;
 
 use crate::stable_pool_contract;
@@ -41,6 +42,7 @@ pub fn setup_stable_swap_with_tokens(
     trade_fee: u32,
     protocol_trade_fee: u32,
     caller: AccountId32,
+    salt: Vec<u8>,
 ) -> (AccountId, Vec<AccountId>) {
     let _ = session.set_actor(caller);
 
@@ -50,6 +52,7 @@ pub fn setup_stable_swap_with_tokens(
 
     upload_all(session);
 
+    let salty_str = String::from_utf8(salt.clone()).unwrap_or("Test token".to_string());
     // instantiate tokens
     let tokens: Vec<AccountId> = token_decimals
         .iter()
@@ -58,7 +61,7 @@ pub fn setup_stable_swap_with_tokens(
         .map(|(id, (&decimals, &supply))| {
             psp22_utils::setup_with_amounts(
                 session,
-                format!("Test Token {id}").to_string(),
+                format!("{salty_str} {id}").to_string(),
                 decimals,
                 supply,
                 BOB,
@@ -76,7 +79,8 @@ pub fn setup_stable_swap_with_tokens(
         trade_fee,
         protocol_trade_fee,
         Some(fee_receiver()),
-    );
+    )
+    .with_salt(salt);
 
     let stable_swap: stable_pool_contract::Instance = session
         .instantiate(instance)

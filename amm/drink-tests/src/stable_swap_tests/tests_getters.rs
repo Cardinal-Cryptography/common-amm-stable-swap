@@ -16,6 +16,7 @@ fn test_01(mut session: Session) {
         trade_fee,
         protocol_fee,
         BOB,
+        vec![],
     );
 
     _ = stable_swap::add_liquidity(

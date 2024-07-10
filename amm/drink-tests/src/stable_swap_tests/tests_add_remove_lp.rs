@@ -22,6 +22,7 @@ fn test_01(mut session: Session) {
         2_500_000,
         200_000_000,
         BOB,
+        vec![],
     );
 
     _ = stable_swap::add_liquidity(
@@ -417,6 +418,7 @@ fn test_02(mut session: Session) {
         2_500_000,
         200_000_000,
         BOB,
+        vec![],
     );
 
     _ = stable_swap::add_liquidity(
@@ -469,6 +471,7 @@ fn test_03(mut session: Session) {
         2_500_000,
         200_000_000,
         BOB,
+        vec![],
     );
 
     _ = stable_swap::add_liquidity(
@@ -525,6 +528,7 @@ fn test_04(mut session: Session) {
         2_500_000,
         200_000_000,
         BOB,
+        vec![],
     );
 
     _ = stable_swap::add_liquidity(
@@ -610,6 +614,7 @@ fn test_05(mut session: Session) {
         2_500_000,
         200_000_000,
         BOB,
+        vec![],
     );
 
     _ = stable_swap::add_liquidity(
@@ -681,6 +686,7 @@ fn test_06(mut session: Session) {
         2_500_000,
         200_000_000,
         BOB,
+        vec![],
     );
 
     let (shares, _) = stable_swap::add_liquidity(
@@ -763,6 +769,7 @@ fn test_07(mut session: Session) {
         2_500_000,
         200_000_000,
         BOB,
+        vec![],
     );
 
     let (shares, _) = stable_swap::add_liquidity(

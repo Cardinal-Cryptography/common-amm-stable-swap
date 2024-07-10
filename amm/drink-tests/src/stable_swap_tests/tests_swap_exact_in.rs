@@ -22,6 +22,7 @@ fn test_swap_exact_in(
         trade_fee,
         protocol_fee,
         BOB,
+        vec![],
     );
     _ = stable_swap::add_liquidity(
         session,
