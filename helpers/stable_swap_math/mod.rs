@@ -290,13 +290,9 @@ fn swap_from(
         token_in_idx,
         amp_coef,
     )?;
-    // add 1 in case there are any rounding errors
-    // https://github.com/curvefi/curve-contract/blob/b0bbf77f8f93c9c5f4e415bce9cd71f0cdee960e/contracts/pool-templates/base/SwapTemplateBase.vy#L466
     let dy: u128 = y
         .checked_sub(current_reserves[token_in_idx])
-        .ok_or(MathError::SubUnderflow(13))?
-        .checked_add(1)
-        .ok_or(MathError::AddOverflow(12))?;
+        .ok_or(MathError::SubUnderflow(13))?;
 
     Ok((dy, fee))
 }
@@ -320,8 +316,10 @@ pub fn rated_swap_from(
         fees,
         amp_coef,
     )?;
-
-    let dy = amount_from_rated(r_dy, rates[token_in_idx])?;
+    // add one in case of rounding error, for the protocol advantage
+    let dy = amount_from_rated(r_dy, rates[token_in_idx])?
+        .checked_add(1)
+        .ok_or(MathError::AddOverflow(12))?;
     let fee = amount_from_rated(r_fee, rates[token_out_idx])?;
     Ok((dy, fee))
 }
@@ -651,10 +649,11 @@ mod tests {
         let fees = Fees::zero();
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_in = 10000000000;
+        let rates: [u128; 2] = [RATE_PRECISION, RATE_PRECISION];
         // ref https://github.com/ref-finance/ref-contracts/blob/be5c0e33465c13a05dab6e5e9ff9f8af414e16a7/ref-exchange/src/stable_swap/mod.rs#L744
         let expect_token_out = 9999495232;
-        let (amount_out, fee) =
-            swap_to(0, token_in, 1, &reserves, &fees, amp_coef).expect("Should return swap result");
+        let (amount_out, fee) = rated_swap_to(&rates, 0, token_in, 1, &reserves, &fees, amp_coef)
+            .expect("Should return swap result");
         assert_eq!(amount_out, expect_token_out, "Incorrect swap ammount");
         assert_eq!(fee, 0, "Fee should nbe 0");
     }
@@ -666,7 +665,9 @@ mod tests {
         let reserves: Vec<u128> = vec![100000000000, 100000000000];
         let token_out = 9999495232;
         let expect_token_in = 10000000000;
-        let (amount_in, fee) = swap_from(0, token_out, 1, &reserves, &fees, amp_coef)
+        let rates: [u128; 2] = [RATE_PRECISION, RATE_PRECISION];
+
+        let (amount_in, fee) = rated_swap_from(&rates, 0, token_out, 1, &reserves, &fees, amp_coef)
             .expect("Should return swap result");
         assert_eq!(amount_in, expect_token_in, "Incorrect swap ammount");
         assert_eq!(fee, 0, "Fee should nbe 0");
@@ -681,8 +682,10 @@ mod tests {
         let expect_token_out = 9999495232;
         let expect_fee = expect_token_out / 100;
         let expect_token_out_minus_fee = expect_token_out - expect_fee;
-        let (amount_out, fee) =
-            swap_to(0, token_in, 1, &reserves, &fees, amp_coef).expect("Should return swap result");
+        let rates: [u128; 2] = [RATE_PRECISION, RATE_PRECISION];
+
+        let (amount_out, fee) = rated_swap_to(&rates, 0, token_in, 1, &reserves, &fees, amp_coef)
+            .expect("Should return swap result");
         assert_eq!(
             amount_out, expect_token_out_minus_fee,
             "Incorrect swap ammount"
@@ -699,9 +702,18 @@ mod tests {
         let expect_fee: u128 = 9999495232 / 100;
         let token_out_minus_expect_fee = token_out - expect_fee;
         let expect_token_in = 10000000000;
-        let (amount_in, fee) =
-            swap_from(0, token_out_minus_expect_fee, 1, &reserves, &fees, amp_coef)
-                .expect("Should return swap result");
+        let rates: [u128; 2] = [RATE_PRECISION, RATE_PRECISION];
+
+        let (amount_in, fee) = rated_swap_from(
+            &rates,
+            0,
+            token_out_minus_expect_fee,
+            1,
+            &reserves,
+            &fees,
+            amp_coef,
+        )
+        .expect("Should return swap result");
         assert_eq!(amount_in, expect_token_in, "Incorrect swap ammount");
         assert_eq!(fee, expect_fee, "Incorrect total fee ammount");
     }
@@ -712,10 +724,14 @@ mod tests {
         let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_in: u128 = 62463425433;
-        let (amount_out, fee_out) = swap_to(0, token_0_in, 1, &reserves, &fees, amp_coef)
-            .expect("Should return swap result");
-        let (amount_in, fee_in) = swap_from(0, amount_out, 1, &reserves, &fees, amp_coef)
-            .expect("Should return swap result");
+        let rates: [u128; 2] = [RATE_PRECISION, RATE_PRECISION];
+
+        let (amount_out, fee_out) =
+            rated_swap_to(&rates, 0, token_0_in, 1, &reserves, &fees, amp_coef)
+                .expect("Should return swap result");
+        let (amount_in, fee_in) =
+            rated_swap_from(&rates, 0, amount_out, 1, &reserves, &fees, amp_coef)
+                .expect("Should return swap result");
         assert_eq!(amount_in, token_0_in, "Incorrect swap amount");
         assert_eq!(fee_out, fee_in, "Incorrect fee amount");
     }
@@ -726,11 +742,14 @@ mod tests {
         let fees = Fees::new(2137, 0).unwrap();
         let reserves: Vec<u128> = vec![12341234123412341234, 5343245543253432435];
         let token_0_out: u128 = 62463425433;
+        let rates: [u128; 2] = [RATE_PRECISION, RATE_PRECISION];
 
-        let (amount_in, fee_in) = swap_from(0, token_0_out, 1, &reserves, &fees, amp_coef)
-            .expect("Should return swap result");
-        let (amount_out, fee_out) = swap_to(0, amount_in, 1, &reserves, &fees, amp_coef)
-            .expect("Should return swap result");
+        let (amount_in, fee_in) =
+            rated_swap_from(&rates, 0, token_0_out, 1, &reserves, &fees, amp_coef)
+                .expect("Should return swap result");
+        let (amount_out, fee_out) =
+            rated_swap_to(&rates, 0, amount_in, 1, &reserves, &fees, amp_coef)
+                .expect("Should return swap result");
         assert_eq!(amount_out, token_0_out, "Incorrect swap amount");
         assert_eq!(fee_in, fee_out, "Incorrect fee amount");
     }
