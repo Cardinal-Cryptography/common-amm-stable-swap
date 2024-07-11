@@ -262,6 +262,66 @@ pub mod stable_swap {
                 .unwrap(),
         )
     }
+
+    pub fn get_amounts_for_liquidity_burn(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        liquidity: u128,
+    ) -> Result<Vec<u128>, StablePoolError> {
+        handle_ink_error(
+            session
+                .query(
+                    stable_pool_contract::Instance::from(stable_pool)
+                        .get_amounts_for_liquidity_burn(liquidity),
+                )
+                .unwrap(),
+        )
+    }
+
+    pub fn get_amounts_for_liquidity_mint(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        liquidity: u128,
+    ) -> Result<Vec<u128>, StablePoolError> {
+        handle_ink_error(
+            session
+                .query(
+                    stable_pool_contract::Instance::from(stable_pool)
+                        .get_amounts_for_liquidity_mint(liquidity),
+                )
+                .unwrap(),
+        )
+    }
+
+    pub fn get_burn_liquidity_for_amounts(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        amounts: Vec<u128>,
+    ) -> Result<(u128, u128), StablePoolError> {
+        handle_ink_error(
+            session
+                .query(
+                    stable_pool_contract::Instance::from(stable_pool)
+                        .get_burn_liquidity_for_amounts(amounts),
+                )
+                .unwrap(),
+        )
+    }
+
+    pub fn get_mint_liquidity_for_amounts(
+        session: &mut Session<MinimalRuntime>,
+        stable_pool: AccountId,
+        amounts: Vec<u128>,
+    ) -> Result<(u128, u128), StablePoolError> {
+        handle_ink_error(
+            session
+                .query(
+                    stable_pool_contract::Instance::from(stable_pool)
+                        .get_mint_liquidity_for_amounts(amounts),
+                )
+                .unwrap(),
+        )
+    }
 }
 
 pub mod psp22_utils {
