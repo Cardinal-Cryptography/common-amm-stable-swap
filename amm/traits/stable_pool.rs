@@ -32,9 +32,9 @@ pub trait StablePool {
     #[ink(message)]
     fn token_rates(&mut self) -> Vec<u128>;
 
-    /// Calculate swap amount of token_out
-    /// given token_in amount.
-    /// Returns a tuple of (amount_out, fee)
+    /// Calculate swap amount of `token_out`
+    /// given `token_in amount`.
+    /// Returns a tuple of (amount out, fee)
     /// NOTE: fee is applied on `token_out`
     #[ink(message)]
     fn get_swap_amount_out(
@@ -44,9 +44,9 @@ pub trait StablePool {
         token_in_amount: u128,
     ) -> Result<(u128, u128), StablePoolError>;
 
-    /// Calculate required amount of `token_in`
-    /// fo swap, to `token_out amount`.
-    /// Returns a tuple of (amount_in, fee)
+    /// Calculate required swap amount of `token_in`
+    /// to get `token_out_amount`.
+    /// Returns a tuple of (amount in, fee)
     /// NOTE: fee is applied on `token_out`
     #[ink(message)]
     fn get_swap_amount_in(
@@ -92,7 +92,7 @@ pub trait StablePool {
         liquidity: u128,
     ) -> Result<Vec<u128>, StablePoolError>;
 
-    /// Deposit `amounts` of tokens to receive lpt tokens to `to`.
+    /// Deposit `amounts` of tokens to receive lpt tokens to `to` account.
     /// Caller must allow enough spending allowance of underlying tokens
     /// for this contract.
     /// Returns an error if the minted LP tokens amount is less
