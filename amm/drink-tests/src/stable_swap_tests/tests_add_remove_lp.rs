@@ -841,3 +841,90 @@ fn test_07(mut session: Session) {
         "Incorrect Users tokens balances"
     );
 }
+
+#[drink::test]
+fn test_lp_withdraw_all_but_no_more() {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let charlie_input = vec![1_234_543 * ONE_USDT, 1_112_323 * ONE_USDC];
+    let dave_input = vec![1131 * 105 * ONE_USDT, 1157 * 105 * ONE_USDC];
+    let initial_supply: Vec<u128> = charlie_input.iter().map(|amount| amount * 10).collect();
+
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![6, 6],
+        initial_supply.clone(),
+        10_000,
+        0,
+        0,
+        BOB,
+        vec![],
+    );
+
+    transfer_and_increase_allowance(
+        &mut session,
+        stable_swap,
+        tokens.clone(),
+        CHARLIE,
+        vec![1_434_543 * ONE_USDT, 1_112_323 * ONE_USDC],
+        BOB,
+    );
+    transfer_and_increase_allowance(
+        &mut session,
+        stable_swap,
+        tokens,
+        DAVE,
+        vec![1131 * 105 * ONE_USDT, 1157 * 105 * ONE_USDC],
+        BOB,
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        CHARLIE,
+        1,
+        charlie_input.clone(),
+        charlie(),
+    )
+    .expect("Charlie should successfully add liquidity");
+
+    let (shares, _) = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        DAVE,
+        1,
+        dave_input.clone(),
+        dave(),
+    )
+    .expect("Dave should successfully add liquidity");
+
+    for _ in 0..105 {
+        let withdraw = vec![1131 * ONE_USDT, 1157 * ONE_USDC]; // 1/105 of Dave's
+        _ = stable_swap::remove_liquidity_by_amounts(
+            &mut session,
+            stable_swap,
+            DAVE,
+            shares, // just an upper bound
+            withdraw,
+            dave(),
+        )
+        .expect("Should successfully remove liquidity");
+    }
+
+    assert_eq!(
+        psp22_utils::balance_of(&mut session, stable_swap, dave()),
+        0
+    );
+
+    _ = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        stable_swap,
+        DAVE,
+        10,
+        vec![1, 1], // at least withdraw something
+        dave(),
+    )
+    .expect_err("Should not successfully remove liquidity");
+}
