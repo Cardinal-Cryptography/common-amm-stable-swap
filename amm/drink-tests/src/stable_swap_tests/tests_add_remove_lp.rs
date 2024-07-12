@@ -842,6 +842,301 @@ fn test_07(mut session: Session) {
     );
 }
 
+/// Tests that after depositing X tokens amounts for L shares, user cannot withdraw X tokens amounts for L - 1 shares
+#[drink::test]
+fn test_08(mut session: Session) {
+    let initial_reserves = vec![100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply: Vec<u128> = initial_reserves.iter().map(|amount| amount * 10).collect();
+    let amp_coef = 10_000u128;
+    let trade_fee = 2_500_000u32;
+    let protocol_fee = 200_000_000u32;
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![12, 12],
+        initial_supply.clone(),
+        amp_coef,
+        trade_fee,
+        protocol_fee,
+        BOB,
+        vec![],
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    _ = stable_swap::swap_exact_in(
+        &mut session,
+        stable_swap,
+        BOB,
+        tokens[0],               // in USDT
+        tokens[1],               // out USDC
+        123 * ONE_USDT + 132312, // amount_in
+        1,                       // min_token_out
+        bob(),
+    )
+    .expect("Should successfully swap");
+
+    let total_shares = psp22_utils::total_supply(&mut session, stable_swap);
+    let share = total_shares / 20; // 4.999...% -  5%
+
+    let deposit_amounts =
+        stable_swap::get_amounts_for_liquidity_mint(&mut session, stable_swap, share)
+            .expect("Should compute");
+
+    let (share_mint, _) = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        deposit_amounts.clone(),
+        bob(),
+    )
+    .expect("Should mint LPT");
+
+    let err = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        share_mint - 1,
+        deposit_amounts,
+        bob(),
+    )
+    .expect_err("Should fail to remove lpt");
+
+    assert_eq!(
+        StablePoolError::InsufficientLiquidityBurned(),
+        err,
+        "Should be insufficient"
+    );
+}
+
+/// Tests that after withdrawing X tokens amounts for L shares, user cannot deposit X tokens amounts for L + 1 shares
+#[drink::test]
+fn test_09(mut session: Session) {
+    let initial_reserves = vec![100000 * ONE_USDT * ONE_USDT, 100000 * ONE_USDC * ONE_USDC];
+    let initial_supply: Vec<u128> = initial_reserves.iter().map(|amount| amount * 10).collect();
+    let amp_coef = 10_000u128;
+    let trade_fee = 2_500_000u32;
+    let protocol_fee = 200_000_000u32;
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![12, 12],
+        initial_supply.clone(),
+        amp_coef,
+        trade_fee,
+        protocol_fee,
+        BOB,
+        vec![],
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    _ = stable_swap::swap_exact_in(
+        &mut session,
+        stable_swap,
+        BOB,
+        tokens[0],                          // in USDT
+        tokens[1],                          // out USDC
+        123 * ONE_USDT * ONE_USDC + 132312, // amount_in
+        1,                                  // min_token_out
+        bob(),
+    )
+    .expect("Should successfully swap");
+
+    let total_shares = psp22_utils::total_supply(&mut session, stable_swap);
+    let share = total_shares / 20; // 4.999...% -  5%
+
+    let withdraw_amounts =
+        stable_swap::get_amounts_for_liquidity_burn(&mut session, stable_swap, share)
+            .expect("Should compute");
+    let (share_burn, _) = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        u128::MAX,
+        withdraw_amounts.clone(),
+        bob(),
+    )
+    .expect("Should burn LPT");
+
+    let err = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        share_burn + 1,
+        withdraw_amounts.clone(),
+        bob(),
+    )
+    .expect_err("Should fail to mint lpt");
+
+    assert_eq!(
+        StablePoolError::InsufficientLiquidityMinted(),
+        err,
+        "Should be insufficient"
+    );
+}
+
+/// Tests that after depositing X tokens amounts for L shares, user cannot withdraw X tokens amounts for L - 1 shares (using remove_by_shares method)
+#[drink::test]
+fn test_10(mut session: Session) {
+    let initial_reserves = vec![100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply: Vec<u128> = initial_reserves.iter().map(|amount| amount * 10).collect();
+    let amp_coef = 10_000u128;
+    let trade_fee = 2_500_000u32;
+    let protocol_fee = 200_000_000u32;
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![12, 12],
+        initial_supply.clone(),
+        amp_coef,
+        trade_fee,
+        protocol_fee,
+        BOB,
+        vec![],
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    _ = stable_swap::swap_exact_in(
+        &mut session,
+        stable_swap,
+        BOB,
+        tokens[0],               // in USDT
+        tokens[1],               // out USDC
+        123 * ONE_USDT + 132312, // amount_in
+        1,                       // min_token_out
+        bob(),
+    )
+    .expect("Should successfully swap");
+
+    let total_shares = psp22_utils::total_supply(&mut session, stable_swap);
+    let share = total_shares / 20; // 4.999...% -  5%
+
+    let deposit_amounts =
+        stable_swap::get_amounts_for_liquidity_mint(&mut session, stable_swap, share)
+            .expect("Should compute");
+
+    let (share_mint, _) = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        deposit_amounts.clone(),
+        bob(),
+    )
+    .expect("Should mint LPT");
+
+    let err = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        stable_swap,
+        BOB,
+        share_mint - 1,
+        deposit_amounts,
+        bob(),
+    )
+    .expect_err("Should fail to remove lpt");
+
+    assert_eq!(
+        StablePoolError::InsufficientOutputAmount(),
+        err,
+        "Should be insufficient"
+    );
+}
+
+/// Tests that after withdrawing X tokens amounts for L shares, user cannot deposit X tokens amounts for L + 1 shares (using remove_by_shares method)
+#[drink::test]
+fn test_11(mut session: Session) {
+    let initial_reserves = vec![100000 * ONE_USDT * ONE_USDT, 100000 * ONE_USDC * ONE_USDC];
+    let initial_supply: Vec<u128> = initial_reserves.iter().map(|amount| amount * 10).collect();
+    let amp_coef = 10_000u128;
+    let trade_fee = 2_500_000u32;
+    let protocol_fee = 200_000_000u32;
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![12, 12],
+        initial_supply.clone(),
+        amp_coef,
+        trade_fee,
+        protocol_fee,
+        BOB,
+        vec![],
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    _ = stable_swap::swap_exact_in(
+        &mut session,
+        stable_swap,
+        BOB,
+        tokens[0],                          // in USDT
+        tokens[1],                          // out USDC
+        123 * ONE_USDT * ONE_USDC + 132312, // amount_in
+        1,                                  // min_token_out
+        bob(),
+    )
+    .expect("Should successfully swap");
+
+    let total_shares = psp22_utils::total_supply(&mut session, stable_swap);
+    let share = total_shares / 20; // 4.999...% -  5%
+
+    let withdraw_amounts = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        stable_swap,
+        BOB,
+        share,
+        vec![1, 1],
+        bob(),
+    )
+    .expect("Should burn LPT");
+
+    let err = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        share + 1,
+        withdraw_amounts.clone(),
+        bob(),
+    )
+    .expect_err("Should fail to mint lpt");
+
+    assert_eq!(
+        StablePoolError::InsufficientLiquidityMinted(),
+        err,
+        "Should be insufficient"
+    );
+}
+
 #[drink::test]
 fn test_lp_withdraw_all_but_no_more() {
     seed_account(&mut session, CHARLIE);
