@@ -5,7 +5,6 @@ use primitive_types::U256;
 
 pub use stable_pool_contract::StablePool as _;
 pub use stable_pool_contract::StablePoolError;
-pub use stable_pool_contract::StablePoolView as _;
 
 use drink::{self, runtime::MinimalRuntime, session::Session, AccountId32};
 
