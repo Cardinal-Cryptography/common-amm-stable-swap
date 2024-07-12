@@ -848,8 +848,8 @@ fn test_lp_withdraw_all_but_no_more() {
     seed_account(&mut session, DAVE);
     seed_account(&mut session, EVA);
 
-    let charlie_input = vec![1_234_543 * ONE_USDT, 1_112_323 * ONE_USDC];
-    let dave_input = vec![1131 * 105 * ONE_USDT, 1157 * 105 * ONE_USDC];
+    let charlie_input = vec![1_434_543 * ONE_USDT, 1_112_323 * ONE_USDC];
+    let dave_input = vec![1131 * 105 * ONE_USDT, 1157 * 105 * ONE_USDC]; // treat as 105 parts of (1131, 1157)
     let initial_supply: Vec<u128> = charlie_input.iter().map(|amount| amount * 10).collect();
 
     let (stable_swap, tokens) = setup_stable_swap_with_tokens(
@@ -900,6 +900,7 @@ fn test_lp_withdraw_all_but_no_more() {
     )
     .expect("Dave should successfully add liquidity");
 
+    // 105 times withdraw (1131, 1157) which should withdraw the whole Dave's share
     for _ in 0..105 {
         let withdraw = vec![1131 * ONE_USDT, 1157 * ONE_USDC]; // 1/105 of Dave's
         _ = stable_swap::remove_liquidity_by_amounts(
@@ -915,7 +916,8 @@ fn test_lp_withdraw_all_but_no_more() {
 
     assert_eq!(
         psp22_utils::balance_of(&mut session, stable_swap, dave()),
-        0
+        0,
+        "Dave shouldn't have any LPT left",
     );
 
     _ = stable_swap::remove_liquidity_by_shares(
