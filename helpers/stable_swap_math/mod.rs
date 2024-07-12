@@ -119,7 +119,7 @@ fn compute_d_next(
 }
 
 /// Returns new reserve of `token_y_id`
-/// given new reserve of `token_x_id` tokens
+/// given new reserve of `token_x_id`.
 ///
 /// NOTE: it does not check if `token_x_id` != `token_y_id` and if tokens' `id`s are out of bounds
 fn compute_y(
