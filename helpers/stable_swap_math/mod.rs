@@ -177,7 +177,7 @@ fn compute_y(
     for _ in 0..MAX_ITERATIONS {
         let y = compute_y_next(y_prev, b, c, d)?;
         if y.abs_diff(y_prev) <= 1.into() {
-            return Ok(y.try_into().map_err(|_| MathError::CastOverflow(11))?);
+            return y.try_into().map_err(|_| MathError::CastOverflow(11));
         }
         y_prev = y;
     }
@@ -204,8 +204,8 @@ fn compute_y_next(y_prev: U256, b: U256, c: U256, d: U256) -> Result<U256, MathE
 
 /// Compute SwapResult after an exchange given `amount_in` of the `token_in_id`.
 /// panics if token ids are out of bounds.
-/// NOTICE: it does not check if `token_in_id` != `token_out_id`.
 /// Returns (amount_out, fee_amount)
+/// NOTE: it does not check if `token_in_id` != `token_out_id`.
 fn swap_to(
     token_in_idx: usize,
     token_in_amount: u128,
@@ -265,8 +265,8 @@ pub fn rated_swap_to(
 
 /// Compute SwapResult after an exchange given `amount_out` of the `token_out_id`
 /// panics if token ids are out of bounds
-/// NOTICE: it does not check if `token_in_id` != `token_out_id`
-/// /// Returns (amount_in, fee_amount)
+/// Returns (amount_in, fee_amount)
+/// NOTE: it does not check if `token_in_id` != `token_out_id`
 fn swap_from(
     token_in_idx: usize,
     token_out_amount: u128, // Net amount (w/o fee)
@@ -324,8 +324,8 @@ pub fn rated_swap_from(
     Ok((dy, fee))
 }
 
-/// Compute the amount of LP tokens to mint after a deposit
-/// return <lp_amount_to_mint, lp_fees_part>
+/// Given `deposit_amounts` user want deposit, calculates how many LPT
+/// is required to be burnt (lpt_mint_for_user, fee_part)
 fn compute_lp_amount_for_deposit(
     deposit_amounts: &Vec<u128>,
     old_reserves: &Vec<u128>,
@@ -437,19 +437,16 @@ pub fn rated_compute_lp_amount_for_deposit(
     )
 }
 
-/***
- * Returns amounts of tokens minted/burned for a given amount of LP tokens
- * and the current reserves
- */
+/// Computes proportional token amounts to the given `lpt_amount`.
 pub fn compute_amounts_given_lp(
-    lp_amount: u128,
+    lpt_amount: u128,
     reserves: &Vec<u128>,
     pool_token_supply: u128,
 ) -> Result<Vec<u128>, MathError> {
     let mut amounts = Vec::with_capacity(reserves.len());
     for &reserve in reserves {
         amounts.push(
-            casted_mul(reserve, lp_amount)
+            casted_mul(reserve, lpt_amount)
                 .checked_div(pool_token_supply.into())
                 .ok_or(MathError::DivByZero(13))?
                 .try_into()
@@ -459,9 +456,8 @@ pub fn compute_amounts_given_lp(
     Ok(amounts)
 }
 
-/// given token_out user want get and total tokens in pool and lp token supply,
-/// return <lp_amount_to_burn, lp_fees_part>
-/// all amounts are in c_amount (comparable amount)
+/// Given `withdraw_amounts` user want get, calculates how many LPT
+/// is required to be burnt (total_to_burn, fee_part)
 fn compute_lp_amount_for_withdraw(
     withdraw_amounts: &[u128],
     old_reserves: &Vec<u128>,
