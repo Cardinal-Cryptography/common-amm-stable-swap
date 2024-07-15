@@ -1,4 +1,9 @@
-#[allow(dead_code)]
+mod tests_add_remove_lp;
+mod tests_getters;
+mod tests_rated;
+mod tests_swap_exact_in_received;
+mod tests_swap_exact_out;
+
 use crate::stable_pool_contract;
 pub use crate::utils::*;
 use primitive_types::U256;
@@ -35,6 +40,7 @@ pub fn setup_stable_swap_with_tokens(
     trade_fee: u32,
     protocol_trade_fee: u32,
     caller: AccountId32,
+    salt: Vec<u8>,
 ) -> (AccountId, Vec<AccountId>) {
     let _ = session.set_actor(caller);
 
@@ -44,6 +50,7 @@ pub fn setup_stable_swap_with_tokens(
 
     upload_all(session);
 
+    let salty_str = String::from_utf8(salt.clone()).unwrap_or("Test token".to_string());
     // instantiate tokens
     let tokens: Vec<AccountId> = token_decimals
         .iter()
@@ -52,7 +59,7 @@ pub fn setup_stable_swap_with_tokens(
         .map(|(id, (&decimals, &supply))| {
             psp22_utils::setup_with_amounts(
                 session,
-                format!("Test Token {id}").to_string(),
+                format!("{salty_str} {id}").to_string(),
                 decimals,
                 supply,
                 BOB,
@@ -70,7 +77,8 @@ pub fn setup_stable_swap_with_tokens(
         trade_fee,
         protocol_trade_fee,
         Some(fee_receiver()),
-    );
+    )
+    .with_salt(salt);
 
     let stable_swap: stable_pool_contract::Instance = session
         .instantiate(instance)
@@ -91,15 +99,11 @@ pub fn setup_stable_swap_with_tokens(
 pub fn share_price_and_total_shares(
     session: &mut Session<MinimalRuntime>,
     stable_swap: AccountId,
-    token_rates: Option<Vec<u128>>,
 ) -> (u128, u128) {
     let total_shares = psp22_utils::total_supply(session, stable_swap);
     let reserves = stable_swap::reserves(session, stable_swap);
-    let token_rates: Vec<u128> = if let Some(rates) = token_rates {
-        rates
-    } else {
-        reserves.iter().map(|_| RATE_PRECISION).collect()
-    };
+    let token_rates = stable_swap::token_rates(session, stable_swap);
+
     let sum_token = stable_swap::tokens(session, stable_swap)
         .iter()
         .zip(reserves.iter())
@@ -116,7 +120,7 @@ pub fn share_price_and_total_shares(
             .checked_mul(100000000.into())
             .unwrap()
             .checked_div(total_shares.into())
-            .unwrap_or(100000000.into())
+            .unwrap_or(0.into()) // return 0 if total shares 0
             .as_u128(),
         total_shares,
     )
