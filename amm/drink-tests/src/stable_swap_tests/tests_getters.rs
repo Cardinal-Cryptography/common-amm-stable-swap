@@ -91,7 +91,7 @@ fn test_01(mut session: Session) {
         stable_swap,
         BOB,
         tokens[0], // DAI
-        tokens[1], // USDC
+        tokens[1], // USDT
         ONE_DAI,   // amount_in
         1,         // min_token_out
         charlie(),
