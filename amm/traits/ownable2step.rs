@@ -33,7 +33,7 @@ pub trait Ownable2Step {
 
     /// The owner of the contract renounces the ownership.
     /// To start the process, the owner has to initiate ownership transfer to this contract's address.
-    /// Can anly be caller by the current owner.
+    /// Can only be called by the current owner.
     #[ink(message)]
     fn renounce_ownership(&mut self) -> Ownable2StepResult<()>;
 

@@ -50,7 +50,7 @@ pub fn upload_all(session: &mut Session<MinimalRuntime>) {
 
 pub mod stable_swap {
     use super::*;
-    use stable_pool_contract::{StablePool as _, StablePoolError, StablePoolView as _};
+    use stable_pool_contract::{StablePool as _, StablePoolError};
 
     pub fn setup(
         session: &mut Session<MinimalRuntime>,
