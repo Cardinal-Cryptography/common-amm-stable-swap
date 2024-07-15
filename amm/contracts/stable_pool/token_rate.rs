@@ -33,7 +33,7 @@ impl TokenRate {
             token_rate_contract,
             expiration_duration_ms,
         ));
-        _ = rate.update_rate_no_cache(current_time);
+        _ = rate.force_update_rate(current_time);
         rate
     }
 
@@ -60,7 +60,7 @@ impl TokenRate {
     /// Update rate without expiry check.
     ///
     /// Returns `true` if value of the new rate is different than the previous.
-    pub fn update_rate_no_cache(&mut self, current_time: u64) -> bool {
+    pub fn force_update_rate(&mut self, current_time: u64) -> bool {
         match self {
             Self::External(external) => external.update_rate_no_cache(current_time),
             Self::Constant(_) => false,

@@ -11,7 +11,9 @@ mod mock_sazero_rate {
         #[ink(constructor)]
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
-            Self { rate: 10u128.pow(12u32) }
+            Self {
+                rate: 10u128.pow(12u32),
+            }
         }
 
         #[ink(message)]

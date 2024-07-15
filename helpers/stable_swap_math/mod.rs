@@ -118,8 +118,8 @@ fn compute_d_next(
         .ok_or(MathError::DivByZero(2))
 }
 
-/// Returns new reserve of `y` tokens
-/// given new reserve of `x` tokens
+/// Returns new reserve of `token_y_id`
+/// given new reserve of `token_x_id`.
 ///
 /// NOTE: it does not check if `token_x_id` != `token_y_id` and if tokens' `id`s are out of bounds
 fn compute_y(
@@ -177,7 +177,7 @@ fn compute_y(
     for _ in 0..MAX_ITERATIONS {
         let y = compute_y_next(y_prev, b, c, d)?;
         if y.abs_diff(y_prev) <= 1.into() {
-            return Ok(y.try_into().map_err(|_| MathError::CastOverflow(11))?);
+            return y.try_into().map_err(|_| MathError::CastOverflow(11));
         }
         y_prev = y;
     }
@@ -202,30 +202,30 @@ fn compute_y_next(y_prev: U256, b: U256, c: U256, d: U256) -> Result<U256, MathE
         .ok_or(MathError::DivByZero(7))
 }
 
-/// Compute SwapResult after an exchange given `amount_in` of the `token_in_id`.
+/// Compute swap result after an exchange given `token_amount_in` of the `token_in_id`.
 /// panics if token ids are out of bounds.
-/// NOTICE: it does not check if `token_in_id` != `token_out_id`.
-/// Returns (amount_out, fee_amount)
+/// Returns a tuple of (amount out, fee amount)
+/// NOTE: it does not check if `token_in_id` != `token_out_id`.
 fn swap_to(
-    token_in_idx: usize,
+    token_in_id: usize,
     token_in_amount: u128,
-    token_out_idx: usize,
+    token_out_id: usize,
     current_reserves: &Vec<u128>,
     fees: &Fees,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
     let y = compute_y(
         token_in_amount
-            .checked_add(current_reserves[token_in_idx])
+            .checked_add(current_reserves[token_in_id])
             .ok_or(MathError::AddOverflow(9))?,
         current_reserves,
-        token_in_idx,
-        token_out_idx,
+        token_in_id,
+        token_out_id,
         amp_coef,
     )?;
     // sub 1 in case there are any rounding errors
     // https://github.com/curvefi/curve-contract/blob/b0bbf77f8f93c9c5f4e415bce9cd71f0cdee960e/contracts/pool-templates/base/SwapTemplateBase.vy#L466
-    let dy = current_reserves[token_out_idx]
+    let dy = current_reserves[token_out_id]
         .checked_sub(y)
         .ok_or(MathError::SubUnderflow(7))?
         .checked_sub(1)
@@ -239,38 +239,38 @@ fn swap_to(
 
 pub fn rated_swap_to(
     rates: &[u128],
-    token_in_idx: usize,
+    token_in_id: usize,
     token_in_amount: u128,
-    token_out_idx: usize,
+    token_out_id: usize,
     current_reserves: &[u128],
     fees: &Fees,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
-    let r_token_in_amount = amount_to_rated(token_in_amount, rates[token_in_idx])?;
+    let r_token_in_amount = amount_to_rated(token_in_amount, rates[token_in_id])?;
     let r_current_reserves = amounts_to_rated(current_reserves, rates)?;
 
     let (r_amount_swapped, r_fee) = swap_to(
-        token_in_idx,
+        token_in_id,
         r_token_in_amount,
-        token_out_idx,
+        token_out_id,
         &r_current_reserves,
         fees,
         amp_coef,
     )?;
 
-    let amount_swapped = amount_from_rated(r_amount_swapped, rates[token_out_idx])?;
-    let fee = amount_from_rated(r_fee, rates[token_out_idx])?;
+    let amount_swapped = amount_from_rated(r_amount_swapped, rates[token_out_id])?;
+    let fee = amount_from_rated(r_fee, rates[token_out_id])?;
     Ok((amount_swapped, fee))
 }
 
-/// Compute SwapResult after an exchange given `amount_out` of the `token_out_id`
+/// Compute swap result after an exchange given `token_amount_out` of the `token_out_id`
 /// panics if token ids are out of bounds
-/// NOTICE: it does not check if `token_in_id` != `token_out_id`
-/// /// Returns (amount_in, fee_amount)
+/// Returns a tuple (amount in, fee amount)
+/// NOTE: it does not check if `token_in_id` != `token_out_id`
 fn swap_from(
-    token_in_idx: usize,
+    token_in_id: usize,
     token_out_amount: u128, // Net amount (w/o fee)
-    token_out_idx: usize,
+    token_out_id: usize,
     current_reserves: &Vec<u128>,
     fees: &Fees,
     amp_coef: u128,
@@ -282,16 +282,16 @@ fn swap_from(
         .ok_or(MathError::AddOverflow(11))?;
 
     let y = compute_y(
-        current_reserves[token_out_idx]
+        current_reserves[token_out_id]
             .checked_sub(token_out_amount_plus_fee)
             .ok_or(MathError::SubUnderflow(12))?,
         current_reserves,
-        token_out_idx,
-        token_in_idx,
+        token_out_id,
+        token_in_id,
         amp_coef,
     )?;
     let dy: u128 = y
-        .checked_sub(current_reserves[token_in_idx])
+        .checked_sub(current_reserves[token_in_id])
         .ok_or(MathError::SubUnderflow(13))?;
 
     Ok((dy, fee))
@@ -299,33 +299,34 @@ fn swap_from(
 
 pub fn rated_swap_from(
     rates: &[u128],
-    token_in_idx: usize,
+    token_in_id: usize,
     token_out_amount: u128,
-    token_out_idx: usize,
+    token_out_id: usize,
     current_reserves: &[u128],
     fees: &Fees,
     amp_coef: u128,
 ) -> Result<(u128, u128), MathError> {
-    let r_token_out_amount = amount_to_rated(token_out_amount, rates[token_out_idx])?;
+    let r_token_out_amount = amount_to_rated(token_out_amount, rates[token_out_id])?;
     let r_current_reserves = amounts_to_rated(current_reserves, rates)?;
     let (r_dy, r_fee) = swap_from(
-        token_in_idx,
+        token_in_id,
         r_token_out_amount,
-        token_out_idx,
+        token_out_id,
         &r_current_reserves,
         fees,
         amp_coef,
     )?;
     // add one in case of rounding error, for the protocol advantage
-    let dy = amount_from_rated(r_dy, rates[token_in_idx])?
+    let dy = amount_from_rated(r_dy, rates[token_in_id])?
         .checked_add(1)
         .ok_or(MathError::AddOverflow(12))?;
-    let fee = amount_from_rated(r_fee, rates[token_out_idx])?;
+    let fee = amount_from_rated(r_fee, rates[token_out_id])?;
     Ok((dy, fee))
 }
 
-/// Compute the amount of LP tokens to mint after a deposit
-/// return <lp_amount_to_mint, lp_fees_part>
+/// Given `deposit_amounts` user want deposit, calculates how many lpt
+/// are required to be minted.
+/// Returns a tuple of (lpt to mint, fee)
 fn compute_lp_amount_for_deposit(
     deposit_amounts: &Vec<u128>,
     old_reserves: &Vec<u128>,
@@ -437,19 +438,16 @@ pub fn rated_compute_lp_amount_for_deposit(
     )
 }
 
-/***
- * Returns amounts of tokens minted/burned for a given amount of LP tokens
- * and the current reserves
- */
+/// Computes proportional token amounts to the given `lpt_amount`.
 pub fn compute_amounts_given_lp(
-    lp_amount: u128,
+    lpt_amount: u128,
     reserves: &Vec<u128>,
     pool_token_supply: u128,
 ) -> Result<Vec<u128>, MathError> {
     let mut amounts = Vec::with_capacity(reserves.len());
     for &reserve in reserves {
         amounts.push(
-            casted_mul(reserve, lp_amount)
+            casted_mul(reserve, lpt_amount)
                 .checked_div(pool_token_supply.into())
                 .ok_or(MathError::DivByZero(13))?
                 .try_into()
@@ -459,9 +457,9 @@ pub fn compute_amounts_given_lp(
     Ok(amounts)
 }
 
-/// given token_out user want get and total tokens in pool and lp token supply,
-/// return <lp_amount_to_burn, lp_fees_part>
-/// all amounts are in c_amount (comparable amount)
+/// Given `withdraw_amounts` user want get, calculates how many lpt
+/// are required to be burnt
+/// Returns a tuple of (lpt to burn, fee part)
 fn compute_lp_amount_for_withdraw(
     withdraw_amounts: &[u128],
     old_reserves: &Vec<u128>,

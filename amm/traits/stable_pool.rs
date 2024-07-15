@@ -6,7 +6,7 @@ use psp22::PSP22Error;
 use crate::{MathError, Ownable2StepError};
 
 #[ink::trait_definition]
-pub trait StablePoolView {
+pub trait StablePool {
     /// Returns list of tokens in the pool.
     #[ink(message)]
     fn tokens(&self) -> Vec<AccountId>;
@@ -23,30 +23,34 @@ pub trait StablePoolView {
     #[ink(message)]
     fn fees(&self) -> (u32, u32);
 
+    /// Protocol fees receiver (if any)
+    #[ink(message)]
+    fn fee_receiver(&self) -> Option<AccountId>;
+
     /// Updates cached token rates if expired and
     /// returns current tokens rates with precision of 12 decimal places.
     #[ink(message)]
     fn token_rates(&mut self) -> Vec<u128>;
 
-    /// Calculate swap amount of token_out
-    /// given token_in amount.
-    /// Returns (amount_out, fee)
-    /// NOTE: fee is applied to token_out
+    /// Calculate swap amount of `token_out`
+    /// given `token_in amount`.
+    /// Returns a tuple of (amount out, fee)
+    /// NOTE: fee is applied on `token_out`
     #[ink(message)]
     fn get_swap_amount_out(
-        &mut self,
+        &self,
         token_in: AccountId,
         token_out: AccountId,
         token_in_amount: u128,
     ) -> Result<(u128, u128), StablePoolError>;
 
-    /// Calculate required amount of token_in
-    /// given swap token_out amount
-    /// Returns (amount_in, fee)
-    /// fee is applied to token_out
+    /// Calculate required swap amount of `token_in`
+    /// to get `token_out_amount`.
+    /// Returns a tuple of (amount in, fee)
+    /// NOTE: fee is applied on `token_out`
     #[ink(message)]
     fn get_swap_amount_in(
-        &mut self,
+        &self,
         token_in: AccountId,
         token_out: AccountId,
         token_out_amount: u128,
@@ -54,10 +58,10 @@ pub trait StablePoolView {
 
     /// Calculate how many lp tokens will be minted
     /// given deposit `amounts`.
-    /// Returns (lp_amount, fee)
+    /// Returns a tuple of (lpt amount, fee)
     #[ink(message)]
     fn get_mint_liquidity_for_amounts(
-        &mut self,
+        &self,
         amounts: Vec<u128>,
     ) -> Result<(u128, u128), StablePoolError>;
 
@@ -72,10 +76,10 @@ pub trait StablePoolView {
 
     /// Calculate how many lp tokens will be burned
     /// given withdraw `amounts`.
-    /// Returns (lp_amount, fee)
+    /// Returns a tuple of (lpt amount, fee part)
     #[ink(message)]
     fn get_burn_liquidity_for_amounts(
-        &mut self,
+        &self,
         amounts: Vec<u128>,
     ) -> Result<(u128, u128), StablePoolError>;
 
@@ -87,16 +91,13 @@ pub trait StablePoolView {
         &mut self,
         liquidity: u128,
     ) -> Result<Vec<u128>, StablePoolError>;
-}
 
-#[ink::trait_definition]
-pub trait StablePool {
-    /// Mints LP tokens to `to` account from imbalanced `amounts`.
-    /// `to` account must allow enough spending allowance of underlying tokens
+    /// Deposit `amounts` of tokens to receive lpt tokens to `to` account.
+    /// Caller must allow enough spending allowance of underlying tokens
     /// for this contract.
     /// Returns an error if the minted LP tokens amount is less
     /// than `min_share_amount`.
-    /// Returns (minted_share_amount, fee_part)
+    /// Returns a tuple of (minted lpt amount, fee)
     #[ink(message)]
     fn add_liquidity(
         &mut self,
@@ -107,7 +108,7 @@ pub trait StablePool {
 
     /// Burns LP tokens and withdraws underlying tokens to `to` account
     /// in imbalanced `amounts`.
-    /// Returns (burned_share_amount, fee_part)
+    /// Returns a tuple of (burned lpt amount, fee part)
     #[ink(message)]
     fn remove_liquidity_by_amounts(
         &mut self,
@@ -116,9 +117,9 @@ pub trait StablePool {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
 
-    /// Burns LP tokens and withdraws underlying tokens in balanced amounts to `to` account.
+    /// Burns lp tokens and withdraws underlying tokens in balanced amounts to `to` account.
     /// Fails if any of the amounts received is less than in `min_amounts`.
-    /// Returns (amounts_out, fee_part)
+    /// Returns withdrawal amounts
     #[ink(message)]
     fn remove_liquidity_by_shares(
         &mut self,
@@ -129,11 +130,12 @@ pub trait StablePool {
 
     /// Swaps token_in to token_out.
     /// Swapped tokens are transferred to the `to` account.
-    /// caller account must allow enough spending allowance of token_in
+    /// caller account must allow enough spending allowance of `token_in`
     /// for this contract.
-    /// Returns an error if swapped token_out amount is less than
+    /// Returns an error if swapped `token_out` amount is less than
     /// `min_token_out_amount`.
-    /// Returns (token_out_amount, fee_amount)
+    /// NOTE: Fee is applied on `token_out`.
+    /// Returns a tuple of (token out amount, fee amount)
     #[ink(message)]
     fn swap_exact_in(
         &mut self,
@@ -146,12 +148,12 @@ pub trait StablePool {
 
     /// Swaps token_in to token_out.
     /// Swapped tokens are transferred to the `to` account.
-    /// caller account must allow enough spending allowance of token_out
+    /// Caller account must allow enough spending allowance of `token_in`
     /// for this contract.
-    /// Returns an error if to get token_out_amount of token_out it is required
-    /// to spend more than `max_token_in_amount` of token_in.
-    /// NOTE: Fee is applied to `token_out`.
-    /// Returns (token_in_amount, fee_amount)
+    /// Returns an error if it is required to spend more than
+    /// `max_token_in_amount`  to get `token_out_amount`.
+    /// NOTE: Fee is applied on `token_out`.
+    /// Returns a tuple of (token in amount, fee amount)
     #[ink(message)]
     fn swap_exact_out(
         &mut self,
@@ -164,7 +166,7 @@ pub trait StablePool {
 
     /// Swaps excess reserve balance of `token_in` to `token_out`.
     /// Swapped tokens are transferred to the `to` account.
-    /// Returns (token_out_amount, fee_amount)
+    /// Returns a tuple of (token out amount, fee amount)
     #[ink(message)]
     fn swap_received(
         &mut self,
@@ -174,8 +176,10 @@ pub trait StablePool {
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
 
+    /// Update cached rates without expiry check.
+    /// Can be called by anyone.
     #[ink(message)]
-    fn force_update_rate(&mut self);
+    fn force_update_rates(&mut self);
 
     // --- OWNER RESTRICTED FUNCTIONS --- //
 
@@ -210,7 +214,7 @@ pub enum StablePoolError {
     InsufficientLiquidityMinted,
     InsufficientLiquidityBurned,
     InsufficientOutputAmount,
-    TooLargeInputAmount,
+    InsufficientLiquidity,
     InsufficientInputAmount,
     IncorrectTokenCount,
     TooLargeTokenDecimal,
