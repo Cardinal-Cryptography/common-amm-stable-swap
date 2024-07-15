@@ -1,9 +1,8 @@
 mod tests_add_remove_lp;
 mod tests_getters;
 mod tests_rated;
-mod tests_swap_exact_in;
+mod tests_swap_exact_in_received;
 mod tests_swap_exact_out;
-mod tests_swap_received;
 
 use crate::stable_pool_contract;
 pub use crate::utils::*;
