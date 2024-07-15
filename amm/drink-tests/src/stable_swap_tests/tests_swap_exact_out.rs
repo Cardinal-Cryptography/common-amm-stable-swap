@@ -25,7 +25,7 @@ where
 /// Tests if `swap_exact_out` performs a fair swap
 /// and produces correct result.
 /// Tests swap of the token at index 0 to token at index 1
-/// 
+///
 /// NOTE: When token_decimals[0] > token_decimals[1], the method tests if
 /// `swap_amount_out` is approximatelly correct (`+/- 10^(token_decimals[0] - token_decimals[1])`) and
 /// always in the protocols favour.
@@ -118,8 +118,7 @@ fn test_swap_exact_out(
         "Amount out mismatch",
     );
     assert!(
-        swap_amount_out <=
-        swap_exact_in_result.0,
+        swap_amount_out <= swap_exact_in_result.0,
         "Protocol at loss (amount out)",
     );
     assert_approx(
@@ -129,8 +128,7 @@ fn test_swap_exact_out(
         "Fee mismatch",
     );
     assert!(
-        swap_exact_out_result.1 <=
-        swap_exact_in_result.1,
+        swap_exact_out_result.1 <= swap_exact_in_result.1,
         "Protocol at loss (fee)",
     );
 
@@ -188,14 +186,14 @@ fn test_swap_exact_out(
 // test when tokens precisions are the same
 #[drink::test]
 fn test_01(mut session: Session) {
-test_swap_exact_out(
+    test_swap_exact_out(
         &mut session,
-        vec![6, 6],                         // decimals
-        vec![100000000000, 100000000000],   // initial reserves
-        10000,                              // A
-        600_000,                            // trade fee
-        200_000_000,                        // protocol fee
-        100000000,                          // expected amount out
+        vec![6, 6],                       // decimals
+        vec![100000000000, 100000000000], // initial reserves
+        10000,                            // A
+        600_000,                          // trade fee
+        200_000_000,                      // protocol fee
+        100000000,                        // expected amount out
     );
 }
 

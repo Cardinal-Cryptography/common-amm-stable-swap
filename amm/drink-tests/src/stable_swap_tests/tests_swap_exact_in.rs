@@ -120,8 +120,8 @@ fn test_01(mut session: Session) {
         vec![6, 6],                       // decimals
         vec![100000000000, 100000000000], // initial reserves
         1000,                             // A
-        600_000,                          // fee BPS
-        2000,                             // protocol fee BPS
+        600_000,                          // trade fee in 1e9 precision
+        2000,                             // protocol fee in 1e9 precision
         10000000000,                      // swap_amount_in
         Ok(9999495232),                   // expected out (with fee)
     );

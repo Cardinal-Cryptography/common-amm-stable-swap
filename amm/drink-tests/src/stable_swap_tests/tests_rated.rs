@@ -15,7 +15,8 @@ const ONE_LPT: u128 = 10u128.pow(18);
 const ONE_WAZERO: u128 = 10u128.pow(WAZERO_DEC as u32);
 const ONE_SAZERO: u128 = 10u128.pow(SAZERO_DEC as u32);
 
-const EXPIRE_TS: u64 = 24 * 3600 * 1000; // 24h
+/// Cached token rate expiry time in milliseconds
+const EXPIRE_TIME_MILLIS: u64 = 24 * 3600 * 1000; // 24h
 
 fn deploy_rate_provider(session: &mut Session<MinimalRuntime>, salt: Vec<u8>) -> AccountId {
     let instance = mock_sazero_rate_contract::Instance::new().with_salt(salt);
@@ -114,13 +115,13 @@ fn test_01(mut session: Session) {
         vec![Some(mock_sazero_rate), None],
         initial_token_supply,
         10000,
-        EXPIRE_TS,
+        EXPIRE_TIME_MILLIS,
         2_500_000,
         200_000_000,
     );
     let [sazero, wazero]: [AccountId; 2] = tokens.try_into().unwrap();
 
-    set_timestamp(&mut session, now + EXPIRE_TS + 1);
+    set_timestamp(&mut session, now + EXPIRE_TIME_MILLIS + 1);
     set_mock_rate(&mut session, mock_sazero_rate, 2 * RATE_PRECISION);
 
     _ = stable_swap::add_liquidity(
@@ -131,7 +132,7 @@ fn test_01(mut session: Session) {
         vec![50000 * ONE_SAZERO, 100000 * ONE_WAZERO],
         bob(),
     )
-    .expect("Should successfully add LP");
+    .expect("Should successfully add liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, bob()),
         200000 * ONE_LPT,
@@ -162,7 +163,7 @@ fn test_01(mut session: Session) {
         vec![50000 * ONE_SAZERO, 100000 * ONE_WAZERO],
         charlie(),
     )
-    .expect("Should successfully swap");
+    .expect("Should successfully add liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, charlie()),
         200000 * ONE_LPT,
@@ -185,7 +186,7 @@ fn test_01(mut session: Session) {
         vec![1 * ONE_SAZERO, 1 * ONE_WAZERO],
         charlie(),
     )
-    .expect("Should successfully swap");
+    .expect("Should successfully remove liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, charlie()),
         0,
@@ -247,12 +248,12 @@ fn test_02(mut session: Session) {
         vec![None, Some(mock_token_2_rate), None],
         initial_token_supply,
         10000,
-        EXPIRE_TS,
+        EXPIRE_TIME_MILLIS,
         2_500_000,
         200_000_000,
     );
 
-    set_timestamp(&mut session, now + EXPIRE_TS);
+    set_timestamp(&mut session, now + EXPIRE_TIME_MILLIS);
     set_mock_rate(&mut session, mock_token_2_rate, 2 * RATE_PRECISION);
 
     _ = stable_swap::add_liquidity(
@@ -263,7 +264,7 @@ fn test_02(mut session: Session) {
         vec![100000 * ONE_WAZERO, 50000 * ONE_WAZERO, 100000 * ONE_WAZERO],
         bob(),
     )
-    .expect("Should successfully add LP");
+    .expect("Should successfully add liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, bob()),
         300000 * ONE_LPT,
@@ -298,7 +299,7 @@ fn test_02(mut session: Session) {
         vec![100000 * ONE_WAZERO, 50000 * ONE_WAZERO, 100000 * ONE_WAZERO],
         charlie(),
     )
-    .expect("Should successfully add LP");
+    .expect("Should successfully add liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, charlie()),
         300000 * ONE_LPT,
@@ -321,7 +322,7 @@ fn test_02(mut session: Session) {
         vec![1 * ONE_WAZERO, 1 * ONE_WAZERO, 1 * ONE_WAZERO],
         charlie(),
     )
-    .expect("Should successfully remove LP");
+    .expect("Should successfully remove liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, charlie()),
         0,
@@ -358,12 +359,12 @@ fn test_03(mut session: Session) {
         vec![None, Some(mock_token_2_rate), Some(mock_token_3_rate)],
         initial_token_supply,
         10000,
-        EXPIRE_TS,
+        EXPIRE_TIME_MILLIS,
         2_500_000,
         200_000_000,
     );
 
-    set_timestamp(&mut session, now + EXPIRE_TS);
+    set_timestamp(&mut session, now + EXPIRE_TIME_MILLIS);
     set_mock_rate(&mut session, mock_token_2_rate, 2 * RATE_PRECISION);
     set_mock_rate(&mut session, mock_token_3_rate, 4 * RATE_PRECISION);
 
@@ -375,7 +376,7 @@ fn test_03(mut session: Session) {
         vec![100000 * ONE_WAZERO, 50000 * ONE_WAZERO, 25000 * ONE_WAZERO],
         bob(),
     )
-    .expect("Should successfully add LP");
+    .expect("Should successfully add liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, bob()),
         300000 * ONE_LPT,
@@ -411,7 +412,7 @@ fn test_03(mut session: Session) {
         vec![100000 * ONE_WAZERO, 50000 * ONE_WAZERO, 25000 * ONE_WAZERO],
         charlie(),
     )
-    .expect("Should successfully add LP");
+    .expect("Should successfully add liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, charlie()),
         300000 * ONE_LPT,
@@ -434,7 +435,7 @@ fn test_03(mut session: Session) {
         vec![1 * ONE_WAZERO, 1 * ONE_WAZERO, 1 * ONE_WAZERO],
         charlie(),
     )
-    .expect("Should successfully remove LP");
+    .expect("Should successfully remove liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, charlie()),
         0,
@@ -466,7 +467,7 @@ fn test_04(mut session: Session) {
         vec![None, None],
         initial_token_supply,
         10000,
-        EXPIRE_TS,
+        EXPIRE_TIME_MILLIS,
         2_500_000,
         200_000_000,
     );
@@ -479,7 +480,7 @@ fn test_04(mut session: Session) {
         vec![100000 * ONE_WAZERO, 100000 * ONE_WAZERO],
         bob(),
     )
-    .expect("Should successfully add LP");
+    .expect("Should successfully add liquidity");
     assert_eq!(
         psp22_utils::balance_of(&mut session, rated_swap, bob()),
         200000 * ONE_LPT,
@@ -539,7 +540,7 @@ fn test_04(mut session: Session) {
     );
     assert_eq!(
         psp22_utils::balance_of(&mut session, tokens[1], charlie()),
-        997499999501,
+        997499999501, // -- DIFF -- 997499999501 [274936452669]
         "Incorrect user token balance"
     );
 
@@ -551,7 +552,7 @@ fn test_04(mut session: Session) {
     );
     assert_eq!(
         stable_swap::reserves(&mut session, rated_swap),
-        vec![100001 * ONE_WAZERO, 99999 * ONE_WAZERO + 2500000499],
+        vec![100001 * ONE_WAZERO, 99999 * ONE_WAZERO + 2500000499], // DIFF -- 2500000498 [725063547331]
         "Incorrect reserves"
     );
 }
