@@ -310,7 +310,7 @@ pub mod stable_pool {
         /// NOTE:
         /// If the pool contains a token with rate oracle, this function makes
         /// a cross-contract call to the `RateProvider` contract if the cached rate is expired.
-        /// This means that the gas cost of the contract methods that use this function may change,
+        /// This means that the gas cost of the contract methods that use this function may vary,
         /// depending on the state of the expiration timestamp of the cached rate.
         fn update_rates(&mut self) {
             let current_time = self.env().block_timestamp();

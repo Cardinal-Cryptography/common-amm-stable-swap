@@ -325,7 +325,7 @@ pub fn rated_swap_from(
 }
 
 /// Given `deposit_amounts` user want deposit, calculates how many lpt
-/// is required to be burnt.
+/// are required to be minted.
 /// Returns a tuple of (lpt to mint, fee)
 fn compute_lp_amount_for_deposit(
     deposit_amounts: &Vec<u128>,
@@ -458,7 +458,7 @@ pub fn compute_amounts_given_lp(
 }
 
 /// Given `withdraw_amounts` user want get, calculates how many lpt
-/// is required to be burnt
+/// are required to be burnt
 /// Returns a tuple of (lpt to burn, fee part)
 fn compute_lp_amount_for_withdraw(
     withdraw_amounts: &[u128],

@@ -65,7 +65,7 @@ pub trait StablePool {
         amounts: Vec<u128>,
     ) -> Result<(u128, u128), StablePoolError>;
 
-    /// Estimate ideal deposit amounts required
+    /// Calculate ideal deposit amounts required
     /// to mint `liquidity` amount of lp tokens
     /// Returns required deposit amounts
     #[ink(message)]
@@ -83,7 +83,7 @@ pub trait StablePool {
         amounts: Vec<u128>,
     ) -> Result<(u128, u128), StablePoolError>;
 
-    /// Estimate ideal withdraw amounts for
+    /// Calculate ideal withdraw amounts for
     /// burning `liquidity` amount of lp tokens
     /// Returns withdraw amounts
     #[ink(message)]
