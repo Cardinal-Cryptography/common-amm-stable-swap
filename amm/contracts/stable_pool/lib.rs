@@ -130,6 +130,18 @@ pub mod stable_pool {
         pub protocol_fee: u32,
     }
 
+    #[ink(event)]
+    pub struct PoolCreated {
+        pub tokens: Vec<AccountId>,
+        pub reserves: Vec<u128>,
+        pub precisions: Vec<u128>,
+        pub rates: Vec<TokenRate>,
+        pub amp_coef: u128,
+        pub trade_fee: u32,
+        pub protocol_fee: u32,
+        pub fee_receiver: Option<AccountId>,
+    }
+
     #[ink::storage_item]
     #[derive(Debug)]
     pub struct StablePoolData {
@@ -195,12 +207,22 @@ pub mod stable_pool {
                 StablePoolError::TooLargeTokenDecimal
             );
 
-            let precisions = tokens_decimals
+            let precisions: Vec<u128> = tokens_decimals
                 .iter()
                 .map(|&decimal| {
                     10u128.pow(TOKEN_TARGET_DECIMALS.checked_sub(decimal).unwrap() as u32)
                 })
                 .collect();
+            Self::env().emit_event(PoolCreated {
+                tokens: tokens.clone(),
+                reserves: vec![0; token_count],
+                precisions: precisions.clone(),
+                rates: token_rates.clone(),
+                amp_coef,
+                trade_fee: fees.as_ref().map(|x| x.trade_fee).unwrap_or(0),
+                protocol_fee: fees.as_ref().map(|x| x.protocol_fee).unwrap_or(0),
+                fee_receiver,
+            });
             Ok(Self {
                 ownable: Ownable2StepData::new(owner),
                 pool: StablePoolData {
