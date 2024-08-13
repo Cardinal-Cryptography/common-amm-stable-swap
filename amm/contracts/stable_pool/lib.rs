@@ -296,7 +296,7 @@ pub mod stable_pool {
         /// Scaled rates are rates multiplied by precision. They are assumed to fit in u128.
         /// If TOKEN_TARGET_DECIMALS is 18 and RATE_DECIMALS is 12, then rates not exceeding ~340282366 should fit.
         /// That's because if precision <= 10^18 and rate <= 10^12 * 340282366, then rate * precision < 2^128.
-        fn get_scaled_rates_update(&mut self) -> Result<Vec<u128>, MathError> {
+        fn get_scaled_rates(&mut self) -> Result<Vec<u128>, MathError> {
             let current_block_no = self.env().block_number();
             self.pool
                 .token_rates
@@ -337,7 +337,7 @@ pub mod stable_pool {
             if let Some(fee_to) = self.fee_receiver() {
                 let protocol_fee = self.pool.fees.protocol_trade_fee(fee)?;
                 if protocol_fee > 0 {
-                    let rates = self.get_scaled_rates_update()?;
+                    let rates = self.get_scaled_rates()?;
                     let mut protocol_deposit_amounts = vec![0u128; self.pool.tokens.len()];
                     protocol_deposit_amounts[token_id] = protocol_fee;
                     let mut reserves = self.pool.reserves.clone();
@@ -397,7 +397,7 @@ pub mod stable_pool {
             let token_in_amount = self._transfer_in(token_in_id, token_in_amount)?;
 
             // Make sure rates are up to date before we attempt any calculations
-            let rates = self.get_scaled_rates_update()?;
+            let rates = self.get_scaled_rates()?;
 
             // calc amount_out and fees
             let (token_out_amount, fee) = math::rated_swap_to(
@@ -457,7 +457,7 @@ pub mod stable_pool {
             );
 
             // Make sure rates are up to date before we attempt any calculations
-            let rates = self.get_scaled_rates_update()?;
+            let rates = self.get_scaled_rates()?;
 
             // calc amount_out and fees
             let (token_in_amount, fee) = math::rated_swap_from(
@@ -550,7 +550,7 @@ pub mod stable_pool {
             );
 
             // Make sure rates are up to date before we attempt any calculations
-            let rates = self.get_scaled_rates_update()?;
+            let rates = self.get_scaled_rates()?;
 
             // calc lp tokens (shares_to_mint, fee)
             let (shares, fee_part) = math::rated_compute_lp_amount_for_deposit(
@@ -670,7 +670,7 @@ pub mod stable_pool {
                 StablePoolError::IncorrectAmountsCount
             );
 
-            let rates = self.get_scaled_rates_update()?;
+            let rates = self.get_scaled_rates()?;
 
             // calc comparable amounts
             let (shares_to_burn, fee_part) = math::rated_compute_lp_amount_for_withdraw(
@@ -845,7 +845,7 @@ pub mod stable_pool {
             token_in_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-            let rates = self.get_scaled_rates_update()?;
+            let rates = self.get_scaled_rates()?;
             Ok(math::rated_swap_to(
                 &rates,
                 token_in_id,
@@ -865,7 +865,7 @@ pub mod stable_pool {
             token_out_amount: u128,
         ) -> Result<(u128, u128), StablePoolError> {
             let (token_in_id, token_out_id) = self.check_tokens(token_in, token_out)?;
-            let rates = self.get_scaled_rates_update()?;
+            let rates = self.get_scaled_rates()?;
             Ok(math::rated_swap_from(
                 &rates,
                 token_in_id,
@@ -886,7 +886,7 @@ pub mod stable_pool {
                 amounts.len() == self.pool.tokens.len(),
                 StablePoolError::IncorrectAmountsCount
             );
-            let rates = self.get_scaled_rates_update()?;
+            let rates = self.get_scaled_rates()?;
             Ok(math::rated_compute_lp_amount_for_deposit(
                 &rates,
                 &amounts,
@@ -918,7 +918,7 @@ pub mod stable_pool {
                 amounts.len() == self.pool.tokens.len(),
                 StablePoolError::IncorrectAmountsCount
             );
-            let rates = self.get_scaled_rates_update()?;
+            let rates = self.get_scaled_rates()?;
             math::rated_compute_lp_amount_for_withdraw(
                 &rates,
                 &amounts,
