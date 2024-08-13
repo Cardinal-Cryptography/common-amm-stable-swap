@@ -5,7 +5,7 @@ use traits::RateProvider;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ExternalTokenRate {
-    pub rate_provider: AccountId,
+    rate_provider: AccountId,
     cached_token_rate: u128,
     last_update_block_no: u32,
 }
