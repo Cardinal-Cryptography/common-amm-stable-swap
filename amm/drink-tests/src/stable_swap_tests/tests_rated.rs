@@ -15,9 +15,6 @@ const ONE_LPT: u128 = 10u128.pow(18);
 const ONE_WAZERO: u128 = 10u128.pow(WAZERO_DEC as u32);
 const ONE_SAZERO: u128 = 10u128.pow(SAZERO_DEC as u32);
 
-/// Cached token rate expiry time in milliseconds
-const EXPIRE_TIME_MILLIS: u64 = 24 * 3600 * 1000; // 24h
-
 fn deploy_rate_provider(session: &mut Session<MinimalRuntime>, salt: Vec<u8>) -> AccountId {
     let instance = mock_sazero_rate_contract::Instance::new().with_salt(salt);
     session
@@ -34,7 +31,6 @@ fn setup_rated_swap_with_tokens(
     rate_providers: Vec<Option<AccountId>>,
     initial_token_supply: u128,
     init_amp_coef: u128,
-    rate_expiration_duration_ms: u64,
     trade_fee: u32,
     protocol_fee: u32,
 ) -> (AccountId, Vec<AccountId>) {
@@ -59,7 +55,6 @@ fn setup_rated_swap_with_tokens(
         tokens.clone(),
         vec![WAZERO_DEC; rate_providers.len()],
         rate_providers,
-        rate_expiration_duration_ms,
         init_amp_coef,
         caller.to_account_id(),
         trade_fee,
@@ -115,13 +110,12 @@ fn test_01(mut session: Session) {
         vec![Some(mock_sazero_rate), None],
         initial_token_supply,
         10000,
-        EXPIRE_TIME_MILLIS,
         2_500_000,
         200_000_000,
     );
     let [sazero, wazero]: [AccountId; 2] = tokens.try_into().unwrap();
 
-    set_timestamp(&mut session, now + EXPIRE_TIME_MILLIS + 1);
+    set_timestamp(&mut session, now + 1);
     set_mock_rate(&mut session, mock_sazero_rate, 2 * RATE_PRECISION);
 
     _ = stable_swap::add_liquidity(
@@ -248,12 +242,11 @@ fn test_02(mut session: Session) {
         vec![None, Some(mock_token_2_rate), None],
         initial_token_supply,
         10000,
-        EXPIRE_TIME_MILLIS,
         2_500_000,
         200_000_000,
     );
 
-    set_timestamp(&mut session, now + EXPIRE_TIME_MILLIS);
+    set_timestamp(&mut session, now);
     set_mock_rate(&mut session, mock_token_2_rate, 2 * RATE_PRECISION);
 
     _ = stable_swap::add_liquidity(
@@ -359,12 +352,11 @@ fn test_03(mut session: Session) {
         vec![None, Some(mock_token_2_rate), Some(mock_token_3_rate)],
         initial_token_supply,
         10000,
-        EXPIRE_TIME_MILLIS,
         2_500_000,
         200_000_000,
     );
 
-    set_timestamp(&mut session, now + EXPIRE_TIME_MILLIS);
+    set_timestamp(&mut session, now);
     set_mock_rate(&mut session, mock_token_2_rate, 2 * RATE_PRECISION);
     set_mock_rate(&mut session, mock_token_3_rate, 4 * RATE_PRECISION);
 
@@ -467,7 +459,6 @@ fn test_04(mut session: Session) {
         vec![None, None],
         initial_token_supply,
         10000,
-        EXPIRE_TIME_MILLIS,
         2_500_000,
         200_000_000,
     );
