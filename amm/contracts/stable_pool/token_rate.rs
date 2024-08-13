@@ -36,7 +36,7 @@ impl TokenRate {
 
     pub fn get_rate_provider(&self) -> Option<AccountId> {
         match self {
-            Self::External(external) => Some((*external).rate_provider),
+            Self::External(external) => Some(external.rate_provider),
             Self::Constant(_) => None,
         }
     }
