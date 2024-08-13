@@ -28,16 +28,21 @@ pub trait StablePool {
     fn fee_receiver(&self) -> Option<AccountId>;
 
     /// Updates cached token rates.
-    /// 
+    ///
     /// Returns current tokens rates with precision of 12 decimal places.
     #[ink(message)]
     fn token_rates(&mut self) -> Vec<u128>;
 
+    /// Returns list of RateProvider address for each token.
+    /// If the rate is constant, returns None.
+    #[ink(message)]
+    fn token_rates_providers(&self) -> Vec<Option<AccountId>>;
+
     /// Calculate swap amount of `token_out`
     /// given `token_in amount`.
-    /// 
+    ///
     /// Updates cached token rates.
-    /// 
+    ///
     /// Returns a tuple of (amount out, fee)
     /// NOTE: fee is applied on `token_out`
     #[ink(message)]
@@ -50,9 +55,9 @@ pub trait StablePool {
 
     /// Calculate required swap amount of `token_in`
     /// to get `token_out_amount`.
-    /// 
+    ///
     /// Updates cached token rates.
-    /// 
+    ///
     /// Returns a tuple of (amount in, fee)
     /// NOTE: fee is applied on `token_out`
     #[ink(message)]
@@ -65,9 +70,9 @@ pub trait StablePool {
 
     /// Calculate how many lp tokens will be minted
     /// given deposit `amounts`.
-    /// 
+    ///
     /// Updates cached token rates.
-    /// 
+    ///
     /// Returns a tuple of (lpt amount, fee)
     #[ink(message)]
     fn get_mint_liquidity_for_amounts(
@@ -77,9 +82,9 @@ pub trait StablePool {
 
     /// Calculate ideal deposit amounts required
     /// to mint `liquidity` amount of lp tokens
-    /// 
+    ///
     /// Updates cached token rates.
-    /// 
+    ///
     /// Returns required deposit amounts
     #[ink(message)]
     fn get_amounts_for_liquidity_mint(
@@ -89,9 +94,9 @@ pub trait StablePool {
 
     /// Calculate how many lp tokens will be burned
     /// given withdraw `amounts`.
-    /// 
+    ///
     /// Updates cached token rates.
-    /// 
+    ///
     /// Returns a tuple of (lpt amount, fee part)
     #[ink(message)]
     fn get_burn_liquidity_for_amounts(
@@ -101,9 +106,9 @@ pub trait StablePool {
 
     /// Calculate ideal withdraw amounts for
     /// burning `liquidity` amount of lp tokens
-    /// 
+    ///
     /// Updates cached token rates.
-    /// 
+    ///
     /// Returns withdraw amounts
     #[ink(message)]
     fn get_amounts_for_liquidity_burn(
@@ -204,11 +209,7 @@ pub trait StablePool {
     /// - trade_fee given as an integer with 1e9 precision. The the maximum is 1% (10000000)
     /// - protocol_fee given as an integer with 1e9 precision. The maximum is 50% (500000000)
     #[ink(message)]
-    fn set_fees(
-        &mut self,
-        trade_fee: u32,
-        protocol_fee: u32,
-    ) -> Result<(), StablePoolError>;
+    fn set_fees(&mut self, trade_fee: u32, protocol_fee: u32) -> Result<(), StablePoolError>;
 
     #[ink(message)]
     fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError>;

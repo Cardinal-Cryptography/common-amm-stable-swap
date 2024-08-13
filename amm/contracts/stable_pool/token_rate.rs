@@ -5,7 +5,7 @@ use traits::RateProvider;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ExternalTokenRate {
-    token_rate_contract: AccountId,
+    pub rate_provider: AccountId,
     cached_token_rate: u128,
     last_update_block_no: u32,
 }
@@ -22,8 +22,8 @@ impl TokenRate {
         Self::Constant(rate)
     }
 
-    pub fn new_external(token_rate_contract: AccountId) -> Self {
-        Self::External(ExternalTokenRate::new(token_rate_contract))
+    pub fn new_external(rate_provider: AccountId) -> Self {
+        Self::External(ExternalTokenRate::new(rate_provider))
     }
 
     /// Get current rate and update the cache.
@@ -33,12 +33,19 @@ impl TokenRate {
             Self::Constant(rate) => *rate,
         }
     }
+
+    pub fn get_rate_provider(&self) -> Option<AccountId> {
+        match self {
+            Self::External(external) => Some((*external).rate_provider),
+            Self::Constant(_) => None,
+        }
+    }
 }
 
 impl ExternalTokenRate {
-    pub fn new(token_rate_contract: AccountId) -> Self {
+    pub fn new(rate_provider: AccountId) -> Self {
         Self {
-            token_rate_contract,
+            rate_provider,
             cached_token_rate: 0,
             last_update_block_no: 0,
         }
@@ -54,7 +61,7 @@ impl ExternalTokenRate {
 
     fn query_rate(&self) -> u128 {
         let mut rate_provider: contract_ref!(RateProvider, DefaultEnvironment) =
-            self.token_rate_contract.into();
+            self.rate_provider.into();
         rate_provider.get_rate()
     }
 }
