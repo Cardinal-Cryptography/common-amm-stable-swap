@@ -30,6 +30,7 @@ async function main(): Promise<void> {
       tradeFee,
       protocolFee,
       protocolFeeReceiver,
+      owner,
     } = deploymentParams[i];
 
     let address = "";
@@ -40,7 +41,7 @@ async function main(): Promise<void> {
             tokens,
             decimals,
             A,
-            deployer.address,
+            owner ?? deployer.address,
             tradeFee,
             protocolFee,
             protocolFeeReceiver
@@ -54,7 +55,7 @@ async function main(): Promise<void> {
             decimals,
             rateProviders,
             A,
-            deployer.address,
+            owner ?? deployer.address,
             tradeFee,
             protocolFee,
             protocolFeeReceiver

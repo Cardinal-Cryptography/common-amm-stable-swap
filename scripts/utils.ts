@@ -16,6 +16,7 @@ export interface PoolDeploymentParams {
   tradeFee: number;
   protocolFee: number;
   protocolFeeReceiver: string | null | undefined;
+  owner: string | undefined;
 }
 
 export interface Secrets {

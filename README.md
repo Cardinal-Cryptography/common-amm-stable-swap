@@ -85,6 +85,16 @@ This will:
 - Build and wrap your contracts.
 - Run e2e tests, using DRink! environment.
 
+##### Deploy
+
+1. Export wallet to a JSON format and save it as `scripts/deployerWallet.json`.
+2. Create `scripts/secrets.json` and as shown in `scripts/secrets.example.json`.
+3. Create `scripts/deploymentPoolsParams.json` and add deployment parameters as shown in `scripts/deploymentPoolsParams.example.json`.
+4. Run
+   ```
+   npm run deploy
+   ```
+
 ##### 💫 Help
 
 You can see a list of available `make` recipes by running:
