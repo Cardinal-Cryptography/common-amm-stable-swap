@@ -297,13 +297,12 @@ pub mod stable_pool {
         /// If TOKEN_TARGET_DECIMALS is 18 and RATE_DECIMALS is 12, then rates not exceeding ~340282366 should fit.
         /// That's because if precision <= 10^18 and rate <= 10^12 * 340282366, then rate * precision < 2^128.
         fn get_scaled_rates(&mut self) -> Result<Vec<u128>, MathError> {
-            let current_block_no = self.env().block_number();
             self.pool
                 .token_rates
                 .iter_mut()
                 .zip(self.pool.precisions.iter())
                 .map(|(rate, &precision)| {
-                    rate.get_rate(current_block_no)
+                    rate.get_rate()
                         .checked_mul(precision)
                         .ok_or(MathError::MulOverflow(104))
                 })
@@ -829,11 +828,10 @@ pub mod stable_pool {
 
         #[ink(message)]
         fn token_rates(&mut self) -> Vec<u128> {
-            let current_block_no = self.env().block_number();
             self.pool
                 .token_rates
                 .iter_mut()
-                .map(|rate| rate.get_rate(current_block_no))
+                .map(|rate| rate.get_rate())
                 .collect()
         }
 

@@ -27,9 +27,9 @@ impl TokenRate {
     }
 
     /// Get current rate and update the cache.
-    pub fn get_rate(&mut self, current_block_no: u32) -> u128 {
+    pub fn get_rate(&mut self) -> u128 {
         match self {
-            Self::External(external) => external.get_rate_update(current_block_no),
+            Self::External(external) => external.get_rate_update(),
             Self::Constant(rate) => *rate,
         }
     }
@@ -51,7 +51,8 @@ impl ExternalTokenRate {
         }
     }
 
-    pub fn get_rate_update(&mut self, current_block_no: u32) -> u128 {
+    pub fn get_rate_update(&mut self) -> u128 {
+        let current_block_no = ink::env::block_number::<DefaultEnvironment>();
         if self.last_update_block_no < current_block_no {
             self.cached_token_rate = self.query_rate();
             self.last_update_block_no = current_block_no;

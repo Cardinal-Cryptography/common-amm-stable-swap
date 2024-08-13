@@ -27,7 +27,7 @@ pub trait StablePool {
     #[ink(message)]
     fn fee_receiver(&self) -> Option<AccountId>;
 
-    /// Updates cached token rates.
+    /// Updates cached token rates if there was a new block since the previous update.
     ///
     /// Returns current tokens rates with precision of 12 decimal places.
     #[ink(message)]
@@ -41,7 +41,7 @@ pub trait StablePool {
     /// Calculate swap amount of `token_out`
     /// given `token_in amount`.
     ///
-    /// Updates cached token rates.
+    /// Updates cached token rates if there was a new block since the previous update.
     ///
     /// Returns a tuple of (amount out, fee)
     /// NOTE: fee is applied on `token_out`
@@ -56,7 +56,7 @@ pub trait StablePool {
     /// Calculate required swap amount of `token_in`
     /// to get `token_out_amount`.
     ///
-    /// Updates cached token rates.
+    /// Updates cached token rates if there was a new block since the previous update.
     ///
     /// Returns a tuple of (amount in, fee)
     /// NOTE: fee is applied on `token_out`
@@ -71,7 +71,7 @@ pub trait StablePool {
     /// Calculate how many lp tokens will be minted
     /// given deposit `amounts`.
     ///
-    /// Updates cached token rates.
+    /// Updates cached token rates if there was a new block since the previous update.
     ///
     /// Returns a tuple of (lpt amount, fee)
     #[ink(message)]
@@ -83,7 +83,7 @@ pub trait StablePool {
     /// Calculate ideal deposit amounts required
     /// to mint `liquidity` amount of lp tokens
     ///
-    /// Updates cached token rates.
+    /// Updates cached token rates if there was a new block since the previous update.
     ///
     /// Returns required deposit amounts
     #[ink(message)]
@@ -95,7 +95,7 @@ pub trait StablePool {
     /// Calculate how many lp tokens will be burned
     /// given withdraw `amounts`.
     ///
-    /// Updates cached token rates.
+    /// Updates cached token rates if there was a new block since the previous update.
     ///
     /// Returns a tuple of (lpt amount, fee part)
     #[ink(message)]
@@ -107,7 +107,7 @@ pub trait StablePool {
     /// Calculate ideal withdraw amounts for
     /// burning `liquidity` amount of lp tokens
     ///
-    /// Updates cached token rates.
+    /// Updates cached token rates if there was a new block since the previous update.
     ///
     /// Returns withdraw amounts
     #[ink(message)]
