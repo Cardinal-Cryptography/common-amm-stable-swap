@@ -27,18 +27,22 @@ pub trait StablePool {
     #[ink(message)]
     fn fee_receiver(&self) -> Option<AccountId>;
 
-    /// Updates cached token rates if expired and
-    /// returns current tokens rates with precision of 12 decimal places.
+    /// Updates cached token rates.
+    /// 
+    /// Returns current tokens rates with precision of 12 decimal places.
     #[ink(message)]
     fn token_rates(&mut self) -> Vec<u128>;
 
     /// Calculate swap amount of `token_out`
     /// given `token_in amount`.
+    /// 
+    /// Updates cached token rates.
+    /// 
     /// Returns a tuple of (amount out, fee)
     /// NOTE: fee is applied on `token_out`
     #[ink(message)]
     fn get_swap_amount_out(
-        &self,
+        &mut self,
         token_in: AccountId,
         token_out: AccountId,
         token_in_amount: u128,
@@ -46,11 +50,14 @@ pub trait StablePool {
 
     /// Calculate required swap amount of `token_in`
     /// to get `token_out_amount`.
+    /// 
+    /// Updates cached token rates.
+    /// 
     /// Returns a tuple of (amount in, fee)
     /// NOTE: fee is applied on `token_out`
     #[ink(message)]
     fn get_swap_amount_in(
-        &self,
+        &mut self,
         token_in: AccountId,
         token_out: AccountId,
         token_out_amount: u128,
@@ -58,15 +65,21 @@ pub trait StablePool {
 
     /// Calculate how many lp tokens will be minted
     /// given deposit `amounts`.
+    /// 
+    /// Updates cached token rates.
+    /// 
     /// Returns a tuple of (lpt amount, fee)
     #[ink(message)]
     fn get_mint_liquidity_for_amounts(
-        &self,
+        &mut self,
         amounts: Vec<u128>,
     ) -> Result<(u128, u128), StablePoolError>;
 
     /// Calculate ideal deposit amounts required
     /// to mint `liquidity` amount of lp tokens
+    /// 
+    /// Updates cached token rates.
+    /// 
     /// Returns required deposit amounts
     #[ink(message)]
     fn get_amounts_for_liquidity_mint(
@@ -76,15 +89,21 @@ pub trait StablePool {
 
     /// Calculate how many lp tokens will be burned
     /// given withdraw `amounts`.
+    /// 
+    /// Updates cached token rates.
+    /// 
     /// Returns a tuple of (lpt amount, fee part)
     #[ink(message)]
     fn get_burn_liquidity_for_amounts(
-        &self,
+        &mut self,
         amounts: Vec<u128>,
     ) -> Result<(u128, u128), StablePoolError>;
 
     /// Calculate ideal withdraw amounts for
     /// burning `liquidity` amount of lp tokens
+    /// 
+    /// Updates cached token rates.
+    /// 
     /// Returns withdraw amounts
     #[ink(message)]
     fn get_amounts_for_liquidity_burn(
@@ -175,11 +194,6 @@ pub trait StablePool {
         min_token_out_amount: u128,
         to: AccountId,
     ) -> Result<(u128, u128), StablePoolError>;
-
-    /// Update cached rates without expiry check.
-    /// Can be called by anyone.
-    #[ink(message)]
-    fn force_update_rates(&mut self);
 
     // --- OWNER RESTRICTED FUNCTIONS --- //
 

@@ -5,10 +5,9 @@ use traits::RateProvider;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ExternalTokenRate {
-    cached_token_rate: u128,
-    last_token_rate_update_ts: u64,
     token_rate_contract: AccountId,
-    expiration_duration_ms: u64,
+    cached_token_rate: u128,
+    last_update_block_no: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
@@ -23,96 +22,39 @@ impl TokenRate {
         Self::Constant(rate)
     }
 
-    pub fn new_external(
-        current_time: u64,
-        token_rate_contract: AccountId,
-        expiration_duration_ms: u64,
-    ) -> Self {
-        let mut rate = Self::External(ExternalTokenRate::new(
-            current_time,
-            token_rate_contract,
-            expiration_duration_ms,
-        ));
-        _ = rate.force_update_rate(current_time);
-        rate
+    pub fn new_external(token_rate_contract: AccountId) -> Self {
+        Self::External(ExternalTokenRate::new(token_rate_contract))
     }
 
-    /// Returns cached rate.
-    ///
-    /// NOTE: To make sure the rate is up-to-date, the caller should call `update_rate` before calling this method.
-    pub fn get_rate(&self) -> u128 {
+    /// Get current rate and update the cache.
+    pub fn get_rate(&mut self, current_block_no: u32) -> u128 {
         match self {
+            Self::External(external) => external.get_rate_update(current_block_no),
             Self::Constant(rate) => *rate,
-            Self::External(external) => external.get_rate(),
-        }
-    }
-
-    /// Update rate.
-    ///
-    /// Returns `true` if the rate was expired and value of the new rate is different than the previous.
-    pub fn update_rate(&mut self, current_time: u64) -> bool {
-        match self {
-            Self::External(external) => external.update_rate(current_time),
-            Self::Constant(_) => false,
-        }
-    }
-
-    /// Update rate without expiry check.
-    ///
-    /// Returns `true` if value of the new rate is different than the previous.
-    pub fn force_update_rate(&mut self, current_time: u64) -> bool {
-        match self {
-            Self::External(external) => external.update_rate_no_cache(current_time),
-            Self::Constant(_) => false,
         }
     }
 }
 
 impl ExternalTokenRate {
-    pub fn new(
-        current_time: u64,
-        token_rate_contract: AccountId,
-        expiration_duration_ms: u64,
-    ) -> Self {
-        let rate = Self::query_rate(token_rate_contract);
+    pub fn new(token_rate_contract: AccountId) -> Self {
         Self {
-            cached_token_rate: rate,
-            last_token_rate_update_ts: current_time,
             token_rate_contract,
-            expiration_duration_ms,
+            cached_token_rate: 0,
+            last_update_block_no: 0,
         }
     }
 
-    pub fn get_rate(&self) -> u128 {
+    pub fn get_rate_update(&mut self, current_block_no: u32) -> u128 {
+        if self.last_update_block_no < current_block_no {
+            self.cached_token_rate = self.query_rate();
+            self.last_update_block_no = current_block_no;
+        }
         self.cached_token_rate
     }
 
-    pub fn update_rate(&mut self, current_time: u64) -> bool {
-        if self.is_outdated(current_time) {
-            self.update(current_time)
-        } else {
-            false
-        }
-    }
-
-    pub fn update_rate_no_cache(&mut self, current_time: u64) -> bool {
-        self.update(current_time)
-    }
-
-    fn query_rate(token_rate_contract: AccountId) -> u128 {
+    fn query_rate(&self) -> u128 {
         let mut rate_provider: contract_ref!(RateProvider, DefaultEnvironment) =
-            token_rate_contract.into();
+            self.token_rate_contract.into();
         rate_provider.get_rate()
-    }
-
-    fn is_outdated(&self, current_time: u64) -> bool {
-        current_time.saturating_sub(self.last_token_rate_update_ts) >= self.expiration_duration_ms
-    }
-
-    fn update(&mut self, current_time: u64) -> bool {
-        let old_rate = self.cached_token_rate;
-        self.cached_token_rate = Self::query_rate(self.token_rate_contract);
-        self.last_token_rate_update_ts = current_time;
-        old_rate != self.cached_token_rate
     }
 }
