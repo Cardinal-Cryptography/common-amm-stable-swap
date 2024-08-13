@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "compile": "rm -rf /types && typechain-compiler --noCompile",
-    "format": "prettier --write ."
+    "compile": "rm -rf /types && npx @prosopo/typechain-compiler",
+    "format": "prettier --write .",
+    "deploy": "npx ts-node ./scripts/deploy.ts"
   },
   "dependencies": {
-    "@727-ventures/typechain-compiler": "^1.1.0",
-    "@727-ventures/typechain-types": "^1.1.0",
+    "@prosopo/typechain-polkadot": "^1.1.15",
+    "@prosopo/typechain-compiler": "^1.1.15",
+    "@prosopo/typechain-types": "^1.1.15",
     "@polkadot/api": "^10.9.1",
     "@polkadot/api-contract": "^10.9.1",
     "@typescript-eslint/eslint-plugin": "^4.8.2",
