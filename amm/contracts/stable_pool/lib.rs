@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
+mod amp_coef;
 mod token_rate;
 /// Stabelswap implementation based on the CurveFi stableswap model.
 ///
@@ -13,11 +14,9 @@ mod token_rate;
 /// its total supply to try and maintain a stable price a.k.a. rebasing tokens.
 #[ink::contract]
 pub mod stable_pool {
-    use crate::token_rate::TokenRate;
+    use crate::{amp_coef::AmpCoef, token_rate::TokenRate};
     use amm_helpers::{
-        constants::stable_pool::{
-            MAX_AMP, MAX_COINS, MIN_AMP, RATE_PRECISION, TOKEN_TARGET_DECIMALS,
-        },
+        constants::stable_pool::{MAX_COINS, RATE_PRECISION, TOKEN_TARGET_DECIMALS},
         ensure,
         stable_swap_math::{self as math, fees::Fees},
     };
@@ -137,7 +136,7 @@ pub mod stable_pool {
         /// Means of getting token rates, either constant or external contract call.
         token_rates: Vec<TokenRate>,
         /// Amplification coefficient.
-        amp_coef: u128,
+        amp_coef: AmpCoef,
         /// Fees
         fees: Fees,
         /// Who receives protocol fees (if any).
@@ -151,14 +150,6 @@ pub mod stable_pool {
         psp22: PSP22Data,
     }
 
-    fn validate_amp_coef(amp_coef: u128) -> Result<(), StablePoolError> {
-        ensure!(
-            (MIN_AMP..=MAX_AMP).contains(&amp_coef),
-            StablePoolError::InvalidAmpCoef
-        );
-        Ok(())
-    }
-
     impl StablePoolContract {
         pub fn new_pool(
             tokens: Vec<AccountId>,
@@ -169,7 +160,6 @@ pub mod stable_pool {
             fees: Option<Fees>,
             fee_receiver: Option<AccountId>,
         ) -> Result<Self, StablePoolError> {
-            validate_amp_coef(amp_coef)?;
             let mut unique_tokens = tokens.clone();
             unique_tokens.sort();
             unique_tokens.dedup();
@@ -203,7 +193,7 @@ pub mod stable_pool {
                     reserves: vec![0; token_count],
                     precisions,
                     token_rates,
-                    amp_coef,
+                    amp_coef: AmpCoef::new(amp_coef)?,
                     fees: fees.ok_or(StablePoolError::InvalidFee)?,
                     fee_receiver,
                 },
@@ -349,7 +339,7 @@ pub mod stable_pool {
                         &reserves,
                         self.psp22.total_supply(),
                         None, // no fees
-                        self.amp_coef(),
+                        self.amp_coef()?,
                     )?;
                     // mint fee (shares) to protocol
                     let events = self.psp22.mint(fee_to, protocol_fee_lp)?;
@@ -406,7 +396,7 @@ pub mod stable_pool {
                 token_out_id,
                 &self.reserves(),
                 &self.pool.fees,
-                self.amp_coef(),
+                self.amp_coef()?,
             )?;
 
             // Check if swapped amount is not less than min_token_out_amount
@@ -466,7 +456,7 @@ pub mod stable_pool {
                 token_out_id,
                 &self.reserves(),
                 &self.pool.fees,
-                self.amp_coef(),
+                self.amp_coef()?,
             )?;
 
             // Check if in token_in_amount is as constrained by the user
@@ -558,7 +548,7 @@ pub mod stable_pool {
                 &self.reserves(),
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
-                self.amp_coef(),
+                self.amp_coef()?,
             )?;
 
             // Check min shares
@@ -678,7 +668,7 @@ pub mod stable_pool {
                 &self.reserves(),
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
-                self.amp_coef(),
+                self.amp_coef()?,
             )?;
 
             // check max shares
@@ -791,13 +781,23 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError> {
+        fn ramp_amp_coef(
+            &mut self,
+            future_amp_coef: u128,
+            future_time_ts: u64,
+        ) -> Result<(), StablePoolError> {
             self.ensure_owner()?;
-            validate_amp_coef(amp_coef)?;
-            self.pool.amp_coef = amp_coef;
-            self.env().emit_event(AmpCoefChanged {
-                new_amp_coef: amp_coef,
-            });
+            self.pool
+                .amp_coef
+                .ramp_amp_coef(future_amp_coef, future_time_ts)?;
+
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn stop_ramp_amp_coef(&mut self) -> Result<(), StablePoolError> {
+            self.ensure_owner()?;
+            self.pool.amp_coef.stop_ramp_amp_coef()?;
             Ok(())
         }
 
@@ -812,8 +812,8 @@ pub mod stable_pool {
         }
 
         #[ink(message)]
-        fn amp_coef(&self) -> u128 {
-            self.pool.amp_coef
+        fn amp_coef(&self) -> Result<u128, StablePoolError> {
+            Ok(self.pool.amp_coef.compute_amp_coef()?)
         }
 
         #[ink(message)]
@@ -860,7 +860,7 @@ pub mod stable_pool {
                 token_out_id,
                 &self.reserves(),
                 &self.pool.fees,
-                self.amp_coef(),
+                self.amp_coef()?,
             )?)
         }
 
@@ -880,7 +880,7 @@ pub mod stable_pool {
                 token_out_id,
                 &self.reserves(),
                 &self.pool.fees,
-                self.amp_coef(),
+                self.amp_coef()?,
             )?)
         }
 
@@ -900,7 +900,7 @@ pub mod stable_pool {
                 &self.reserves(),
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
-                self.amp_coef(),
+                self.amp_coef()?,
             )?)
         }
 
@@ -932,7 +932,7 @@ pub mod stable_pool {
                 &self.reserves(),
                 self.psp22.total_supply(),
                 Some(&self.pool.fees),
-                self.amp_coef(),
+                self.amp_coef()?,
             )
             .map_err(StablePoolError::MathError)
         }
