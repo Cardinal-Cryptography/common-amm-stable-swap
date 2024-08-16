@@ -537,6 +537,11 @@ pub mod stable_pool {
                 amounts.len() == self.pool.tokens.len(),
                 StablePoolError::IncorrectAmountsCount
             );
+            // Check that at least one amount is non-zero
+            ensure!(
+                amounts.iter().any(|&amount| amount > 0),
+                StablePoolError::InsufficientAmounts
+            );
 
             // Make sure rates are up to date before we attempt any calculations
             let rates = self.get_scaled_rates()?;
@@ -559,12 +564,14 @@ pub mod stable_pool {
 
             // transfer amounts
             for (id, &token) in self.pool.tokens.iter().enumerate() {
-                self.token_by_address(token).transfer_from(
-                    self.env().caller(),
-                    self.env().account_id(),
-                    amounts[id],
-                    vec![],
-                )?;
+                if amounts[id] > 0 {
+                    self.token_by_address(token).transfer_from(
+                        self.env().caller(),
+                        self.env().account_id(),
+                        amounts[id],
+                        vec![],
+                    )?;
+                }
             }
 
             // mint shares
@@ -620,10 +627,17 @@ pub mod stable_pool {
                     .all(|(amount, min_amount)| amount >= min_amount),
                 StablePoolError::InsufficientOutputAmount
             );
+            // Check that at least one amount is non-zero
+            ensure!(
+                amounts.iter().any(|&amount| amount > 0),
+                StablePoolError::InsufficientAmounts
+            );
 
             // transfer tokens
             for (&token, &amount) in self.pool.tokens.iter().zip(amounts.iter()) {
-                self.token_by_address(token).transfer(to, amount, vec![])?;
+                if amount > 0 {
+                    self.token_by_address(token).transfer(to, amount, vec![])?;
+                }
             }
 
             // update reserves
@@ -658,6 +672,11 @@ pub mod stable_pool {
                 amounts.len() == self.pool.tokens.len(),
                 StablePoolError::IncorrectAmountsCount
             );
+            // Check that at least one amount is non-zero
+            ensure!(
+                amounts.iter().any(|&amount| amount > 0),
+                StablePoolError::InsufficientAmounts
+            );
 
             let rates = self.get_scaled_rates()?;
 
@@ -689,7 +708,9 @@ pub mod stable_pool {
             }
             // transfer tokens
             for (&token, &amount) in self.pool.tokens.iter().zip(amounts.iter()) {
-                self.token_by_address(token).transfer(to, amount, vec![])?;
+                if amount > 0 {
+                    self.token_by_address(token).transfer(to, amount, vec![])?;
+                }
             }
             // update reserves
             for (i, &amount) in amounts.iter().enumerate() {

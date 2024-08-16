@@ -235,7 +235,7 @@ pub enum StablePoolError {
     InvalidTokenId(AccountId),
     IdenticalTokenId,
     IncorrectAmountsCount,
-    InvalidAmpCoef,
+    InsufficientAmounts,
     InsufficientLiquidityMinted,
     InsufficientLiquidityBurned,
     InsufficientOutputAmount,
