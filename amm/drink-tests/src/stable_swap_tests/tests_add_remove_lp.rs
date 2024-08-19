@@ -1280,7 +1280,7 @@ fn test_for_zero_deposit(mut session: Session) {
 
     assert_eq!(
         err,
-        StablePoolError::InsufficientAmounts(),
+        StablePoolError::ZeroAmounts(),
         "Should return appropriate error"
     );
 
@@ -1339,7 +1339,7 @@ fn test_for_zero_withdrawal(mut session: Session) {
 
     assert_eq!(
         err,
-        StablePoolError::InsufficientAmounts(),
+        StablePoolError::ZeroAmounts(),
         "Should return appropriate error"
     );
 
@@ -1355,7 +1355,7 @@ fn test_for_zero_withdrawal(mut session: Session) {
 
     assert_eq!(
         err,
-        StablePoolError::InsufficientAmounts(),
+        StablePoolError::ZeroAmounts(),
         "Should return appropriate error"
     );
 

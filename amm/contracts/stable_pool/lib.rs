@@ -540,7 +540,7 @@ pub mod stable_pool {
             // Check that at least one amount is non-zero
             ensure!(
                 amounts.iter().any(|&amount| amount > 0),
-                StablePoolError::InsufficientAmounts
+                StablePoolError::ZeroAmounts
             );
 
             // Make sure rates are up to date before we attempt any calculations
@@ -630,7 +630,7 @@ pub mod stable_pool {
             // Check that at least one amount is non-zero
             ensure!(
                 amounts.iter().any(|&amount| amount > 0),
-                StablePoolError::InsufficientAmounts
+                StablePoolError::ZeroAmounts
             );
 
             // transfer tokens
@@ -675,7 +675,7 @@ pub mod stable_pool {
             // Check that at least one amount is non-zero
             ensure!(
                 amounts.iter().any(|&amount| amount > 0),
-                StablePoolError::InsufficientAmounts
+                StablePoolError::ZeroAmounts
             );
 
             let rates = self.get_scaled_rates()?;
