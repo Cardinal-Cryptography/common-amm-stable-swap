@@ -231,7 +231,7 @@ pub mod stable_swap {
         )
     }
 
-    pub fn amp_coef(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> u128 {
+    pub fn amp_coef(session: &mut Session<MinimalRuntime>, stable_pool: AccountId) -> Result<u128, StablePoolError> {
         handle_ink_error(
             session
                 .query(stable_pool_contract::Instance::from(stable_pool).amp_coef())

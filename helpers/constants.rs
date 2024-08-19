@@ -7,11 +7,6 @@ pub mod stable_pool {
     pub const RATE_DECIMALS: u8 = 12;
     pub const RATE_PRECISION: u128 = 10u128.pow(RATE_DECIMALS as u32);
 
-    /// Min amplification coefficient.
-    pub const MIN_AMP: u128 = 1;
-    /// Max amplification coefficient.
-    pub const MAX_AMP: u128 = 1_000_000;
-
     /// Given as an integer with 1e9 precision (1%)
     pub const MAX_TRADE_FEE: u32 = 10_000_000;
     /// Given as an integer with 1e9 precision (50%)
@@ -24,4 +19,13 @@ pub mod stable_pool {
 
     /// Maximum number coins (PSP22 token contracts) in the pool.
     pub const MAX_COINS: usize = 8;
+
+    /// Minimum ramp duration, in milisec (24h).
+    pub const MIN_RAMP_DURATION: u64 = 86400000;
+    /// Min amplification coefficient.
+    pub const MIN_AMP: u128 = 1;
+    /// Max amplification coefficient.
+    pub const MAX_AMP: u128 = 1_000_000;
+    /// Max amplification change (how many times it can increase/decrease compared to current value).
+    pub const MAX_AMP_CHANGE: u128 = 10;
 }

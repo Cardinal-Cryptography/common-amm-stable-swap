@@ -17,7 +17,7 @@ pub trait StablePool {
 
     /// Returns current value of amplification coefficient.
     #[ink(message)]
-    fn amp_coef(&self) -> u128;
+    fn amp_coef(&self) -> Result<u128, StablePoolError>;
 
     /// Returns current trade and protocol fees in 1e9 precision.
     #[ink(message)]
@@ -211,8 +211,18 @@ pub trait StablePool {
     #[ink(message)]
     fn set_fees(&mut self, trade_fee: u32, protocol_fee: u32) -> Result<(), StablePoolError>;
 
+    /// Ramp amplification coeficient to `future_amp_coef`. The ramping should finish at `future_time_ts`
     #[ink(message)]
-    fn set_amp_coef(&mut self, amp_coef: u128) -> Result<(), StablePoolError>;
+    fn ramp_amp_coef(
+        &mut self,
+        future_amp_coef: u128,
+        future_time_ts: u64,
+    ) -> Result<(), StablePoolError>;
+
+    /// Stop ramping amplification coefficient.
+    /// If ramping is not in progress, it does not influence the A.
+    #[ink(message)]
+    fn stop_ramp_amp_coef(&mut self) -> Result<(), StablePoolError>;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -225,7 +235,7 @@ pub enum StablePoolError {
     InvalidTokenId(AccountId),
     IdenticalTokenId,
     IncorrectAmountsCount,
-    InvalidAmpCoef,
+    ZeroAmounts,
     InsufficientLiquidityMinted,
     InsufficientLiquidityBurned,
     InsufficientOutputAmount,
@@ -234,6 +244,10 @@ pub enum StablePoolError {
     IncorrectTokenCount,
     TooLargeTokenDecimal,
     InvalidFee,
+    AmpCoefTooLow,
+    AmpCoefTooHigh,
+    AmpCoefRampDurationTooShort,
+    AmpCoefChangeTooLarge,
 }
 
 impl From<PSP22Error> for StablePoolError {

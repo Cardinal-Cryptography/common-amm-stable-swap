@@ -1225,3 +1225,147 @@ fn test_lp_withdraw_all_but_no_more() {
     )
     .expect_err("Should not successfully remove liquidity");
 }
+
+#[drink::test]
+fn test_for_zero_deposit(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect::<Vec<u128>>();
+    let (stable_swap, tokens) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![18, 6, 6],
+        initial_supply.clone(),
+        10_000,
+        2_500_000,
+        200_000_000,
+        BOB,
+        vec![],
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    // setup max allowance for stable swap contract on both tokens
+    transfer_and_increase_allowance(
+        &mut session,
+        stable_swap,
+        tokens.clone(),
+        CHARLIE,
+        vec![500 * ONE_DAI, 500 * ONE_USDT, 500 * ONE_USDC],
+        BOB,
+    );
+
+    let err = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        CHARLIE,
+        0,
+        vec![0, 0, 0],
+        charlie(),
+    )
+    .expect_err("Should return an error");
+
+    assert_eq!(
+        err,
+        StablePoolError::ZeroAmounts(),
+        "Should return appropriate error"
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        CHARLIE,
+        0,
+        vec![1, 0, 0],
+        charlie(),
+    )
+    .expect("Should min liqudity");
+}
+
+#[drink::test]
+fn test_for_zero_withdrawal(mut session: Session) {
+    seed_account(&mut session, CHARLIE);
+    seed_account(&mut session, DAVE);
+    seed_account(&mut session, EVA);
+
+    let initial_reserves = vec![100000 * ONE_DAI, 100000 * ONE_USDT, 100000 * ONE_USDC];
+    let initial_supply = initial_reserves
+        .iter()
+        .map(|amount| amount * 100_000_000_000)
+        .collect::<Vec<u128>>();
+    let (stable_swap, _) = setup_stable_swap_with_tokens(
+        &mut session,
+        vec![18, 6, 6],
+        initial_supply.clone(),
+        10_000,
+        2_500_000,
+        200_000_000,
+        BOB,
+        vec![],
+    );
+
+    _ = stable_swap::add_liquidity(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        initial_reserves.clone(),
+        bob(),
+    )
+    .expect("Should successfully add liquidity");
+
+    let err = stable_swap::remove_liquidity_by_shares(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        vec![0, 0, 0],
+        bob(),
+    )
+    .expect_err("Should return an error");
+
+    assert_eq!(
+        err,
+        StablePoolError::ZeroAmounts(),
+        "Should return appropriate error"
+    );
+
+    let err = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        0,
+        vec![0, 0, 0],
+        bob(),
+    )
+    .expect_err("Should return an error");
+
+    assert_eq!(
+        err,
+        StablePoolError::ZeroAmounts(),
+        "Should return appropriate error"
+    );
+
+    _ = stable_swap::remove_liquidity_by_amounts(
+        &mut session,
+        stable_swap,
+        BOB,
+        1,
+        vec![1, 0, 0],
+        bob(),
+    )
+    .expect("Should burn liquidity");
+}

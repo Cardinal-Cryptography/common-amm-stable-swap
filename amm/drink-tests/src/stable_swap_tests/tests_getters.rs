@@ -41,7 +41,7 @@ fn test_01(mut session: Session) {
     );
     assert_eq!(
         stable_swap::amp_coef(&mut session, stable_swap),
-        amp_coef,
+        Ok(amp_coef),
         "Incorrect A"
     );
     assert_eq!(
