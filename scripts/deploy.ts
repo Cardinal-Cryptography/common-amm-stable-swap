@@ -67,7 +67,11 @@ async function main(): Promise<void> {
           .then((res) => res.address);
         break;
     }
-    deployedPools.push({ address, ...deploymentParams[i] });
+    deployedPools.push({
+      address,
+      owner: owner ?? deployer.address,
+      ...deploymentParams[i],
+    });
   }
 
   console.log("Deployed pools:", deployedPools);
