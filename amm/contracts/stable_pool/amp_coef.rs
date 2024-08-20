@@ -14,11 +14,11 @@ pub struct AmpCoef {
     /// Initial amplification coefficient.
     init_amp_coef: u128,
     /// Target for ramping up amplification coefficient.
-    target_amp_coef: u128,
+    future_amp_coef: u128,
     /// Initial amplification time.
-    init_amp_time: u64,
+    init_time: u64,
     /// Stop ramp up amplification time.
-    stop_amp_time: u64,
+    future_time: u64,
 }
 
 impl AmpCoef {
@@ -27,31 +27,31 @@ impl AmpCoef {
         ensure!(init_amp_coef <= MAX_AMP, StablePoolError::AmpCoefTooHigh);
         Ok(Self {
             init_amp_coef,
-            target_amp_coef: init_amp_coef,
-            init_amp_time: 0,
-            stop_amp_time: 0,
+            future_amp_coef: init_amp_coef,
+            init_time: 0,
+            future_time: 0,
         })
     }
 
     pub fn compute_amp_coef(&self) -> Result<u128, MathError> {
         let current_time = ink::env::block_timestamp::<DefaultEnvironment>();
-        if current_time < self.stop_amp_time {
+        if current_time < self.future_time {
             let time_range = self
-                .stop_amp_time
-                .checked_sub(self.init_amp_time)
+                .future_time
+                .checked_sub(self.init_time)
                 .ok_or(MathError::SubUnderflow(51))?;
             let time_delta = current_time
-                .checked_sub(self.init_amp_time)
+                .checked_sub(self.init_time)
                 .ok_or(MathError::SubUnderflow(52))?;
 
             // Compute amp factor based on ramp time
-            let amp_range = self.target_amp_coef.abs_diff(self.init_amp_coef);
+            let amp_range = self.future_amp_coef.abs_diff(self.init_amp_coef);
             let amp_delta = amp_range
                 .checked_mul(time_delta as u128)
                 .ok_or(MathError::MulOverflow(51))?
                 .checked_div(time_range as u128)
                 .ok_or(MathError::DivByZero(51))?;
-            if self.target_amp_coef >= self.init_amp_coef {
+            if self.future_amp_coef >= self.init_amp_coef {
                 // Ramp up
                 self.init_amp_coef
                     .checked_add(amp_delta)
@@ -63,19 +63,19 @@ impl AmpCoef {
                     .ok_or(MathError::SubUnderflow(55))
             }
         } else {
-            Ok(self.target_amp_coef)
+            Ok(self.future_amp_coef)
         }
     }
 
     pub fn ramp_amp_coef(
         &mut self,
         future_amp_coef: u128,
-        future_time_ts: u64,
+        future_time: u64,
     ) -> Result<(), StablePoolError> {
         ensure!(future_amp_coef >= MIN_AMP, StablePoolError::AmpCoefTooLow);
         ensure!(future_amp_coef <= MAX_AMP, StablePoolError::AmpCoefTooHigh);
         let current_time = ink::env::block_timestamp::<DefaultEnvironment>();
-        let ramp_duration = future_time_ts.checked_sub(current_time);
+        let ramp_duration = future_time.checked_sub(current_time);
         ensure!(
             ramp_duration.is_some() && ramp_duration.unwrap() >= MIN_RAMP_DURATION,
             StablePoolError::AmpCoefRampDurationTooShort
@@ -89,9 +89,9 @@ impl AmpCoef {
             StablePoolError::AmpCoefChangeTooLarge
         );
         self.init_amp_coef = current_amp_coef;
-        self.init_amp_time = current_time;
-        self.target_amp_coef = future_amp_coef;
-        self.stop_amp_time = future_time_ts;
+        self.init_time = current_time;
+        self.future_amp_coef = future_amp_coef;
+        self.future_time = future_time;
         Ok(())
     }
 
@@ -100,10 +100,21 @@ impl AmpCoef {
         let current_amp_coef = self.compute_amp_coef()?;
         let current_time = ink::env::block_timestamp::<DefaultEnvironment>();
         self.init_amp_coef = current_amp_coef;
-        self.target_amp_coef = current_amp_coef;
-        self.init_amp_time = current_time;
-        self.stop_amp_time = current_time;
+        self.future_amp_coef = current_amp_coef;
+        self.init_time = current_time;
+        self.future_time = current_time;
         Ok(())
+    }
+
+    /// Returns a tuple of the future amplification coefficient and the ramping end time.
+    /// Returns `None` if the amplification coefficient is not in ramping period.
+    pub fn future_amp_coef(&self) -> Option<(u128, u64)> {
+        let current_time = ink::env::block_timestamp::<DefaultEnvironment>();
+        if current_time < self.future_time {
+            Some((self.future_amp_coef, self.future_time))
+        } else {
+            None
+        }
     }
 }
 
@@ -119,9 +130,9 @@ mod tests {
     fn amp_coef_up() {
         let amp_coef = AmpCoef {
             init_amp_coef: 100,
-            target_amp_coef: 1000,
-            init_amp_time: 100,
-            stop_amp_time: 1600,
+            future_amp_coef: 1000,
+            init_time: 100,
+            future_time: 1600,
         };
         set_block_timestamp(100);
         assert_eq!(amp_coef.compute_amp_coef(), Ok(100));
@@ -135,9 +146,9 @@ mod tests {
     fn amp_coef_down() {
         let amp_coef = AmpCoef {
             init_amp_coef: 1000,
-            target_amp_coef: 100,
-            init_amp_time: 100,
-            stop_amp_time: 1600,
+            future_amp_coef: 100,
+            init_time: 100,
+            future_time: 1600,
         };
         set_block_timestamp(100);
         assert_eq!(amp_coef.compute_amp_coef(), Ok(1000));
@@ -152,9 +163,9 @@ mod tests {
         set_block_timestamp(1000);
         let mut amp_coef = AmpCoef {
             init_amp_coef: 1000,
-            target_amp_coef: 100,
-            init_amp_time: 100,
-            stop_amp_time: 1600,
+            future_amp_coef: 100,
+            init_time: 100,
+            future_time: 1600,
         };
         assert_eq!(
             amp_coef.ramp_amp_coef(1000, 999),
@@ -175,9 +186,9 @@ mod tests {
         set_block_timestamp(100);
         let mut amp_coef = AmpCoef {
             init_amp_coef: 100,
-            target_amp_coef: 100,
-            init_amp_time: 100,
-            stop_amp_time: 1600,
+            future_amp_coef: 100,
+            init_time: 100,
+            future_time: 1600,
         };
         assert_eq!(
             amp_coef.ramp_amp_coef(1001, 100 + MIN_RAMP_DURATION),
@@ -194,9 +205,9 @@ mod tests {
         set_block_timestamp(100);
         let mut amp_coef = AmpCoef {
             init_amp_coef: 100,
-            target_amp_coef: 100,
-            init_amp_time: 100,
-            stop_amp_time: 1600,
+            future_amp_coef: 100,
+            init_time: 100,
+            future_time: 1600,
         };
         assert_eq!(amp_coef.compute_amp_coef(), Ok(100));
         assert_eq!(
@@ -213,9 +224,9 @@ mod tests {
         set_block_timestamp(100);
         let mut amp_coef = AmpCoef {
             init_amp_coef: 100,
-            target_amp_coef: 100,
-            init_amp_time: 100,
-            stop_amp_time: 1600,
+            future_amp_coef: 100,
+            init_time: 100,
+            future_time: 1600,
         };
         assert_eq!(amp_coef.compute_amp_coef(), Ok(100));
         assert_eq!(

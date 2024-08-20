@@ -115,9 +115,9 @@ pub mod stable_pool {
 
     #[ink(event)]
     pub struct AmpCoefChange {
-        pub initial_amp_coef: u128,
+        pub init_amp_coef: u128,
         pub future_amp_coef: u128,
-        pub initial_time: u64,
+        pub init_time: u64,
         pub future_time: u64,
     }
 
@@ -814,18 +814,18 @@ pub mod stable_pool {
         fn ramp_amp_coef(
             &mut self,
             future_amp_coef: u128,
-            future_time_ts: u64,
+            future_time: u64,
         ) -> Result<(), StablePoolError> {
             self.ensure_owner()?;
-            let inital_amp_coef = self.amp_coef()?;
+            let init_amp_coef = self.amp_coef()?;
             self.pool
                 .amp_coef
-                .ramp_amp_coef(future_amp_coef, future_time_ts)?;
+                .ramp_amp_coef(future_amp_coef, future_time)?;
             self.env().emit_event(AmpCoefChange {
-                initial_amp_coef,
+                init_amp_coef,
                 future_amp_coef,
-                initial_time: self.env().block_timestamp(),
-                future_time: future_time_ts,
+                init_time: self.env().block_timestamp(),
+                future_time,
             });
             Ok(())
         }
@@ -854,6 +854,11 @@ pub mod stable_pool {
         #[ink(message)]
         fn amp_coef(&self) -> Result<u128, StablePoolError> {
             Ok(self.pool.amp_coef.compute_amp_coef()?)
+        }
+
+        #[ink(message)]
+        fn future_amp_coef(&self) -> Option<(u128, u64)> {
+            self.pool.amp_coef.future_amp_coef()
         }
 
         #[ink(message)]

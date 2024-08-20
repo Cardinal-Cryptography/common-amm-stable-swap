@@ -19,6 +19,11 @@ pub trait StablePool {
     #[ink(message)]
     fn amp_coef(&self) -> Result<u128, StablePoolError>;
 
+    /// Returns a tuple of the future amplification coefficient and the ramping end time.
+    /// Returns `None` if the amplification coefficient is not in ramping period.
+    #[ink(message)]
+    fn future_amp_coef(&self) -> Option<(u128, u64)>;
+
     /// Returns current trade and protocol fees in 1e9 precision.
     #[ink(message)]
     fn fees(&self) -> (u32, u32);
@@ -211,12 +216,12 @@ pub trait StablePool {
     #[ink(message)]
     fn set_fees(&mut self, trade_fee: u32, protocol_fee: u32) -> Result<(), StablePoolError>;
 
-    /// Ramp amplification coeficient to `future_amp_coef`. The ramping should finish at `future_time_ts`
+    /// Ramp amplification coeficient to `future_amp_coef`. The ramping should finish at `future_time`
     #[ink(message)]
     fn ramp_amp_coef(
         &mut self,
         future_amp_coef: u128,
-        future_time_ts: u64,
+        future_time: u64,
     ) -> Result<(), StablePoolError>;
 
     /// Stop ramping amplification coefficient.
