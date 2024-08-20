@@ -1,7 +1,7 @@
 [
   {
-    "poolType": "Rated",
     "poolName": "wazero_sazero",
+    "poolType": "Rated",
     "tokens": [
       "5EFDb7mKbougLtr5dnwd5KDfZ3wK55JPGPLiryKq4uRMPR46",
       "5G1AaZHj1Dm8Xo1jsscxNaaqzrUhtxuW4gsHrWd4wJ4HdST2"
@@ -14,8 +14,8 @@
     "protocolFeeReceiver": null
   },
   {
-    "poolType": "Stable",
     "poolName": "usdc_usdt",
+    "poolType": "Stable",
     "tokens": [
       "5DEeMqcbWEYD2X9EhMraSxndYYzfWHA6pCsFQkYAPX4FLWLd",
       "5CU5WNiYUkTfFZxJYR7AySfUqvEcHj5zr526CuC7iiVCHPfa"

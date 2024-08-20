@@ -55,7 +55,7 @@ export function readDeploymentParams(example?: boolean): {
  * @param pools - The pools to store.
  */
 export function storeDeployedPools(
-  pools: { poolName: string; address: string }[]
+  pools: ({ address: string } & PoolDeploymentParams)[]
 ): void {
   let toSave = [];
   const filePath = __dirname + "/deployedPools.json";

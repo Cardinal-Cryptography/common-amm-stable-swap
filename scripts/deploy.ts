@@ -1,7 +1,12 @@
 import { WsProvider, Keyring, ApiPromise } from "@polkadot/api";
 import StablePoolConstructors from "../types/constructors/stable_pool_contract";
 
-import { readDeploymentParams, PoolType, storeDeployedPools } from "./utils";
+import {
+  readDeploymentParams,
+  PoolType,
+  storeDeployedPools,
+  PoolDeploymentParams,
+} from "./utils";
 
 async function main(): Promise<void> {
   const { secrets, deployerWallet, deploymentParams } = readDeploymentParams(
@@ -17,12 +22,11 @@ async function main(): Promise<void> {
 
   const stablePoolConstructors = new StablePoolConstructors(api, deployer);
 
-  let deployedPools: { poolName: string; address: string }[] = [];
+  let deployedPools: ({ address: string } & PoolDeploymentParams)[] = [];
 
   for (let i = 0; i < deploymentParams.length; ++i) {
     const {
       poolType,
-      poolName,
       tokens,
       rateProviders,
       decimals,
@@ -63,7 +67,7 @@ async function main(): Promise<void> {
           .then((res) => res.address);
         break;
     }
-    deployedPools.push({ poolName, address });
+    deployedPools.push({ address, ...deploymentParams[i] });
   }
 
   console.log("Deployed pools:", deployedPools);
